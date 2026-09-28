@@ -1,0 +1,14 @@
+{
+  "name": "voice-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Assamese AI Voice Agent Platform",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "typecheck:backend": "npm --prefix backend run typecheck",
+    "typecheck:frontend": "npm --prefix frontend run typecheck"
+  }
+}
