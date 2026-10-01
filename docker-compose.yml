@@ -1,38 +1,59 @@
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: voice-agent-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: voice_agent
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-voice_agent}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-voice_agent}"]
+      interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 5s
 
   redis:
     image: redis:7-alpine
+    container_name: voice-agent-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
+      interval: 5s
       timeout: 3s
       retries: 5
+      start_period: 3s
 
   livekit:
     image: livekit/livekit-server:latest
+    container_name: voice-agent-livekit
+    restart: unless-stopped
+    command: --dev --bind 0.0.0.0
     ports:
       - "7880:7880"
       - "7881:7881"
-    command: --dev --bind 0.0.0.0
+      - "7882:7882/udp"
     environment:
-      - LIVEKIT_KEYS=devkey:devsecret
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-devsecret}"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880/"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 volumes:
   postgres_data:
+    name: voice_agent_postgres_data
+  redis_data:
+    name: voice_agent_redis_data

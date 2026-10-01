@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 1 — Local Infrastructure
+**Phase:** 3 — Backend Foundation
 
 **Status:** NOT STARTED
 
@@ -18,8 +18,8 @@
 | Phase | Status | Notes |
 |---|---|---|
 | 0 Architecture Freeze | DONE | Architecture frozen, backend/ and frontend/ scaffolded and verified |
-| 1 Local Infrastructure | NOT STARTED | |
-| 2 Dashboard Foundation | NOT STARTED | |
+| 1 Local Infrastructure | DONE | Docker Compose up (PostgreSQL, Redis, LiveKit healthy), HF external config verified |
+| 2 Dashboard Foundation | DONE | Next.js 15 App Router shell, Sidebar, Topbar, MobileNav, all 14 routes & UI primitives built and verified |
 | 3 Backend Foundation | NOT STARTED | |
 | 4 Authentication & Organization | NOT STARTED | |
 | 5 LiveKit Browser Audio | NOT STARTED | |
@@ -45,20 +45,26 @@
 
 ## Current Work
 
-Phase 0 completed. Ready for Phase 1 (Local Infrastructure).
+Phase 2 completed. Ready for Phase 3 (Backend Foundation).
 
 ## Last Completed Work
 
-**Phase 0 — Architecture Freeze**
-- Inspected production reference backend `D:\conexus\ConexusCRM-BE` and existing clinic platform `d:\Projects\whatsapp-appointment-platform`.
-- Froze architectural boundaries: backend and AI services co-located in `backend/` following ConexusCRM-BE modular layout (`src/components/`, `src/lib/`, `src/middlewares/`), with dashboard in `frontend/` (Next.js 15).
-- Created clean minimal skeletons for `backend/`, `backend/ai/tts`, and `frontend/`.
-- Tested and verified:
-  - `backend`: `npm run typecheck` (passed with 0 errors)
-  - `backend`: `npm run build` (passed with 0 errors)
-  - `backend`: server boot & `GET /api/v1/health` returning `{ success: true, data: { status: "ok" } }`
-  - `frontend`: `npm run typecheck` (passed with 0 errors)
-  - `frontend`: `npm run build` (Next.js production build succeeded)
+**Phase 2 — Dashboard Foundation**
+- Built responsive, accessible dashboard foundation in `frontend/` conforming to `FRONTEND_ARCHITECTURE.md`:
+  - **Core Primitives & Config**: `src/lib/utils.ts` (`cn` helper), `src/config/navigation.ts` (centralized routes and section groupings), `src/store/ui-store.ts` (Zustand client UI state for sidebar toggle and mobile nav — zero server data stored in Zustand).
+  - **UI Component Primitives**: `Button`, `Card`, `Badge`, `Avatar`, `Separator`, `Input`, `Skeleton`.
+  - **Layout Shell**:
+    - `Sidebar`: Collapsible desktop navigation (260px / 72px) with active route highlighting, organization header, and status footer.
+    - `Topbar`: Breadcrumb title, local environment badge, and organization context pill.
+    - `MobileNav`: Responsive slide-out drawer with backdrop blur.
+  - **Route Structure & Boundaries**:
+    - `(public)/login`: Auth login skeleton.
+    - `(dashboard)/layout`: Shell layout with nested loading boundary (`loading.tsx`), error boundary (`error.tsx`), and global `not-found.tsx`.
+    - **14 Built Routes**: `/` (Overview), `/agents`, `/agents/new`, `/agents/[agentId]`, `/calls`, `/calls/[callId]`, `/conversations`, `/clinic`, `/phone`, `/analytics`, `/organization`, `/settings`.
+- Verified and tested:
+  - `npm --prefix frontend run typecheck` (Passed with 0 errors in TypeScript strict mode).
+  - `npm --prefix frontend run build` (Next.js 15 production build succeeded across all 14 static and dynamic routes).
+  - `npm --prefix backend run typecheck` (Passed with 0 errors).
 
 ## Known Blockers
 
@@ -95,6 +101,15 @@ Repository structured into:
 
 ### Decision 9 — Zod Version Alignment
 Aligned to Zod v4 (`^4.1.12`) matching ConexusCRM-BE and satisfying peer dependency requirements of `@openai/agents`.
+
+### Decision 10 — External Hugging Face Inference Providers
+Hugging Face Inference Providers are strictly configured as an external cloud API (`https://router.huggingface.co/v1`) using token authentication, and are NOT run as a local container.
+
+### Decision 11 — Frontend State & Realtime Rules
+- No TanStack Query installed.
+- Native `fetch` through centralized API service modules (`src/services/api/client.ts`).
+- Zustand used exclusively for shared client UI state (`ui-store.ts`).
+- `livekit-client` is kept out of global shell bundles and loaded only where realtime voice is needed.
 
 ## Update Rule
 
