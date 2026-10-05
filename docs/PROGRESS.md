@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 5 — LiveKit Browser Audio
+**Phase:** 6 — Node LiveKit Agent
 
 **Status:** NOT STARTED
 
@@ -22,7 +22,7 @@
 | 2 Dashboard Foundation | DONE | Next.js 15 App Router shell, Sidebar, Topbar, MobileNav, all 14 routes & UI primitives built and verified |
 | 3 Backend Foundation | DONE | Drizzle models (users, orgs, members), first migration applied, response envelope helpers, health check verified |
 | 4 Authentication & Organization | DONE | JWT + bcryptjs auth, HTTP-only cookie transport, Redis session revocation, org membership authorization, dashboard login & protected routes verified |
-| 5 LiveKit Browser Audio | NOT STARTED | |
+| 5 LiveKit Browser Audio | DONE | Secure token API with JWT grants, VoiceSandbox UI, microphone publishing, audio level visualizer, multi-tab WebRTC verified |
 | 6 Node LiveKit Agent | NOT STARTED | |
 | 7 Silero VAD | NOT STARTED | |
 | 8 Deepgram Nova-3 STT | NOT STARTED | |
@@ -45,9 +45,34 @@
 
 ## Current Work
 
-Phase 4 completed. Ready for Phase 5 (LiveKit Browser Audio).
+Phase 5 completed. Ready for Phase 6 (Node LiveKit Agent).
 
 ## Last Completed Work
+
+**Phase 5 — LiveKit Browser Audio**
+- **LiveKit Server Integration**:
+  - LiveKit server container verified healthy on port 7880 (signaling) and 7882 (WebRTC UDP).
+  - Aligned IPv4 network addressing to `127.0.0.1:7880` in `.env` and environment schemas for rock-solid Windows Docker communication.
+- **Secure Backend Token Endpoint**:
+  - `POST /api/v1/livekit/token`: strictly guarded by `auth` and `requireOrganization` middlewares.
+  - Zod validation for `createTokenSchema` (`roomName`, `participantName`, `agentId`).
+  - Implemented `backend/src/components/livekit/services/create-token.ts` using `livekit-server-sdk` `AccessToken`.
+  - Generates signed JWTs with 15-minute TTL, organization isolation metadata, and video grants (`roomJoin`, `canPublish`, `canSubscribe`, `canPublishData`).
+  - Registered in `backend/src/app.ts` under standard `{ success, data }` response envelope.
+- **Frontend `livekit-client` Integration**:
+  - Installed `livekit-client` (`^2.22.3`) isolated to voice routes (`/agents/[agentId]` and `/agents/[agentId]/testing`) without bloating the global shell bundle (103 kB base vs 258 kB dynamic voice routes).
+  - Centralized API service `frontend/src/services/api/livekit.ts` attaching `x-organization-id` header from active organization.
+  - Custom React hook `frontend/src/hooks/use-livekit-room.ts` managing token fetch, WebRTC room connection, microphone tracks, mute/unmute, call timer, remote participant tracking, and HTML audio attachment.
+  - Real-time Web Audio API volume level analyzer (`AnalyserNode`) providing 60fps audio level metering.
+- **Voice Testing UI & Dedicated Lab**:
+  - `frontend/src/components/voice/voice-sandbox.tsx`: interactive voice sandbox with pulsing connection status badges, live volume visualizer, microphone mute toggle, room & participant diagnostics, and actionable browser microphone permission error alerts.
+  - Wired into `frontend/src/app/(dashboard)/agents/[agentId]/page.tsx` replacing previous placeholder.
+  - Created dedicated full-screen testing laboratory `frontend/src/app/(dashboard)/agents/[agentId]/testing/page.tsx` with step-by-step instructions for Phase 5 two-way multi-tab audio loopback verification.
+- **Tooling & Automated Tests**:
+  - Created `backend/test/livekit.test.ts` (script: `npm run test:livekit`): 8/8 tests passed verifying 401 unauthorized, 400 missing org, 403 invalid org, 400 invalid agentId format, 200 token generation with defaults, cryptographic JWT claims verification, and custom room/participant overrides.
+  - Created Bruno collection request `backend/bruno-collection/LiveKit/Create Token.bru` with automated response variable capture.
+  - Typecheck passed: `npm --prefix backend run typecheck` (0 errors), `npm --prefix frontend run typecheck` (0 errors).
+  - Production build passed: `npm --prefix backend run build` (0 errors), `npm --prefix frontend run build` (15/15 routes, 0 errors).
 
 **Phase 4 — Authentication & Organization**
 - **Password Hashing & Security**:

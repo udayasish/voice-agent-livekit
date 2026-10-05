@@ -9,6 +9,7 @@ import type { Route } from "./types.js";
 import { healthRoutes } from "./components/health/index.js";
 import { authRoutes } from "./components/auth/index.js";
 import { organizationRoutes } from "./components/organizations/index.js";
+import { livekitRoutes } from "./components/livekit/index.js";
 
 export class App {
   public app: express.Application;
@@ -48,6 +49,7 @@ export class App {
       ...healthRoutes,
       ...authRoutes,
       ...organizationRoutes,
+      ...livekitRoutes,
       // Future phases register components here:
       // ...agentRoutes,
       // ...callRoutes,

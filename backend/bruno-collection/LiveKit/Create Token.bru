@@ -1,0 +1,33 @@
+meta {
+  name: Create Token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}/api/v1/livekit/token
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "roomName": "voice-testing-room",
+    "participantName": "Test Doctor"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.success && res.body.data && res.body.data.token) {
+    bru.setVar("livekitToken", res.body.data.token);
+    bru.setVar("livekitRoom", res.body.data.roomName);
+  }
+}

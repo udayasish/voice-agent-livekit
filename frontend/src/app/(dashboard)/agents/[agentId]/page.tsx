@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { ArrowLeft, Save, Bot, Wrench, Terminal, Mic } from "lucide-react";
+import { ArrowLeft, Save, Bot, Wrench, Terminal, Mic, Radio } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { VoiceSandbox } from "@/components/voice/voice-sandbox";
 
 export default async function AgentDetailPage({
   params,
@@ -57,6 +58,12 @@ export default async function AgentDetailPage({
         </div>
 
         <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/agents/${agentId}/testing`}>
+              <Radio className="h-4 w-4 mr-1.5 text-primary" />
+              <span>Voice Testing Lab</span>
+            </Link>
+          </Button>
           <Button size="sm">
             <Save className="h-4 w-4 mr-1.5" />
             <span>Save Changes</span>
@@ -130,50 +137,35 @@ CRITICAL RULES:
           </Card>
         </div>
 
-        {/* Right: Realtime Voice Testing Sandbox (Phase 5 Placeholder) */}
+        {/* Right: Realtime Voice Testing Sandbox */}
         <div className="space-y-6">
-          <Card className="border-primary/20 bg-primary/5">
+          <VoiceSandbox agentId={agentId} />
+
+          <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center space-x-2">
-                <Mic className="h-4 w-4 text-primary" />
-                <CardTitle className="text-base font-semibold">
-                  Live Voice Sandbox
-                </CardTitle>
-              </div>
+              <CardTitle className="text-sm font-semibold">Voice Pipeline Spec</CardTitle>
               <CardDescription className="text-xs">
-                Realtime WebRTC voice testing via LiveKit.
+                Pipeline target specifications across development phases.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-xl border bg-background p-4 text-center space-y-3">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <Bot className="h-7 w-7 text-primary" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-sm font-semibold">Agent Standby</h4>
-                  <p className="text-xs text-muted-foreground">
-                    Connect microphone to start interactive Assamese voice test.
-                  </p>
-                </div>
-                <Button className="w-full" size="sm">
-                  <Mic className="h-4 w-4 mr-1.5" />
-                  <span>Start Voice Session</span>
-                </Button>
+            <CardContent className="space-y-2 text-xs text-muted-foreground">
+              <div className="flex justify-between">
+                <span>VAD Turn Detection</span>
+                <span className="font-medium text-foreground">Silero VAD (Phase 7)</span>
               </div>
-
-              <div className="space-y-2 text-xs text-muted-foreground">
-                <div className="flex justify-between">
-                  <span>VAD Turn Detection</span>
-                  <span className="font-medium text-foreground">Silero VAD</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Assamese STT Model</span>
-                  <span className="font-medium text-foreground">Nova-3 as-IN</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Assamese TTS Model</span>
-                  <span className="font-medium text-foreground">IndicF5</span>
-                </div>
+              <div className="flex justify-between">
+                <span>Assamese STT Model</span>
+                <span className="font-medium text-foreground">Nova-3 as-IN (Phase 8)</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Assamese TTS Model</span>
+                <span className="font-medium text-foreground">IndicF5 (Phase 11)</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Realtime Media Transport</span>
+                <Badge variant="success" className="text-[10px]">
+                  LiveKit WebRTC (Active)
+                </Badge>
               </div>
             </CardContent>
           </Card>

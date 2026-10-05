@@ -38,7 +38,7 @@ services:
     image: livekit/livekit-server:latest
     container_name: voice-agent-livekit
     restart: unless-stopped
-    command: --dev --bind 0.0.0.0
+    command: --dev --bind 0.0.0.0 --node-ip 127.0.0.1
     ports:
       - "7880:7880"
       - "7881:7881"

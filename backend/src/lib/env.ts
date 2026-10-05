@@ -19,7 +19,7 @@ const envSchema = z.object({
   JWT_REFRESH_EXPIRATION: z.string().default("7d"),
 
   // ── Realtime Media Transport (LiveKit) ────────────────────────────────────
-  LIVEKIT_URL: z.string().default("http://localhost:7880"),
+  LIVEKIT_URL: z.string().default("http://127.0.0.1:7880"),
   LIVEKIT_API_KEY: z.string().default("devkey"),
   LIVEKIT_API_SECRET: z.string().default("devsecret"),
 
