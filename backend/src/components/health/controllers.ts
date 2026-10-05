@@ -1,15 +1,18 @@
 import type { Request, Response } from "express";
-import { pool } from "../../lib/db/db.js";
+import { sql } from "drizzle-orm";
+import { db, pool } from "../../lib/db/db.js";
 import { redis } from "../../lib/redis.js";
 import env from "../../lib/env.js";
+import { successResponse } from "../../lib/response.js";
 import { getHuggingFaceConfig } from "../agent/providers/llm/config.js";
 
 export const getHealth = async (_req: Request, res: Response) => {
-  // Check PostgreSQL
+  // Check PostgreSQL & Drizzle ORM
   let postgresStatus = "disconnected";
   try {
     const pgRes = await pool.query("SELECT 1 AS ok");
-    if (pgRes.rows[0]?.ok === 1) {
+    const drizzleRes = await db.execute(sql`SELECT 1 AS ok`);
+    if (pgRes.rows[0]?.ok === 1 && drizzleRes.rows.length > 0) {
       postgresStatus = "connected";
     }
   } catch {
@@ -45,17 +48,19 @@ export const getHealth = async (_req: Request, res: Response) => {
   const hfConfig = getHuggingFaceConfig();
   const huggingfaceStatus = {
     provider: "huggingface-inference-providers",
-    deployment: "external-api", // Explicitly note it is an external cloud API, not local Docker
+    deployment: "external-api",
     model: hfConfig.model,
     baseURL: hfConfig.baseURL,
     configured: hfConfig.isConfigured,
   };
 
-  const isHealthy = postgresStatus === "connected" && redisStatus === "connected" && livekitStatus === "reachable";
+  const isHealthy =
+    postgresStatus === "connected" &&
+    redisStatus === "connected" &&
+    livekitStatus === "reachable";
 
-  res.status(isHealthy ? 200 : 200).json({
-    success: true,
-    data: {
+  res.status(isHealthy ? 200 : 200).json(
+    successResponse({
       status: isHealthy ? "healthy" : "degraded",
       timestamp: new Date().toISOString(),
       service: "voice-agent-backend",
@@ -65,6 +70,6 @@ export const getHealth = async (_req: Request, res: Response) => {
         livekit: livekitStatus,
       },
       llm: huggingfaceStatus,
-    },
-  });
+    })
+  );
 };

@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 3 — Backend Foundation
+**Phase:** 4 — Authentication & Organization
 
 **Status:** NOT STARTED
 
@@ -20,7 +20,7 @@
 | 0 Architecture Freeze | DONE | Architecture frozen, backend/ and frontend/ scaffolded and verified |
 | 1 Local Infrastructure | DONE | Docker Compose up (PostgreSQL, Redis, LiveKit healthy), HF external config verified |
 | 2 Dashboard Foundation | DONE | Next.js 15 App Router shell, Sidebar, Topbar, MobileNav, all 14 routes & UI primitives built and verified |
-| 3 Backend Foundation | NOT STARTED | |
+| 3 Backend Foundation | DONE | Drizzle models (users, orgs, members), first migration applied, response envelope helpers, health check verified |
 | 4 Authentication & Organization | NOT STARTED | |
 | 5 LiveKit Browser Audio | NOT STARTED | |
 | 6 Node LiveKit Agent | NOT STARTED | |
@@ -45,9 +45,31 @@
 
 ## Current Work
 
-Phase 2 completed. Ready for Phase 3 (Backend Foundation).
+Phase 3 completed. Ready for Phase 4 (Authentication & Organization).
 
 ## Last Completed Work
+
+**Phase 3 — Backend Foundation**
+- Established Drizzle ORM models under `backend/src/lib/db/models/`:
+  - `common.ts`: Reusable `commonFields` (UUID primary key defaultRandom, timestamp `createdAt`, timestamp `updatedAt`).
+  - `users.ts`: `users` table schema with `passwordHash`, `userStatusEnum` ('active', 'suspended'), and relations.
+  - `organizations.ts`: `organizations` table, `organizationMembers` table, enums (`businessTypeEnum`, `organizationStatusEnum`, `memberRoleEnum`), composite unique constraints, indexes, and cascade relations.
+  - `index.ts`: Barrel export of all models.
+- Standard API response helpers:
+  - `backend/src/lib/response.ts`: Implemented `successResponse` / `success` and `errorResponse` / `failure` helpers enforcing the `{ success: true, data }` / `{ success: false, error }` contract.
+  - Exported from `backend/src/lib/index.ts`.
+- Migrations:
+  - Added `dotenv/config` to `backend/drizzle.config.ts`.
+  - Added `db:migrate` script to `backend/package.json` using `tsx`.
+  - Generated initial migration: `0000_worried_sphinx.sql`.
+  - Successfully executed `npm run db:migrate` against PostgreSQL container; verified `users`, `organizations`, `organization_members` tables and 4 enums exist in PostgreSQL.
+- Health Check:
+  - Updated `backend/src/components/health/controllers.ts` to test Drizzle ORM query execution (`db.execute(sql\`SELECT 1 AS ok\`)`) alongside PostgreSQL pool, Redis, LiveKit, and external Hugging Face inference configuration.
+  - Returns standard response envelope using `successResponse`.
+- Verification:
+  - `npm --prefix backend run typecheck` passed (0 errors in strict mode).
+  - `npm --prefix backend run build` passed (0 errors).
+  - Server starts cleanly on port 4000 and connects to Redis.
 
 **Phase 2 — Dashboard Foundation**
 - Built responsive, accessible dashboard foundation in `frontend/` conforming to `FRONTEND_ARCHITECTURE.md`:

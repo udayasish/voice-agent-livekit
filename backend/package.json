@@ -8,9 +8,10 @@
     "dev": "tsx watch --env-file .env src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "migrate": "drizzle-kit migrate",
-    "db:generate": "drizzle-kit generate",
-    "db:studio": "drizzle-kit studio"
+    "migrate": "tsx node_modules/drizzle-kit/bin.cjs migrate",
+    "db:migrate": "tsx node_modules/drizzle-kit/bin.cjs migrate",
+    "db:generate": "tsx node_modules/drizzle-kit/bin.cjs generate",
+    "db:studio": "tsx node_modules/drizzle-kit/bin.cjs studio"
   },
   "dependencies": {
     "@openai/agents": "^0.8.0",

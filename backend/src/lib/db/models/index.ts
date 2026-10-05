@@ -1,2 +1,3 @@
-// Drizzle schema models barrel (Phase 0 empty, populated in Phase 3/Phase 16)
-export {};
+export * from "./common.js";
+export * from "./users.js";
+export * from "./organizations.js";
