@@ -2,9 +2,12 @@ import { ZodError, type ZodTypeAny } from "zod";
 import { asyncHandler, errors, logger } from "../lib/index.js";
 import type { ErrorRequestHandler, RequestHandler } from "express";
 
+export { auth } from "./auth.js";
+export { requireOrganization } from "./organization.js";
+
 export const validateBody = (schema: ZodTypeAny): RequestHandler =>
   asyncHandler(async (req, _res, next) => {
-    const result = schema.parse(req.body);
+    const result = schema.parse(req.body ?? {});
     req.body = result;
     next();
   });

@@ -11,10 +11,13 @@
     "migrate": "tsx node_modules/drizzle-kit/bin.cjs migrate",
     "db:migrate": "tsx node_modules/drizzle-kit/bin.cjs migrate",
     "db:generate": "tsx node_modules/drizzle-kit/bin.cjs generate",
-    "db:studio": "tsx node_modules/drizzle-kit/bin.cjs studio"
+    "db:studio": "tsx node_modules/drizzle-kit/bin.cjs studio",
+    "db:seed": "tsx --env-file .env src/lib/db/seed.ts",
+    "test:auth": "tsx --env-file .env test/auth.test.ts"
   },
   "dependencies": {
     "@openai/agents": "^0.8.0",
+    "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -28,6 +31,7 @@
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

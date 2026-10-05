@@ -100,7 +100,15 @@ Expected response:
 }
 ```
 
-### 4. Stop Local Infrastructure
+### 4. API Testing (Bruno Collection)
+
+The repository includes a ready-to-run [Bruno](https://usebruno.com) API collection under `backend/bruno-collection/`:
+1. Open Bruno and select **Open Collection** -> choose `backend/bruno-collection/`.
+2. Select the **Local** environment (`http://localhost:4000`).
+3. Run `Auth/Login` — it automatically extracts the `accessToken` and `organizationId` into collection variables for subsequent requests.
+4. Test protected endpoints under `Organizations/` and `Auth/`.
+
+### 5. Stop Local Infrastructure
 ```bash
 docker compose down
 ```

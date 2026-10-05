@@ -1,0 +1,32 @@
+meta {
+  name: Login
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}/api/v1/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{adminEmail}}",
+    "password": "{{adminPassword}}"
+  }
+}
+
+vars:pre-request {
+  adminPassword: Password123!
+  adminEmail: admin@brahmaputrahealth.com
+}
+
+script:post-response {
+  if (res.body && res.body.success && res.body.data && res.body.data.accessToken) {
+    bru.setVar("accessToken", res.body.data.accessToken);
+    if (res.body.data.currentOrganization) {
+      bru.setVar("organizationId", res.body.data.currentOrganization.id);
+    }
+  }
+}

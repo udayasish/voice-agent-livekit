@@ -1,0 +1,15 @@
+meta {
+  name: Get Organization by ID
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}/api/v1/organizations/{{organizationId}}
+  body: none
+  auth: inherit
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}

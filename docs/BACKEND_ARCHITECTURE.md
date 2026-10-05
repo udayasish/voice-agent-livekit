@@ -27,6 +27,7 @@
 | Redis | `src/lib/redis.ts` | Reuse connection pattern |
 | Permissions | `src/lib/permissions/*` | Reuse concepts; centralize verified org context |
 | Zod validation | existing middleware/routes | Reuse conventions |
+| Bruno collection | `backend/bruno-collection/` | Reuse collection pattern for local API testing |
 
 ### Do NOT Copy
 
@@ -127,7 +128,8 @@ apps/api/
 │
 ├── drizzle.config.ts
 ├── package.json
-└── .env
+├── .env
+└── bruno-collection/
 ```
 
 ## 3. Service Pattern

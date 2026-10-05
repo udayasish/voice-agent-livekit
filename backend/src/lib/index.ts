@@ -6,3 +6,4 @@ export { redis, connectRedis } from "./redis.js";
 export * as jwt from "./jwt.js";
 export * from "./db/index.js";
 export * from "./response.js";
+export * as password from "./password.js";

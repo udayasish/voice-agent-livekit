@@ -130,6 +130,7 @@ A phase is done only when:
 6. logs exist for important operations
 7. documentation is updated
 8. `PROGRESS.md` is updated
+9. Bruno collection (`backend/bruno-collection/`) is updated with working requests for any new or modified API endpoints
 
 Never mark a phase complete because files merely exist.
 
@@ -169,3 +170,4 @@ Never mark a phase complete because files merely exist.
 - Inspect the actual reference source for its common response helper/class before creating a new one.
 - New endpoints must use the project's standard `{ success, data }` / `{ success, error }` envelope.
 - Never expose stack traces or provider secrets to clients.
+- Keep the Bruno collection (`backend/bruno-collection/`) synchronized with all API endpoints, following the reference backend's pattern.

@@ -13,8 +13,9 @@ Before every phase:
 4. Read every dependency document listed by that phase
 5. Inspect the existing code
 6. Implement only the current phase
-7. Test it
-8. Update `docs/PROGRESS.md`
+7. Test it (including automated tests)
+8. Update `backend/bruno-collection/` with working `.bru` request files for any new/modified endpoints
+9. Update `docs/PROGRESS.md`
 
 ---
 

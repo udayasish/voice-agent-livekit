@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 4 — Authentication & Organization
+**Phase:** 5 — LiveKit Browser Audio
 
 **Status:** NOT STARTED
 
@@ -21,7 +21,7 @@
 | 1 Local Infrastructure | DONE | Docker Compose up (PostgreSQL, Redis, LiveKit healthy), HF external config verified |
 | 2 Dashboard Foundation | DONE | Next.js 15 App Router shell, Sidebar, Topbar, MobileNav, all 14 routes & UI primitives built and verified |
 | 3 Backend Foundation | DONE | Drizzle models (users, orgs, members), first migration applied, response envelope helpers, health check verified |
-| 4 Authentication & Organization | NOT STARTED | |
+| 4 Authentication & Organization | DONE | JWT + bcryptjs auth, HTTP-only cookie transport, Redis session revocation, org membership authorization, dashboard login & protected routes verified |
 | 5 LiveKit Browser Audio | NOT STARTED | |
 | 6 Node LiveKit Agent | NOT STARTED | |
 | 7 Silero VAD | NOT STARTED | |
@@ -45,9 +45,48 @@
 
 ## Current Work
 
-Phase 3 completed. Ready for Phase 4 (Authentication & Organization).
+Phase 4 completed. Ready for Phase 5 (LiveKit Browser Audio).
 
 ## Last Completed Work
+
+**Phase 4 — Authentication & Organization**
+- **Password Hashing & Security**:
+  - Implemented `backend/src/lib/password.ts` using `bcryptjs` with 10 salt rounds (`hashPassword`, `verifyPassword`).
+  - Web auth transport uses HTTP-only, SameSite=Lax cookies (`access_token` and `refresh_token`). Zero long-lived tokens in localStorage.
+- **JWT & Redis Session Management**:
+  - Short-lived access tokens (15m) and refresh tokens (7d) signed with unique `jti`.
+  - Redis session tracking (`storeRefreshToken`, `isRefreshTokenValid`, `revokeRefreshToken`, `revokeAllUserTokens`).
+  - Token rotation on `/auth/refresh`: old refresh token revoked in Redis upon issuing new token pair.
+- **Middlewares & Server-Side Tenant Isolation**:
+  - `auth` middleware (`src/middlewares/auth.ts`): verifies Bearer token header or cookie `access_token`, ensures user exists in DB and is active, attaches typed `req.ctx.user`.
+  - `requireOrganization` middleware (`src/middlewares/organization.ts`): intercepts `x-organization-id` header or path parameter, verifies membership in PostgreSQL, attaches trusted `req.ctx.organization`. Never trusts client-supplied organizationId.
+  - Auto-injected `auth` middleware on all protected routes in `src/app.ts`.
+- **Auth & Organization Endpoints**:
+  - `POST /api/v1/auth/login` (and alias `/api/v1/users/login`)
+  - `POST /api/v1/auth/refresh`
+  - `POST /api/v1/auth/logout` (and alias `/api/v1/users/logout`)
+  - `GET /api/v1/me` (and alias `/api/v1/users/me`)
+  - `GET /api/v1/organizations`
+  - `GET /api/v1/organizations/:organizationId` (and alias `/api/v1/organizations/:id`)
+- **Database Seed**:
+  - `src/lib/db/seed.ts` (script: `npm run db:seed`): idempotently creates "Brahmaputra Health Clinic", "Guwahati Dental Clinic", and admin user `admin@brahmaputrahealth.com` (`Password123!`) as owner.
+- **Frontend Dashboard Auth**:
+  - `services/api/auth.ts` & `services/api/organization.ts`: centralized API calls with `credentials: "include"`.
+  - `store/auth-store.ts`: Zustand store for user profile and active organization. Zero tokens in localStorage.
+  - `app/(public)/login/page.tsx`: form validation via React Hook Form + Zod, error alert banners, and redirect.
+  - `components/auth/auth-guard.tsx`: client-side session verification on dashboard mount with loading skeletons.
+  - `components/layout/topbar.tsx`: displays authenticated user name, active organization pill, and working Sign Out action.
+  - `middleware.ts`: Next.js Edge route protection redirecting unauthenticated users to `/login`.
+- **Verification & Automated Tests**:
+  - Integration test suite `test/auth.test.ts` (script: `npm run test:auth`):
+    1. Successful Login ✅
+    2. Invalid Credentials ✅
+    3. Expired / Invalid Token ✅
+    4. Protected API Access ✅
+    5. Unauthorized Organization Access ✅
+    6. Token Refresh & Logout ✅
+  - Typecheck passed: `npm --prefix backend run typecheck` (0 errors), `npm --prefix frontend run typecheck` (0 errors).
+  - Production build passed: `npm --prefix backend run build` (0 errors), `npm --prefix frontend run build` (14/14 routes + Edge middleware).
 
 **Phase 3 — Backend Foundation**
 - Established Drizzle ORM models under `backend/src/lib/db/models/`:

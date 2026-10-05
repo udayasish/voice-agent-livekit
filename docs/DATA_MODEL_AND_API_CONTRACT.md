@@ -251,6 +251,7 @@ Failure:
 - Dates are serialized consistently.
 - Timezone handling is explicit.
 - Validation errors return field-level information where appropriate.
+- Every endpoint must have a corresponding, runnable request in the repository's Bruno collection (`backend/bruno-collection/`).
 
 ## 8. Pagination
 

@@ -4,9 +4,11 @@ import cookieParser from "cookie-parser";
 import env from "./lib/env.js";
 import logger from "./lib/logger.js";
 import { connectRedis } from "./lib/redis.js";
-import { errorHandler, routeNotFoundHandler, validateBody } from "./middlewares/index.js";
+import { auth, errorHandler, routeNotFoundHandler, validateBody } from "./middlewares/index.js";
 import type { Route } from "./types.js";
 import { healthRoutes } from "./components/health/index.js";
+import { authRoutes } from "./components/auth/index.js";
+import { organizationRoutes } from "./components/organizations/index.js";
 
 export class App {
   public app: express.Application;
@@ -44,25 +46,30 @@ export class App {
   private initializeRoutes() {
     const routes: Route[] = [
       ...healthRoutes,
+      ...authRoutes,
+      ...organizationRoutes,
       // Future phases register components here:
-      // ...authRoutes,
-      // ...orgRoutes,
       // ...agentRoutes,
       // ...callRoutes,
       // ...appointmentRoutes,
     ];
 
     routes.forEach((route) => {
-      const { path: _path, method, handler, schema, middlewares: routeMiddlewares = [] } = route;
+      const { path: _path, method, handler, schema, middlewares: routeMiddlewares = [], isPublic } = route;
       const prefix = "/api/v1";
       const path = `${prefix}${_path}`;
       const middlewares = [...routeMiddlewares];
+
+      // Auto-inject auth middleware for all protected routes
+      if (!isPublic) {
+        middlewares.unshift(auth);
+      }
 
       if (schema) {
         middlewares.push(validateBody(schema));
       }
 
-      logger.verbose(`Registering route: ${method.toUpperCase()} ${path}`);
+      logger.verbose(`Registering route: ${method.toUpperCase()} ${path}${isPublic ? " (public)" : " (protected)"}`);
 
       if (method === "get") {
         this.app.get(path, ...middlewares, handler);

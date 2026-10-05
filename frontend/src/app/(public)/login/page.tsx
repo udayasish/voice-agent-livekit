@@ -1,19 +1,64 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Sparkles, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Sparkles, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { authApi } from "@/services/api/auth";
+import { useAuthStore } from "@/store/auth-store";
+import { useUiStore } from "@/store/ui-store";
+
+const loginSchema = z.object({
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const [email, setEmail] = React.useState("");
-  const [password, setPassword] = React.useState("");
+  const router = useRouter();
+  const { setSession } = useAuthStore();
+  const { setActiveOrg } = useUiStore();
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handled in Phase 4 (Authentication & Organization)
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "admin@brahmaputrahealth.com",
+      password: "",
+    },
+  });
+
+  const onSubmit = async (values: LoginFormValues) => {
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const data = await authApi.login(values);
+      setSession(data.user, data.organizations, data.currentOrganization);
+      if (data.currentOrganization) {
+        setActiveOrg(data.currentOrganization.id, data.currentOrganization.name);
+      }
+      router.push("/");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage("An unexpected authentication error occurred");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -30,17 +75,26 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
+          {errorMessage && (
+            <div className="flex items-center space-x-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-foreground">Email</label>
             <Input
               type="email"
               placeholder="admin@brahmaputrahealth.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
+              {...register("email")}
+              disabled={isSubmitting}
             />
+            {errors.email && (
+              <p className="text-[11px] text-destructive">{errors.email.message}</p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -53,23 +107,33 @@ export default function LoginPage() {
             <Input
               type="password"
               placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
+              {...register("password")}
+              disabled={isSubmitting}
             />
+            {errors.password && (
+              <p className="text-[11px] text-destructive">{errors.password.message}</p>
+            )}
           </div>
         </CardContent>
 
         <CardFooter className="flex flex-col space-y-3 pt-2">
-          <Button type="submit" className="w-full">
-            <span>Sign In</span>
-            <ArrowRight className="h-4 w-4 ml-2" />
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <>
+                <span>Sign In</span>
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </>
+            )}
           </Button>
+
           <div className="text-center text-xs text-muted-foreground">
-            <span>Phase 2 Foundation: Authentication wiring activated in </span>
-            <Link href="/" className="font-semibold text-primary underline">
-              Phase 4
-            </Link>
+            <span>Default demo credentials: </span>
+            <span className="font-mono text-[11px] text-foreground font-medium">admin@brahmaputrahealth.com / Password123!</span>
           </div>
         </CardFooter>
       </form>

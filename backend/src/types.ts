@@ -24,3 +24,28 @@ export type ApiError = {
 };
 
 export type ApiResponse<T = unknown> = ApiSuccess<T> | ApiError;
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  name: string;
+  status: "active" | "suspended";
+};
+
+export type AuthOrganization = {
+  id: string;
+  name: string;
+  businessType: string;
+  role: "owner" | "admin" | "member";
+};
+
+declare global {
+  namespace Express {
+    interface Request {
+      ctx?: {
+        user?: AuthUser;
+        organization?: AuthOrganization;
+      };
+    }
+  }
+}
