@@ -22,6 +22,7 @@ const envSchema = z.object({
   LIVEKIT_URL: z.string().default("http://127.0.0.1:7880"),
   LIVEKIT_API_KEY: z.string().default("devkey"),
   LIVEKIT_API_SECRET: z.string().default("devsecret"),
+  LIVEKIT_AGENT_NAME: z.string().optional(),
 
   // ── Python TTS Service (AI4Bharat IndicF5) ────────────────────────────────
   TTS_SERVICE_URL: z.string().default("http://localhost:8001"),

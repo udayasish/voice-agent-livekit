@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 6 — Node LiveKit Agent
+**Phase:** 7 — Silero VAD
 
 **Status:** NOT STARTED
 
@@ -23,7 +23,7 @@
 | 3 Backend Foundation | DONE | Drizzle models (users, orgs, members), first migration applied, response envelope helpers, health check verified |
 | 4 Authentication & Organization | DONE | JWT + bcryptjs auth, HTTP-only cookie transport, Redis session revocation, org membership authorization, dashboard login & protected routes verified |
 | 5 LiveKit Browser Audio | DONE | Secure token API with JWT grants, VoiceSandbox UI, microphone publishing, audio level visualizer, multi-tab WebRTC verified |
-| 6 Node LiveKit Agent | NOT STARTED | |
+| 6 Node LiveKit Agent | DONE | Agent worker with @livekit/agents & @livekit/rtc-node, deterministic chime greeting streaming, session lifecycle logging, and clean shutdown verified |
 | 7 Silero VAD | NOT STARTED | |
 | 8 Deepgram Nova-3 STT | NOT STARTED | |
 | 9 STT Benchmark | NOT STARTED | |
@@ -45,9 +45,30 @@
 
 ## Current Work
 
-Phase 5 completed. Ready for Phase 6 (Node LiveKit Agent).
+Phase 6 completed. Ready for Phase 7 (Silero VAD).
 
 ## Last Completed Work
+
+**Phase 6 — Node LiveKit Agent**
+- **Packages & Setup**:
+  - Integrated `@livekit/agents` (v1.9.1) and `@livekit/rtc-node` (v1.1.0) with Windows native bindings (`@livekit/rtc-ffi-bindings-win32-x64-msvc`).
+  - Added scripts in `backend/package.json`: `agent:dev` (local development worker with tsx), `agent:start` (production node worker), `test:agent` (unit/integration suite), and `test:agent:e2e` (end-to-end room dispatch & audio subscription verification).
+- **Deterministic Audio Greeting (`backend/src/agent/greeting.ts`)**:
+  - Pure procedural PCM audio synthesizer generating 24kHz 16-bit linear PCM mono samples without external cloud TTS dependencies.
+  - Ascending 4-note harmonic chime (C5 523Hz -> E5 659Hz -> G5 784Hz -> C6 1046Hz) with ADSR amplitude envelope and 2nd harmonic richness.
+  - Chunks samples into standard 20ms (480 samples @ 24kHz) `AudioFrame` instances.
+  - Streams frames sequentially through `@livekit/rtc-node` `AudioSource` and `LocalAudioTrack` (`agent-mic`, `TrackSource.SOURCE_MICROPHONE`).
+- **Worker & Session Lifecycle (`backend/src/agent/lifecycle.ts` & `backend/src/agent/index.ts`)**:
+  - Agent worker registers with local LiveKit server over WebSocket (`ws://127.0.0.1:7880/agent`).
+  - Custom `requestFunc` accepts jobs presenting friendly identity `agent-assistant` and name `Assamese Voice Assistant`.
+  - Listens to `RoomEvent` lifecycle (`ParticipantConnected`, `ParticipantDisconnected`, `Disconnected`).
+  - Waits for human user participant via `ctx.waitForParticipant()`, then publishes audio track and plays greeting chime.
+  - Structured Winston logging for all worker and session lifecycle stages with exact optional properties typing.
+  - Graceful shutdown listeners on `SIGINT` (Ctrl+C) and `SIGTERM`.
+- **Verification & Testing**:
+  - `npm --prefix backend run test:agent`: 5/5 unit tests passed (PCM synthesis, 20ms audio frame chunking, track creation, lifecycle logging, defineAgent structure).
+  - `npm --prefix backend run test:agent:e2e`: 1/1 end-to-end test passed (LiveKit server -> Agent worker job dispatch -> Agent joins room -> Audio track published -> Client receives `TrackSubscribed`).
+  - Full TypeScript strict mode check (`npm run typecheck`) and build compilation (`npm run build`) passed with 0 errors across backend and frontend.
 
 **Phase 5 — LiveKit Browser Audio**
 - **LiveKit Server Integration**:
