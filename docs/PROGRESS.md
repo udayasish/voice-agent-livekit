@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 7 — Silero VAD
+**Phase:** 8 — Deepgram Nova-3 STT
 
 **Status:** NOT STARTED
 
@@ -24,7 +24,7 @@
 | 4 Authentication & Organization | DONE | JWT + bcryptjs auth, HTTP-only cookie transport, Redis session revocation, org membership authorization, dashboard login & protected routes verified |
 | 5 LiveKit Browser Audio | DONE | Secure token API with JWT grants, VoiceSandbox UI, microphone publishing, audio level visualizer, multi-tab WebRTC verified |
 | 6 Node LiveKit Agent | DONE | Agent worker with @livekit/agents & @livekit/rtc-node, deterministic chime greeting streaming, session lifecycle logging, and clean shutdown verified |
-| 7 Silero VAD | NOT STARTED | |
+| 7 Silero VAD | DONE | Silero VAD ONNX model integrated on CPU, conservative parameters configured, audio track streaming pipeline, turn boundaries & barge-in interruption verified via 6/6 automated tests |
 | 8 Deepgram Nova-3 STT | NOT STARTED | |
 | 9 STT Benchmark | NOT STARTED | |
 | 10 Hugging Face Inference — Qwen3.5-4B | NOT STARTED | |
@@ -45,9 +45,40 @@
 
 ## Current Work
 
-Phase 6 completed. Ready for Phase 7 (Silero VAD).
+Phase 7 completed. Ready for Phase 8 (Deepgram Nova-3 STT).
 
 ## Last Completed Work
+
+**Phase 7 — Silero VAD**
+- **Packages & Prewarming Setup**:
+  - Integrated `@livekit/agents-plugin-silero` (v1.9.1) with ONNX Runtime CPU inference for ₹0 local development.
+  - Implemented prewarming in `defineAgent` (`proc.userData.vad = await loadSileroVAD()`) to eliminate neural model cold-start delays during room connection.
+  - Sane initialization guard `ensureAgentsLogger()` preventing uninitialized logger errors across CLI, worker, and standalone test runs.
+- **Conservative Baseline Parameters (`backend/src/agent/vad.ts`)**:
+  - `activationThreshold: 0.5` (Confidence boundary preventing false triggers on ambient noise and breathing).
+  - `minSpeechDuration: 100` ms (Filters transient clicks, microphone pops, and coughs).
+  - `minSilenceDuration: 600` ms (Balanced conversational turn-taking window allowing natural mid-utterance pauses without premature turn conclusion).
+  - `prefixPaddingDuration: 300` ms (Pre-roll buffer ensuring initial plosive consonants /p/, /t/, /k/ are preserved for downstream STT).
+  - `maxBufferedSpeech: 60000` ms (60 seconds memory ceiling safeguarding against runaway speech chunks).
+  - `sampleRate: 16000` Hz (Native 16 kHz sampling rate for the Silero neural network).
+  - `forceCPU: true` (Deterministic, dependency-free local CPU execution).
+- **WebRTC Audio Streaming & Turn Boundary Pipeline**:
+  - Created `attachVADToTrack`: wraps incoming `RemoteAudioTrack` in a 16kHz mono `AudioStream`, pipes into `vad.stream()`, and triggers typed callbacks (`onSpeechStart`, `onSpeechEnd`, `onInferenceDone`).
+  - Added new Winston structured lifecycle events: `speech_started`, `speech_ended`, `interruption_detected`.
+  - Calculated speech buffer duration from accumulated frames when concluding conversational turns.
+- **Interruption & Barge-In Primitives (`backend/src/agent/greeting.ts` & `backend/src/agent/index.ts`)**:
+  - Extended `GreetingOptions` and `playDeterministicGreeting` with `AbortSignal` support.
+  - Real-time frame loop checks `abortSignal.aborted` every 20ms frame, immediately halting playback when user speech begins.
+- **Repeatable Local Test Suite (`backend/test/vad.test.ts` & `backend/test/audio-fixtures.ts`)**:
+  - Built synthetic procedural audio generators for silence, human-like harmonic modulated speech, and electrical hum noise.
+  - Added `npm run test:vad` running 6 comprehensive automated tests:
+    1. Baseline conservative parameters validation.
+    2. Short speech detection (`START_OF_SPEECH` and `END_OF_SPEECH`).
+    3. Long speech detection (sustained 3s utterance before turn boundary).
+    4. Mid-utterance breathing pauses vs turn boundaries (250ms pause maintained within turn; 800ms silence concludes turn).
+    5. Background noise rejection (zero false triggers on 50Hz hum + hiss).
+    6. User interruption barge-in (greeting playback halts immediately upon user speech detection).
+  - Verification: 6/6 tests passed in `test:vad`, 5/5 tests passed in `test:agent`, TypeScript strict check passed (`tsc --noEmit`), and production build passed (`tsc`).
 
 **Phase 6 — Node LiveKit Agent**
 - **Packages & Setup**:

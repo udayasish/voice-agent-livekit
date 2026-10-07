@@ -12,6 +12,7 @@ export interface GreetingOptions {
   sampleRate?: number;
   frameDurationMs?: number;
   trackName?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -116,8 +117,8 @@ export const generateChimeAudioFrames = (
 /**
  * Publishes an audio track and streams the deterministic greeting chime into the room.
  */
-export const playDeterministicGreeting = async (
-  ctx: JobContext,
+export const playDeterministicGreeting = async <T = Record<string, unknown>>(
+  ctx: JobContext<T>,
   options?: GreetingOptions,
 ): Promise<void> => {
   const sampleRate = options?.sampleRate ?? 24000;
@@ -155,6 +156,12 @@ export const playDeterministicGreeting = async (
   });
 
   for (const frame of frames) {
+    if (options?.signal?.aborted) {
+      logger.info("[agent:greeting] Greeting streaming aborted by signal (barge-in)", {
+        room: ctx.room.name,
+      });
+      return;
+    }
     await source.captureFrame(frame);
     // Realtime frame pacing (20ms interval)
     await new Promise((resolve) => setTimeout(resolve, frameDurationMs));

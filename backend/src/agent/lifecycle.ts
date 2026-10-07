@@ -11,6 +11,9 @@ export type AgentLifecycleEvent =
   | "audio_published"
   | "greeting_started"
   | "greeting_completed"
+  | "speech_started"
+  | "speech_ended"
+  | "interruption_detected"
   | "room_disconnected"
   | "worker_shutdown"
   | "agent_error";
@@ -25,6 +28,10 @@ export interface LifecycleMetadata {
   participantName?: string | undefined;
   participantsCount?: number | undefined;
   durationSeconds?: number | undefined;
+  speechDurationMs?: number | undefined;
+  silenceDurationMs?: number | undefined;
+  speaking?: boolean | undefined;
+  probability?: number | undefined;
   error?: string | undefined;
   stack?: string | undefined;
   signal?: string | undefined;

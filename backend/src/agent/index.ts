@@ -1,18 +1,36 @@
-import { defineAgent, type JobContext, WorkerOptions, cli } from "@livekit/agents";
-import { RoomEvent } from "@livekit/rtc-node";
+import {
+  defineAgent,
+  type JobContext,
+  type JobProcess,
+  WorkerOptions,
+  cli,
+  type VAD as BaseVAD,
+} from "@livekit/agents";
+import { RoomEvent, TrackKind, type Track } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import env from "../lib/env.js";
+import logger from "../lib/logger.js";
 import { playDeterministicGreeting } from "./greeting.js";
 import { logLifecycle, registerShutdownHandlers } from "./lifecycle.js";
+import { attachVADToTrack, loadSileroVAD } from "./vad.js";
+
+interface AgentProcessUserData extends Record<string, unknown> {
+  vad?: BaseVAD | undefined;
+}
 
 /**
  * Node.js LiveKit Agent definition.
- * Connects to dispatched rooms and plays a deterministic audio greeting
- * to prove server-to-browser WebRTC audio streaming.
+ * Prewarms Silero VAD model on process initialization.
+ * Detects speech start, speech end (turn boundaries), and user interruption (barge-in).
  */
-const agent = defineAgent({
-  entry: async (ctx: JobContext) => {
+const agent = defineAgent<AgentProcessUserData>({
+  prewarm: async (proc: JobProcess<AgentProcessUserData>) => {
+    logger.info("[agent:prewarm] Prewarming Silero VAD neural model on CPU...");
+    proc.userData.vad = await loadSileroVAD();
+    logger.info("[agent:prewarm] Silero VAD prewarmed successfully on worker process");
+  },
+  entry: async (ctx: JobContext<AgentProcessUserData>) => {
     const targetRoomName = ctx.job?.room?.name ?? ctx.room.name ?? "unnamed-room";
     const jobId = ctx.job?.id;
 
@@ -44,6 +62,69 @@ const agent = defineAgent({
       },
     );
 
+    // Ensure VAD is available (prewarmed or lazy fallback)
+    const vad = ctx.proc.userData.vad ?? (await loadSileroVAD());
+
+    // Setup greeting interruption controller (barge-in primitive)
+    const greetingAbortController = new AbortController();
+    let isGreetingPlaying = false;
+    const attachedTracks = new Set<string>();
+
+    const attachVAD = (track: Track, participantIdentity: string) => {
+      const trackId = track.sid || `${participantIdentity}-${track.kind}`;
+      if (attachedTracks.has(trackId)) return;
+      attachedTracks.add(trackId);
+
+      logLifecycle("audio_published", `Attaching Silero VAD to user audio track (${participantIdentity})`, {
+        roomName: ctx.room.name,
+        participantIdentity,
+      });
+
+      const subscription = attachVADToTrack(vad, track, {
+        onSpeechStart: () => {
+          logLifecycle("speech_started", `User speech detected (START_OF_SPEECH)`, {
+            roomName: ctx.room.name,
+            participantIdentity,
+            speaking: true,
+          });
+
+          // Interruption / Barge-in handling:
+          if (isGreetingPlaying) {
+            isGreetingPlaying = false;
+            greetingAbortController.abort();
+            logLifecycle(
+              "interruption_detected",
+              `User interrupted agent greeting playback (barge-in detected)`,
+              {
+                roomName: ctx.room.name,
+                participantIdentity,
+              },
+            );
+          }
+        },
+        onSpeechEnd: (event) => {
+          const frame = event.frames[0];
+          const bufferedDurationMs = frame
+            ? Math.round((frame.samplesPerChannel / frame.sampleRate) * 1000)
+            : 0;
+          const speechDurationMs =
+            event.speechDuration > 0 ? event.speechDuration : bufferedDurationMs;
+
+          logLifecycle("speech_ended", `User finished speaking (END_OF_SPEECH / turn boundary)`, {
+            roomName: ctx.room.name,
+            participantIdentity,
+            speechDurationMs,
+            silenceDurationMs: event.silenceDuration,
+            speaking: false,
+          });
+        },
+      });
+
+      ctx.addShutdownCallback(async () => {
+        subscription.close();
+      });
+    };
+
     // Register room lifecycle listeners
     ctx.room.on(RoomEvent.ParticipantConnected, (participant) => {
       logLifecycle(
@@ -70,11 +151,26 @@ const agent = defineAgent({
       );
     });
 
+    ctx.room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => {
+      if (track.kind === TrackKind.KIND_AUDIO) {
+        attachVAD(track, participant.identity);
+      }
+    });
+
     ctx.room.on(RoomEvent.Disconnected, () => {
       logLifecycle("room_disconnected", `Room '${ctx.room.name}' was disconnected`, {
         roomName: ctx.room.name,
       });
     });
+
+    // Check existing remote participants' audio tracks
+    for (const [, participant] of ctx.room.remoteParticipants) {
+      for (const [, publication] of participant.trackPublications) {
+        if (publication.track && publication.track.kind === TrackKind.KIND_AUDIO) {
+          attachVAD(publication.track, participant.identity);
+        }
+      }
+    }
 
     // Step 2: Ensure a remote participant is present before streaming greeting
     if (ctx.room.remoteParticipants.size === 0) {
@@ -86,22 +182,33 @@ const agent = defineAgent({
       await ctx.waitForParticipant();
     }
 
-    // Step 3: Stream deterministic harmonic greeting chime into the room
+    // Step 3: Stream deterministic harmonic greeting chime with barge-in support
     try {
+      isGreetingPlaying = true;
       logLifecycle("greeting_started", `Streaming deterministic greeting chime in room '${roomName}'`, {
         roomName,
         participantsCount: ctx.room.remoteParticipants.size,
       });
 
-      await playDeterministicGreeting(ctx);
+      await playDeterministicGreeting(ctx, { signal: greetingAbortController.signal });
 
-      logLifecycle(
-        "greeting_completed",
-        `Deterministic greeting successfully streamed to room '${roomName}'`,
-        {
-          roomName,
-        },
-      );
+      if (greetingAbortController.signal.aborted) {
+        logLifecycle(
+          "greeting_completed",
+          `Deterministic greeting was interrupted by user in room '${roomName}' (barge-in successful)`,
+          {
+            roomName,
+          },
+        );
+      } else {
+        logLifecycle(
+          "greeting_completed",
+          `Deterministic greeting successfully streamed to room '${roomName}'`,
+          {
+            roomName,
+          },
+        );
+      }
     } catch (error) {
       logLifecycle(
         "agent_error",
@@ -111,6 +218,8 @@ const agent = defineAgent({
           error: error instanceof Error ? error.message : String(error),
         },
       );
+    } finally {
+      isGreetingPlaying = false;
     }
   },
 });
