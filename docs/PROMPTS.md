@@ -506,6 +506,7 @@ docs/PROGRESS.md
 Phase 10 in docs/PHASES.md
 docs/VOICE_AI_ARCHITECTURE.md
 docs/TECH_STACK.md
+docs/BACKEND_ARCHITECTURE.md
 
 Implement ONLY Phase 10.
 

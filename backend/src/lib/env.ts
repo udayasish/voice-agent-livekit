@@ -33,7 +33,7 @@ const envSchema = z.object({
   DEEPGRAM_MODEL: z.string().default("nova-3"),
   DEEPGRAM_LANGUAGE: z.string().default("as"),
   DEEPGRAM_BASE_URL: z.string().default("wss://api.deepgram.com"),
-  DEEPGRAM_ENDPOINTING_MS: z.coerce.number().default(25),
+  DEEPGRAM_ENDPOINTING_MS: z.coerce.number().default(300),
 
   // ── LLM (External Hugging Face Inference Providers - DO NOT run locally) ──
   // Connects securely to the external Hugging Face Inference Providers API (₹0 tier)
