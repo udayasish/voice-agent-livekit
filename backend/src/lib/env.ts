@@ -35,11 +35,20 @@ const envSchema = z.object({
   DEEPGRAM_BASE_URL: z.string().default("wss://api.deepgram.com"),
   DEEPGRAM_ENDPOINTING_MS: z.coerce.number().default(300),
 
-  // ── LLM (External Hugging Face Inference Providers - DO NOT run locally) ──
-  // Connects securely to the external Hugging Face Inference Providers API (₹0 tier)
+  // ── LLM Configuration ───────────────────────────────────────────────────────
+  LLM_PROVIDER: z.enum(["huggingface", "groq", "mock"]).default("groq"),
+  // Hugging Face router config
   HUGGINGFACE_API_TOKEN: z.string().optional(),
   HUGGINGFACE_BASE_URL: z.string().default("https://router.huggingface.co/v1"),
   HUGGINGFACE_MODEL: z.string().default("Qwen/Qwen3.5-4B"),
+
+  // Groq Cloud (Free Tier - Qwen 3.8 27B)
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_BASE_URL: z.string().default("https://api.groq.com/openai/v1"),
+  GROQ_MODEL: z.string().default("qwen/qwen3.8-27b"),
+
+  // ── Business / Clinic Configuration ─────────────────────────────────────────
+  CLINIC_NAME: z.string().default("Brahmaputra Health Clinic"),
 
   // ── Frontend / CORS ───────────────────────────────────────────────────────
   FRONTEND_URL: z.string().default("http://localhost:3000"),

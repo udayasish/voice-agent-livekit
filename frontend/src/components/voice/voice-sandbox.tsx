@@ -36,10 +36,12 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
     audioLevel,
     duration,
     remoteParticipants,
+    conversationTurns,
     error,
     connect,
     disconnect,
     toggleMute,
+    clearConversationTurns,
   } = useLiveKitRoom();
 
   const isConnected = status === "connected";
@@ -208,11 +210,59 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
           </div>
         </div>
 
-        {/* Phase 5 Notice */}
+        {/* Live Conversation Feed (Phase 10: STT -> LLM response) */}
+        {conversationTurns.length > 0 && (
+          <div className="space-y-3 border-t pt-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Radio className="h-3.5 w-3.5 text-primary" />
+                Live Conversation (STT &amp; LLM)
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] text-muted-foreground"
+                onClick={clearConversationTurns}
+              >
+                Clear
+              </Button>
+            </div>
+            <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1 text-xs">
+              {conversationTurns.map((turn) => (
+                <div key={turn.id} className="space-y-1.5 rounded-lg border bg-muted/30 p-2.5">
+                  <div className="flex items-start justify-between text-muted-foreground text-[10px]">
+                    <span className="font-semibold text-foreground flex items-center gap-1">
+                      <span>👤 You (STT):</span>
+                    </span>
+                    <span>{new Date(turn.timestamp).toLocaleTimeString()}</span>
+                  </div>
+                  <p className="font-medium text-foreground pl-3 text-xs leading-relaxed">
+                    &quot;{turn.userText}&quot;
+                  </p>
+                  <div className="border-t border-muted/50 pt-1.5 mt-1.5">
+                    <div className="flex items-center justify-between text-[10px] text-primary font-semibold">
+                      <span>🤖 Agent (LLM Brain):</span>
+                      {turn.totalLatencyMs !== undefined && (
+                        <span className="font-mono text-muted-foreground text-[10px]">
+                          {turn.totalLatencyMs} ms
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-primary/90 pl-3 text-xs font-medium leading-relaxed mt-0.5">
+                      &quot;{turn.responseText}&quot;
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Phase 10 Live AI Note */}
         <div className="rounded-lg bg-muted/50 p-2.5 text-[11px] text-muted-foreground space-y-1">
-          <p className="font-semibold text-foreground">Phase 5 Realtime Audio Note:</p>
+          <p className="font-semibold text-foreground">Phase 10 Multilingual AI Voice Pipeline:</p>
           <p>
-            No AI is loaded in Phase 5. To test two-way audio, open a second browser tab with this same page and connect. Both tabs will talk to each other through LiveKit.
+            Speak in Assamese, Hindi, or English. Your speech is recognized in real-time by Deepgram Nova-3 and processed by the Qwen3.5-4B LLM conversational brain. (Voice speech synthesis will be added in Phase 11 TTS).
           </p>
         </div>
 

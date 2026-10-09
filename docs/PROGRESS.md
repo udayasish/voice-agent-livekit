@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 10 — Hugging Face Inference — Qwen3.5-4B
+**Phase:** 11 — IndicF5 TTS
 
 **Status:** NOT STARTED
 
@@ -27,7 +27,7 @@
 | 7 Silero VAD | DONE | Silero VAD ONNX model integrated on CPU, conservative parameters configured, audio track streaming pipeline, turn boundaries & barge-in interruption verified via 6/6 automated tests |
 | 8 Deepgram Nova-3 STT | DONE | Integrated @livekit/agents-plugin-deepgram (v1.9.1), STTProvider abstraction, IndicConformer fallback boundary, Assamese streaming pipeline, live WebSocket & latency/resource profiling verified via 6/6 automated tests |
 | 9 STT Benchmark | DONE | Repeatable benchmark evaluating Deepgram Nova-3 across 9 categories (3.4% WER, 100% entity match, 209ms TTFT, 5/5 concurrency, 0 MB GPU). Results in docs/STT_BENCHMARK.md. Python STT not required. |
-| 10 Hugging Face Inference — Qwen3.5-4B | NOT STARTED | |
+| 10 Hugging Face Inference — Qwen3.5-4B | DONE | LLMProvider abstraction, HF router adapter, mock offline provider, pipeline flow (STT -> LLM -> response), and multilingual voice prompt verified via 9/9 automated tests |
 | 11 IndicF5 TTS | NOT STARTED | |
 | 12 Complete Voice Loop | NOT STARTED | |
 | 13 Barge-In | NOT STARTED | |
@@ -45,9 +45,41 @@
 
 ## Current Work
 
-Phase 9 completed. Ready for Phase 10 (Hugging Face Inference — Qwen3.5-4B).
+Phase 10 completed. Ready for Phase 11 (IndicF5 TTS).
 
 ## Last Completed Work
+
+**Phase 10 — Hugging Face Inference — Qwen3.5-4B**
+- **LLMProvider Abstraction (`backend/src/components/agent/providers/llm/`)**:
+  - Defined vendor-neutral `LLMProvider` interface in `types.ts` with streaming (`generate` returning `AsyncIterable<LLMChunk>`) and non-streaming (`chat` returning `LLMResponse`) methods.
+  - Typed contracts for `LLMMessage`, `LLMChunk`, `LLMUsage`, `LLMOptions`, and `LLMCapabilities`.
+  - Implemented `HuggingFaceLLMProvider` in `huggingface.ts` connecting to external OpenAI-compatible router (`https://router.huggingface.co/v1/chat/completions`) using native Node.js `fetch` with streaming SSE parsing and error decoding.
+  - Implemented `MockLLMProvider` in `mock.ts` for repeatable offline testing and ₹0 local development without requiring external network/quota dependencies.
+  - Provider factory `getLLMProvider()` in `factory.ts` selecting active provider via `LLM_PROVIDER` environment variable with zero codebase coupling to Hugging Face.
+- **Agent Voice Pipeline Integration (`backend/src/agent/llm.ts` & `backend/src/agent/index.ts`)**:
+  - Built voice-optimized system prompt (`DEFAULT_VOICE_SYSTEM_PROMPT`) enforcing telephone conversational brevity (1-2 sentences), zero markdown asterisks/bullets/emojis, language matching, and polite clarification prompts for missing information.
+  - Built `ConversationSession` managing participant turn history, executing the pipeline flow `STT text -> LLM provider -> response text`, and tracking Time to First Token (TTFT) and total turn latency.
+  - Prewarmed LLM provider in worker `prewarm` hook (`proc.userData.llm`).
+  - Connected `onFinalTranscript` STT callback directly to `session.processUserUtterance()`, emitting Winston structured events `llm_generation_started` and `llm_response_completed`.
+- **Testing & Verification (`backend/test/llm.test.ts`)**:
+  - Created automated test suite with 9 passing tests:
+    1. Provider abstraction, factory selection, and configuration isolation.
+    2. Multilingual comprehension: Assamese conversational response.
+    3. Multilingual comprehension: Hindi conversational response.
+    4. Multilingual comprehension: English conversational response.
+    5. Code-switching: Assamese syntax with English clinical terminology.
+    6. Missing information handling: Clarification prompts for incomplete appointment queries.
+    7. Spoken voice formatting: Strict brevity (<= 3 sentences) and complete absence of markdown or bullet points.
+    8. End-to-end flow: Chunk streaming, stream reconstruction, and latency metrics (TTFT: ~2ms, total latency: ~146ms).
+    9. Live cloud Hugging Face router verification with graceful quota/billing notice handling.
+- **Regressions & System Checks**:
+  - `npm run test:llm`: 9/9 passed.
+  - `npm run test:stt`: 6/6 passed.
+  - `npm run test:vad`: 6/6 passed.
+  - `npm run test:agent`: 5/5 passed.
+  - `npm run test:benchmark`: 5/5 passed.
+  - `npm run typecheck`: 0 errors across backend and frontend in TypeScript strict mode (`exactOptionalPropertyTypes: true`).
+  - `npm run build`: 0 errors, compiled cleanly to `dist/`.
 
 **Phase 9 — STT Benchmark**
 - **Automated Repeatable STT Benchmark Engine (`backend/test/benchmark/`)**:

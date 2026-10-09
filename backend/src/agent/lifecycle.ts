@@ -17,6 +17,8 @@ export type AgentLifecycleEvent =
   | "stt_stream_started"
   | "stt_interim_transcript"
   | "stt_final_transcript"
+  | "llm_generation_started"
+  | "llm_response_completed"
   | "room_disconnected"
   | "worker_shutdown"
   | "agent_error";
@@ -36,6 +38,10 @@ export interface LifecycleMetadata {
   speaking?: boolean | undefined;
   probability?: number | undefined;
   text?: string | undefined;
+  userText?: string | undefined;
+  responseText?: string | undefined;
+  ttftMs?: number | undefined;
+  totalLatencyMs?: number | undefined;
   latencyMs?: number | undefined;
   confidence?: number | undefined;
   language?: string | undefined;

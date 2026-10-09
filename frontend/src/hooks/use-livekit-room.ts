@@ -28,6 +28,15 @@ export type RemoteParticipantInfo = {
   audioLevel: number;
 };
 
+export type ConversationTurn = {
+  id: string;
+  userText: string;
+  responseText: string;
+  ttftMs?: number;
+  totalLatencyMs?: number;
+  timestamp: string;
+};
+
 export type UseLiveKitRoomReturn = {
   status: ConnectionStatus;
   roomName: string | null;
@@ -39,10 +48,12 @@ export type UseLiveKitRoomReturn = {
   audioLevel: number; // 0.0 to 1.0
   duration: number; // elapsed seconds
   remoteParticipants: RemoteParticipantInfo[];
+  conversationTurns: ConversationTurn[];
   error: string | null;
   connect: (params?: FetchTokenParams) => Promise<void>;
   disconnect: () => Promise<void>;
   toggleMute: () => Promise<void>;
+  clearConversationTurns: () => void;
 };
 
 export function useLiveKitRoom(): UseLiveKitRoomReturn {
@@ -56,7 +67,12 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantInfo[]>([]);
+  const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const clearConversationTurns = useCallback(() => {
+    setConversationTurns([]);
+  }, []);
 
   const roomRef = useRef<Room | null>(null);
   const durationTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -258,6 +274,34 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
           },
         );
 
+        // Listen for agent transcripts and LLM responses published over WebRTC DataChannel
+        room.on(
+          RoomEvent.DataReceived,
+          (payload: Uint8Array, _participant?: RemoteParticipant, _kind?: unknown, topic?: string) => {
+            if (topic === "agent_transcript" || !topic) {
+              try {
+                const text = new TextDecoder().decode(payload);
+                const data = JSON.parse(text);
+                if (data.type === "transcript_turn") {
+                  setConversationTurns((prev) => [
+                    ...prev,
+                    {
+                      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                      userText: data.userText,
+                      responseText: data.responseText,
+                      ttftMs: data.ttftMs,
+                      totalLatencyMs: data.totalLatencyMs,
+                      timestamp: data.timestamp || new Date().toISOString(),
+                    },
+                  ]);
+                }
+              } catch {
+                // Ignore non-JSON or unhandled data packets
+              }
+            }
+          },
+        );
+
         // Step 4: Connect to LiveKit server with token
         await room.connect(tokenData.url, tokenData.token);
 
@@ -331,9 +375,11 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
     audioLevel,
     duration,
     remoteParticipants,
+    conversationTurns,
     error,
     connect,
     disconnect,
     toggleMute,
+    clearConversationTurns,
   };
 }

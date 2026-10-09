@@ -16,10 +16,13 @@ import { playDeterministicGreeting } from "./greeting.js";
 import { logLifecycle, registerShutdownHandlers } from "./lifecycle.js";
 import { attachVADToTrack, loadSileroVAD } from "./vad.js";
 import { attachSTTToTrack, loadDeepgramSTT } from "./stt.js";
+import { loadLLMProvider, ConversationSession } from "./llm.js";
+import type { LLMProvider } from "../components/agent/providers/llm/index.js";
 
 interface AgentProcessUserData extends Record<string, unknown> {
   vad?: BaseVAD | undefined;
   stt?: deepgram.STT | null | undefined;
+  llm?: LLMProvider | undefined;
 }
 
 /**
@@ -39,6 +42,10 @@ const agent = defineAgent<AgentProcessUserData>({
     if (proc.userData.stt) {
       logger.info("[agent:prewarm] Deepgram Nova-3 STT prewarmed successfully");
     }
+
+    logger.info("[agent:prewarm] Initializing LLM provider (Qwen3.5-4B)...");
+    proc.userData.llm = loadLLMProvider();
+    logger.info("[agent:prewarm] LLM provider initialized successfully");
   },
   entry: async (ctx: JobContext<AgentProcessUserData>) => {
     const targetRoomName = ctx.job?.room?.name ?? ctx.room.name ?? "unnamed-room";
@@ -72,9 +79,10 @@ const agent = defineAgent<AgentProcessUserData>({
       },
     );
 
-    // Ensure VAD and STT are available (prewarmed or lazy fallback)
+    // Ensure VAD, STT, and LLM are available (prewarmed or lazy fallback)
     const vad = ctx.proc.userData.vad ?? (await loadSileroVAD());
     const stt = ctx.proc.userData.stt ?? (await loadDeepgramSTT());
+    const llm = ctx.proc.userData.llm ?? loadLLMProvider();
 
     // Setup greeting interruption controller (barge-in primitive)
     const greetingAbortController = new AbortController();
@@ -136,6 +144,12 @@ const agent = defineAgent<AgentProcessUserData>({
         vadSubscription.close();
       });
 
+      // Initialize conversational session for this participant's dialogue turns
+      const session = new ConversationSession(llm, {
+        roomName: ctx.room.name || roomName,
+        participantIdentity,
+      });
+
       // 2. Attach Deepgram Nova-3 STT (if configured)
       if (stt) {
         logLifecycle(
@@ -167,18 +181,67 @@ const agent = defineAgent<AgentProcessUserData>({
               });
             }
           },
-          onFinalTranscript: (event, latencyMs) => {
+          onFinalTranscript: async (event, latencyMs) => {
             const primaryAlt = event.alternatives?.[0];
             const text = primaryAlt?.text;
             if (text && text.trim().length > 0) {
-              logLifecycle("stt_final_transcript", `Final transcript: "${text}"`, {
+              const userUtterance = text.trim();
+              logLifecycle("stt_final_transcript", `Final transcript: "${userUtterance}"`, {
                 roomName: ctx.room.name,
                 participantIdentity,
-                text,
+                text: userUtterance,
                 language: primaryAlt.language,
                 confidence: primaryAlt.confidence,
                 latencyMs,
               });
+
+              // Flow: STT text -> LLM provider -> response text
+              logLifecycle("llm_generation_started", `LLM generating response for "${userUtterance}"`, {
+                roomName: ctx.room.name,
+                participantIdentity,
+                userText: userUtterance,
+              });
+
+              try {
+                const llmResult = await session.processUserUtterance(userUtterance);
+                logLifecycle("llm_response_completed", `LLM generated response: "${llmResult.text}"`, {
+                  roomName: ctx.room.name,
+                  participantIdentity,
+                  userText: userUtterance,
+                  responseText: llmResult.text,
+                  ttftMs: llmResult.ttftMs,
+                  totalLatencyMs: llmResult.totalLatencyMs,
+                });
+
+                // Broadcast transcript and response over WebRTC DataChannel to room (e.g. browser sandbox)
+                try {
+                  const encoder = new TextEncoder();
+                  const payload = JSON.stringify({
+                    type: "transcript_turn",
+                    userText: userUtterance,
+                    responseText: llmResult.text,
+                    ttftMs: llmResult.ttftMs,
+                    totalLatencyMs: llmResult.totalLatencyMs,
+                    timestamp: new Date().toISOString(),
+                  });
+                  await ctx.room.localParticipant?.publishData(encoder.encode(payload), {
+                    reliable: true,
+                    topic: "agent_transcript",
+                  });
+                } catch {
+                  // Best-effort data channel broadcast
+                }
+              } catch (llmErr) {
+                logLifecycle(
+                  "agent_error",
+                  `LLM generation error: ${llmErr instanceof Error ? llmErr.message : String(llmErr)}`,
+                  {
+                    roomName: ctx.room.name,
+                    participantIdentity,
+                    error: llmErr instanceof Error ? llmErr.message : String(llmErr),
+                  },
+                );
+              }
             }
           },
           onError: (err) => {
