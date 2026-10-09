@@ -1,4 +1,5 @@
 import { AudioFrame } from "@livekit/rtc-node";
+import { ASSAMESE_SAMPLES } from "./fixtures/assamese-samples.js";
 
 export interface SyntheticSpeechOptions {
   fundamentalFreq?: number; // Voice pitch in Hz (e.g. 180 Hz)
@@ -158,4 +159,114 @@ export const generateSequenceFrames = (
   }
 
   return result;
+};
+
+/**
+ * Packages an array of AudioFrames into a standard RIFF/WAV format Buffer (16-bit linear PCM mono).
+ */
+export const createWavBufferFromFrames = (
+  frames: AudioFrame[],
+  sampleRate = 16000,
+): Buffer => {
+  const totalSamples = frames.reduce((acc, f) => acc + f.samplesPerChannel, 0);
+  const dataByteLength = totalSamples * 2;
+  const buffer = Buffer.alloc(44 + dataByteLength);
+
+  // RIFF header
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + dataByteLength, 4);
+  buffer.write("WAVE", 8);
+
+  // "fmt " chunk
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16); // subchunk size (16 for PCM)
+  buffer.writeUInt16LE(1, 20); // audio format (1 = linear PCM)
+  buffer.writeUInt16LE(1, 22); // num channels (1 = mono)
+  buffer.writeUInt32LE(sampleRate, 24); // sample rate
+  buffer.writeUInt32LE(sampleRate * 2, 28); // byte rate (sampleRate * numChannels * 2)
+  buffer.writeUInt16LE(2, 32); // block align
+  buffer.writeUInt16LE(16, 34); // bits per sample
+
+  // "data" chunk
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(dataByteLength, 40);
+
+  let offset = 44;
+  for (const frame of frames) {
+    const frameBuffer = Buffer.from(
+      frame.data.buffer,
+      frame.data.byteOffset,
+      frame.data.byteLength,
+    );
+    frameBuffer.copy(buffer, offset);
+    offset += frame.data.byteLength;
+  }
+
+  return buffer;
+};
+
+/**
+ * Parses a standard 16-bit linear PCM mono WAV buffer into 20ms AudioFrames.
+ */
+export const createFramesFromWavBuffer = (
+  wavBuffer: Buffer,
+  frameDurationMs = 20,
+): AudioFrame[] => {
+  if (
+    wavBuffer.toString("utf8", 0, 4) !== "RIFF" ||
+    wavBuffer.toString("utf8", 8, 12) !== "WAVE"
+  ) {
+    throw new Error("Invalid WAV format: Missing RIFF/WAVE header");
+  }
+
+  const sampleRate = wavBuffer.readUInt32LE(24);
+  const channels = wavBuffer.readUInt16LE(22);
+
+  let pos = 12;
+  while (pos < wavBuffer.length - 8) {
+    const chunkHeader = wavBuffer.toString("utf8", pos, pos + 4);
+    const chunkSize = wavBuffer.readUInt32LE(pos + 4);
+    if (chunkHeader === "data") {
+      const dataOffset = pos + 8;
+      const rawData = wavBuffer.subarray(dataOffset, dataOffset + chunkSize);
+      const samplesPerFrame = Math.floor((frameDurationMs / 1000) * sampleRate);
+      const totalSamples = Math.floor(rawData.byteLength / 2);
+      const int16 = new Int16Array(
+        rawData.buffer,
+        rawData.byteOffset,
+        totalSamples,
+      );
+
+      const frames: AudioFrame[] = [];
+      for (let offset = 0; offset < totalSamples; offset += samplesPerFrame) {
+        if (offset + samplesPerFrame <= totalSamples) {
+          const chunk = new Int16Array(samplesPerFrame);
+          chunk.set(int16.subarray(offset, offset + samplesPerFrame));
+          frames.push(new AudioFrame(chunk, sampleRate, channels, samplesPerFrame));
+        }
+      }
+      return frames;
+    }
+    pos += 8 + chunkSize;
+  }
+
+  throw new Error("Invalid WAV format: No 'data' chunk found");
+};
+
+/**
+ * Procedurally generates speech frames tailored for an Assamese benchmark sample.
+ */
+export const generateAssameseSpeechFrames = (
+  sampleKey: string,
+  sampleRate = 16000,
+): AudioFrame[] => {
+  const sample = ASSAMESE_SAMPLES[sampleKey];
+  const durationMs = sample?.durationMs ?? 2000;
+  const fundamental = sample?.fundamentalFreq ?? 180;
+
+  return generateSyntheticSpeechFrames(durationMs, {
+    sampleRate,
+    fundamentalFreq: fundamental,
+    amplitude: 18000,
+  });
 };

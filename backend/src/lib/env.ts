@@ -27,8 +27,13 @@ const envSchema = z.object({
   // ── Python TTS Service (AI4Bharat IndicF5) ────────────────────────────────
   TTS_SERVICE_URL: z.string().default("http://localhost:8001"),
 
-  // ── Speech-to-Text (Deepgram Nova-3 Cloud API) ────────────────────────────
+  // ── Speech-to-Text (STT) Configuration ─────────────────────────────────────
+  STT_PROVIDER: z.enum(["deepgram", "indicconformer"]).default("deepgram"),
   DEEPGRAM_API_KEY: z.string().optional(),
+  DEEPGRAM_MODEL: z.string().default("nova-3"),
+  DEEPGRAM_LANGUAGE: z.string().default("as"),
+  DEEPGRAM_BASE_URL: z.string().default("wss://api.deepgram.com"),
+  DEEPGRAM_ENDPOINTING_MS: z.coerce.number().default(25),
 
   // ── LLM (External Hugging Face Inference Providers - DO NOT run locally) ──
   // Connects securely to the external Hugging Face Inference Providers API (₹0 tier)

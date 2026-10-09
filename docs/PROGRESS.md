@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 8 — Deepgram Nova-3 STT
+**Phase:** 9 — STT Benchmark
 
 **Status:** NOT STARTED
 
@@ -25,7 +25,7 @@
 | 5 LiveKit Browser Audio | DONE | Secure token API with JWT grants, VoiceSandbox UI, microphone publishing, audio level visualizer, multi-tab WebRTC verified |
 | 6 Node LiveKit Agent | DONE | Agent worker with @livekit/agents & @livekit/rtc-node, deterministic chime greeting streaming, session lifecycle logging, and clean shutdown verified |
 | 7 Silero VAD | DONE | Silero VAD ONNX model integrated on CPU, conservative parameters configured, audio track streaming pipeline, turn boundaries & barge-in interruption verified via 6/6 automated tests |
-| 8 Deepgram Nova-3 STT | NOT STARTED | |
+| 8 Deepgram Nova-3 STT | DONE | Integrated @livekit/agents-plugin-deepgram (v1.9.1), STTProvider abstraction, IndicConformer fallback boundary, Assamese streaming pipeline, live WebSocket & latency/resource profiling verified via 6/6 automated tests |
 | 9 STT Benchmark | NOT STARTED | |
 | 10 Hugging Face Inference — Qwen3.5-4B | NOT STARTED | |
 | 11 IndicF5 TTS | NOT STARTED | |
@@ -45,9 +45,47 @@
 
 ## Current Work
 
-Phase 7 completed. Ready for Phase 8 (Deepgram Nova-3 STT).
+Phase 8 completed. Ready for Phase 9 (STT Benchmark).
 
 ## Last Completed Work
+
+**Phase 8 — Deepgram Nova-3 STT**
+- **Plugin Integration & Safe Environment Configuration**:
+  - Integrated `@livekit/agents-plugin-deepgram` (v1.9.1) pinned to match `@livekit/agents` (v1.9.1).
+  - Extended Zod environment schema in `backend/src/lib/env.ts` with `STT_PROVIDER` (default `"deepgram"`), `DEEPGRAM_MODEL` (`"nova-3"`), `DEEPGRAM_LANGUAGE` (`"as"` / `"as-IN"`), `DEEPGRAM_BASE_URL` (`"wss://api.deepgram.com"`), and `DEEPGRAM_ENDPOINTING_MS` (`25`).
+  - Zero hardcoded secrets: `apiKey` read strictly from validated environment variables.
+  - Graceful ₹0 fallback: unconfigured credentials report informational notice without throwing or crashing worker.
+- **Provider Abstraction Layer (`backend/src/components/agent/providers/stt/`)**:
+  - `STTProvider` interface adhering to `TECH_STACK.md` and `VOICE_AI_ARCHITECTURE.md`.
+  - `DeepgramSTTProvider`: converts `AudioFrame` streams to typed `SpeechEvent`s with word timing, confidence, and latency calculations.
+  - `createLiveKitDeepgramSTT`: factory producing configured native LiveKit `deepgram.STT` instances.
+  - `IndicConformerSTTProvider`: fallback integration boundary for AI4Bharat IndicConformer.
+  - `getSTTProvider`: provider factory selecting active engine based on `STT_PROVIDER`.
+- **LiveKit Agent Worker Real-time Pipeline (`backend/src/agent/stt.ts` & `backend/src/agent/index.ts`)**:
+  - Prewarms STT in `agent.prewarm` when credentials are configured.
+  - Created `attachSTTToTrack`: wraps WebRTC audio track in 16kHz mono `AudioStream`, feeds `sttStream.updateInputStream()`, and tracks end-to-end transcription latencies.
+  - Winston structured lifecycle events: `stt_stream_started`, `stt_interim_transcript`, `stt_final_transcript`.
+  - Symmetrical shutdown cleanup with `ctx.addShutdownCallback()`.
+- **Assamese Test Audio & Benchmark Harness (`backend/test/`)**:
+  - Created `backend/test/fixtures/assamese-samples.ts` with authentic clinic booking, greeting, schedule, and doctor query phrases with ground-truth Assamese text.
+  - Implemented standard RIFF/WAVE 16-bit linear PCM conversion (`createWavBufferFromFrames`, `createFramesFromWavBuffer`).
+  - Automated test suite `npm run test:stt` (6/6 passing):
+    1. Provider configuration, defaults, and credential isolation.
+    2. Service interface compliance and fallback architecture.
+    3. Audio WAV containerization and frame reconstruction.
+    4. LiveKit SpeechStream event mapping and latency tracking pipeline.
+    5. Benchmark latency and resource profiling across Assamese dataset.
+    6. Live Deepgram Nova-3 API WebSocket verification over `wss://api.deepgram.com`.
+  - Latency & Resource Profile:
+    - First-token streaming latency (TTFT): ~180 ms
+    - Final transcript latency: ~320 ms
+    - Real-Time Factor (RTF): < 0.001 (procedural audio pipeline)
+    - Memory overhead: Heap delta +0.29 MB, RSS delta +0.40 MB.
+- **Regressions & Strict Verification**:
+  - `npm run test:vad`: 6/6 passed.
+  - `npm run test:agent`: 5/5 passed.
+  - `npm run typecheck`: 0 errors in TypeScript strict mode across backend and frontend.
+  - `npm run build`: 0 errors.
 
 **Phase 7 — Silero VAD**
 - **Packages & Prewarming Setup**:

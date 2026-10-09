@@ -15,6 +15,7 @@ Do not copy its legacy telephony stack, CRM domain, old auth lifecycle, ad-hoc t
 Do not give Antigravity the entire project in one prompt.
 
 Give:
+
 1. initialization prompt once
 2. one phase prompt at a time
 
@@ -429,6 +430,7 @@ docs/PROGRESS.md
 Phase 8 in docs/PHASES.md
 docs/VOICE_AI_ARCHITECTURE.md
 docs/TECH_STACK.md
+docs/BACKEND_ARCHITECTURE.md
 
 Implement ONLY Phase 8.
 

@@ -18,11 +18,13 @@
     "test:agent": "tsx --env-file .env test/agent.test.ts",
     "test:agent:e2e": "tsx --env-file .env test/agent-e2e.test.ts",
     "test:vad": "tsx --env-file .env test/vad.test.ts",
+    "test:stt": "tsx --env-file .env test/stt.test.ts",
     "agent:dev": "tsx --env-file .env src/agent/index.ts dev",
     "agent:start": "node --env-file .env dist/agent/index.js start"
   },
   "dependencies": {
     "@livekit/agents": "^1.9.1",
+    "@livekit/agents-plugin-deepgram": "^1.9.1",
     "@livekit/agents-plugin-silero": "^1.9.1",
     "@livekit/rtc-node": "^1.1.0",
     "@openai/agents": "^0.8.0",
