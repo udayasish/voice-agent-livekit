@@ -7,7 +7,7 @@ import {
   type VAD as BaseVAD,
 } from "@livekit/agents";
 import type * as deepgram from "@livekit/agents-plugin-deepgram";
-import { RoomEvent, TrackKind, type Track } from "@livekit/rtc-node";
+import { RoomEvent, TrackKind, type Track, AudioSource } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import env from "../lib/env.js";
@@ -17,14 +17,14 @@ import { logLifecycle, registerShutdownHandlers } from "./lifecycle.js";
 import { attachVADToTrack, loadSileroVAD } from "./vad.js";
 import { attachSTTToTrack, loadDeepgramSTT } from "./stt.js";
 import { loadLLMProvider, ConversationSession } from "./llm.js";
-import { loadTTSProvider, IndicF5TTS } from "./tts.js";
+import { loadTTSProvider, type TTSAdapter, RayaTTS } from "./tts.js";
 import type { LLMProvider } from "../components/agent/providers/llm/index.js";
 
 interface AgentProcessUserData extends Record<string, unknown> {
   vad?: BaseVAD | undefined;
   stt?: deepgram.STT | null | undefined;
   llm?: LLMProvider | undefined;
-  tts?: IndicF5TTS | undefined;
+  tts?: TTSAdapter | undefined;
 }
 
 /**
@@ -32,7 +32,7 @@ interface AgentProcessUserData extends Record<string, unknown> {
  * Prewarms Silero VAD model on process initialization.
  * Prewarms Deepgram Nova-3 STT for Assamese real-time transcription.
  * Prewarms LLM Provider (Qwen3.5 / Groq).
- * Prewarms IndicF5 TTS adapter.
+ * Prewarms active TTS adapter (Raya BakBak / IndicF5).
  * Detects speech start, speech end (turn boundaries), and user interruption (barge-in).
  */
 const agent = defineAgent<AgentProcessUserData>({
@@ -51,9 +51,16 @@ const agent = defineAgent<AgentProcessUserData>({
     proc.userData.llm = loadLLMProvider();
     logger.info("[agent:prewarm] LLM provider initialized successfully");
 
-    logger.info("[agent:prewarm] Initializing IndicF5 TTS adapter...");
+    logger.info(`[agent:prewarm] Initializing TTS provider (${env.TTS_PROVIDER})...`);
     proc.userData.tts = loadTTSProvider();
-    logger.info("[agent:prewarm] IndicF5 TTS adapter initialized successfully");
+    if (proc.userData.tts instanceof RayaTTS) {
+      await proc.userData.tts.initialize().catch((err) => {
+        logger.warn("[agent:prewarm] Raya TTS initialization notice", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+    logger.info(`[agent:prewarm] TTS provider (${proc.userData.tts.label}) initialized successfully`);
   },
   entry: async (ctx: JobContext<AgentProcessUserData>) => {
     const targetRoomName = ctx.job?.room?.name ?? ctx.room.name ?? "unnamed-room";
@@ -93,9 +100,12 @@ const agent = defineAgent<AgentProcessUserData>({
     const llm = ctx.proc.userData.llm ?? loadLLMProvider();
     const tts = ctx.proc.userData.tts ?? loadTTSProvider();
 
-    // Setup greeting interruption controller (barge-in primitive)
+    // Setup audio source and interruption controllers (barge-in primitives)
+    let agentAudioSource: AudioSource | null = null;
     const greetingAbortController = new AbortController();
     let isGreetingPlaying = false;
+    let activeTtsAbortController: AbortController | null = null;
+    let isTtsPlaying = false;
     const attachedTracks = new Set<string>();
 
     const attachAudioPipelines = (track: Track, participantIdentity: string) => {
@@ -124,6 +134,19 @@ const agent = defineAgent<AgentProcessUserData>({
             logLifecycle(
               "interruption_detected",
               `User interrupted agent greeting playback (barge-in detected)`,
+              {
+                roomName: ctx.room.name,
+                participantIdentity,
+              },
+            );
+          }
+
+          if (isTtsPlaying) {
+            isTtsPlaying = false;
+            activeTtsAbortController?.abort();
+            logLifecycle(
+              "interruption_detected",
+              `User interrupted agent speech playback (TTS barge-in detected)`,
               {
                 roomName: ctx.room.name,
                 participantIdentity,
@@ -241,42 +264,55 @@ const agent = defineAgent<AgentProcessUserData>({
                   // Best-effort data channel broadcast
                 }
 
-                // Synthesize response audio using IndicF5 TTS adapter (Phase 11)
+                // Synthesize response audio using configured TTS adapter (Raya BakBak / IndicF5)
                 try {
-                  logLifecycle("tts_synthesis_started", `Synthesizing speech with IndicF5 for: "${llmResult.text.slice(0, 40)}"`, {
+                  logLifecycle("tts_synthesis_started", `Synthesizing speech with ${tts.label} for: "${llmResult.text.slice(0, 40)}"`, {
                     roomName: ctx.room.name,
                     participantIdentity,
                     text: llmResult.text,
+                    provider: tts.label,
                   });
 
+                  activeTtsAbortController = new AbortController();
+                  isTtsPlaying = true;
                   const ttsStart = Date.now();
-                  const ttsStream = tts.synthesize(llmResult.text);
+                  const ttsStream = tts.synthesize(llmResult.text, undefined, activeTtsAbortController.signal);
                   let frameCount = 0;
-                  for await (const _packet of ttsStream) {
+                  for await (const packet of ttsStream) {
+                    if (activeTtsAbortController?.signal.aborted) {
+                      break;
+                    }
                     frameCount++;
+                    if (agentAudioSource) {
+                      await agentAudioSource.captureFrame(packet.frame);
+                    }
                   }
                   const ttsDurationMs = Date.now() - ttsStart;
 
                   logLifecycle(
                     "tts_synthesis_completed",
-                    `IndicF5 speech synthesis completed (${frameCount} frames in ${ttsDurationMs}ms)`,
+                    `${tts.label} speech synthesis completed (${frameCount} frames in ${ttsDurationMs}ms)`,
                     {
                       roomName: ctx.room.name,
                       participantIdentity,
                       frameCount,
                       ttsDurationMs,
+                      provider: tts.label,
                     },
                   );
                 } catch (ttsErr) {
                   logLifecycle(
                     "agent_error",
-                    `IndicF5 TTS synthesis error: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`,
+                    `${tts.label} TTS synthesis error: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`,
                     {
                       roomName: ctx.room.name,
                       participantIdentity,
                       error: ttsErr instanceof Error ? ttsErr.message : String(ttsErr),
                     },
                   );
+                } finally {
+                  isTtsPlaying = false;
+                  activeTtsAbortController = null;
                 }
               } catch (llmErr) {
                 logLifecycle(
@@ -371,7 +407,8 @@ const agent = defineAgent<AgentProcessUserData>({
         participantsCount: ctx.room.remoteParticipants.size,
       });
 
-      await playDeterministicGreeting(ctx, { signal: greetingAbortController.signal });
+      const greetingResult = await playDeterministicGreeting(ctx, { signal: greetingAbortController.signal });
+      agentAudioSource = greetingResult.source;
 
       if (greetingAbortController.signal.aborted) {
         logLifecycle(

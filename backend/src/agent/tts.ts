@@ -4,13 +4,21 @@ import {
 } from "@livekit/agents";
 import { AudioFrame } from "@livekit/rtc-node";
 import crypto from "node:crypto";
+import env from "../lib/env.js";
 import logger from "../lib/logger.js";
 import {
   IndicF5Client,
   getIndicF5Config,
   type IndicF5Config,
   type ResolvedIndicF5Config,
+  RayaTTS,
+  RayaChunkedStream,
+  RayaSynthesizeStream,
+  type RayaTTSConfig,
 } from "../components/agent/providers/tts/index.js";
+
+export { RayaTTS, RayaChunkedStream, RayaSynthesizeStream };
+export type { RayaTTSConfig };
 
 /**
  * LiveKit ChunkedStream delivering 24kHz AudioFrame packets from IndicF5 synthesis.
@@ -148,13 +156,47 @@ export class IndicF5TTS extends tts.TTS {
   }
 }
 
+export type TTSAdapter = RayaTTS | IndicF5TTS;
+
+export interface TTSFactoryOptions {
+  provider?: "raya" | "indicf5" | undefined;
+  raya?: Partial<RayaTTSConfig> | undefined;
+  indicf5?: Partial<IndicF5Config> | undefined;
+  // Backward compatibility with IndicF5 options passed directly
+  serviceUrl?: string | undefined;
+  sampleRate?: number | undefined;
+  language?: string | undefined;
+  timeoutMs?: number | undefined;
+}
+
 /**
- * Factory helper to instantiate and prewarm the IndicF5 TTS provider.
+ * Factory helper to instantiate the active TTS provider (Raya BakBak by default,
+ * or IndicF5 when explicitly configured).
  */
-export function loadTTSProvider(options?: Partial<IndicF5Config>): IndicF5TTS {
-  logger.info("[agent:tts] Initializing IndicF5 TTS adapter", {
-    serviceUrl: options?.serviceUrl ?? process.env.TTS_SERVICE_URL ?? "http://localhost:8001",
-    sampleRate: options?.sampleRate ?? 24000,
+export function loadTTSProvider(options?: Partial<IndicF5Config> | TTSFactoryOptions): TTSAdapter {
+  const factoryOpts = options as TTSFactoryOptions | undefined;
+  const selectedProvider = factoryOpts?.provider ?? (factoryOpts?.serviceUrl ? "indicf5" : env.TTS_PROVIDER);
+
+  if (selectedProvider === "indicf5") {
+    logger.info("[agent:tts] Initializing IndicF5 TTS adapter (benchmark fallback)", {
+      serviceUrl: factoryOpts?.indicf5?.serviceUrl ?? factoryOpts?.serviceUrl ?? env.TTS_SERVICE_URL ?? "http://localhost:8001",
+      sampleRate: factoryOpts?.indicf5?.sampleRate ?? factoryOpts?.sampleRate ?? 24000,
+    });
+    return new IndicF5TTS(factoryOpts?.indicf5 ?? (options as Partial<IndicF5Config>));
+  }
+
+  const rayaOptions: Partial<RayaTTSConfig> = {
+    ...factoryOpts?.raya,
+    ...(factoryOpts?.sampleRate ? { sampleRate: factoryOpts.sampleRate } : {}),
+    ...(factoryOpts?.language ? { language: factoryOpts.language } : {}),
+    ...(factoryOpts?.timeoutMs ? { requestTimeoutMs: factoryOpts.timeoutMs } : {}),
+  };
+
+  logger.info("[agent:tts] Initializing Raya BakBak TTS adapter", {
+    language: rayaOptions.language ?? env.RAYA_TTS_LANGUAGE,
+    model: rayaOptions.model ?? env.RAYA_TTS_MODEL,
+    sampleRate: rayaOptions.sampleRate ?? env.RAYA_TTS_SAMPLE_RATE,
   });
-  return new IndicF5TTS(options);
+
+  return new RayaTTS(rayaOptions);
 }

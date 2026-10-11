@@ -1,32 +1,86 @@
 [
   {
     "id": "as-greeting",
-    "category": "Short Greeting",
-    "text": "নমস্কাৰ, ব্ৰহ্মপুত্ৰ হেলথ ক্লিনিকত আপোনাক স্বাগতম।",
+    "category": "Greeting",
+    "text": "নমস্কাৰ, ব্ৰহ্মপুত্ৰ হেলথ ক্লিনিকলৈ আপোনাক স্বাগতম। মই আপোনাক কেনেকৈ সহায় কৰিব পাৰোঁ?",
     "description": "Standard clinic receptionist opening greeting in pure polite Assamese"
   },
   {
-    "id": "as-booking",
-    "category": "Clinical Appointment",
-    "text": "ডক্টৰ বৰুৱাৰ সৈতে কাইলৈ পুৱা ১০ বজাত এটা এপইণ্টমেণ্ট বুক কৰিব পাৰিবনে?",
-    "description": "Appointment scheduling query with doctor name, relative day, and hour"
+    "id": "as-doctor-selection",
+    "category": "Doctor Selection",
+    "text": "আপুনি কোনজন ডাক্তৰৰ সৈতে এপইণ্টমেণ্ট ল'ব বিচাৰে?",
+    "description": "Physician selection query in natural conversational Assamese"
   },
   {
-    "id": "as-specialist",
-    "category": "Medical Specialists",
-    "text": "ডাঃ প্ৰণৱ জ্যোতি দাস, শিশু ৰোগ বিশেষজ্ঞ আৰু ডাঃ অৰুণিমা শৰ্মা, হৃদৰোগ বিশেষজ্ঞ উপস্থিত আছে।",
-    "description": "Complex compound doctor titles, specialist designations, and conjunctions"
+    "id": "as-doctor-availability",
+    "category": "Doctor Availability",
+    "text": "আপুনি বিচৰা চিকিৎসকজনৰ আজিৰ সময়সূচী পৰীক্ষা কৰি দিছোঁ।",
+    "description": "Schedule lookup notification with medical terminology"
   },
   {
-    "id": "as-datetime-numbers",
-    "category": "Dates, Times & Numbers",
-    "text": "আপোনাৰ এপইণ্টমেণ্ট ১৫ অক্টোবৰ, বিয়লি ৪:৩০ বজাত নিশ্চিত কৰা হৈছে। অনুগ্ৰহ কৰি টোকেন নম্বৰ ১২ মনত ৰাখিব।",
-    "description": "Confirmation with numerical dates, 12-hour clock times, and token integers"
+    "id": "as-morning-slot",
+    "category": "Morning Appointment",
+    "text": "কাইলৈ পুৱা দহ বজাত এটা এপইণ্টমেণ্টৰ সময় খালী আছে।",
+    "description": "Morning appointment slot offer with Assamese numeral pronunciation"
+  },
+  {
+    "id": "as-afternoon-slot",
+    "category": "Afternoon Appointment",
+    "text": "আজি দুপৰীয়া দুই বজাত আপোনাৰ বাবে সময় উপলব্ধ আছে।",
+    "description": "Afternoon appointment slot query with relative day and time"
+  },
+  {
+    "id": "as-no-slots",
+    "category": "No Available Slots",
+    "text": "আজি আৰু কোনো সময় খালী নাই। আপুনি কাইলৈৰ বাবে সময় বিচাৰিব নেকি?",
+    "description": "Apologetic fully-booked state with alternative day follow-up prompt"
+  },
+  {
+    "id": "as-confirmation",
+    "category": "Confirmation",
+    "text": "আপোনাৰ এপইণ্টমেণ্ট নিশ্চিত কৰা হৈছে। অনুগ্ৰহ কৰি নিৰ্ধাৰিত সময়ত আহিব।",
+    "description": "Appointment booking confirmation with punctuality reminder"
+  },
+  {
+    "id": "as-token",
+    "category": "Token Number",
+    "text": "আপোনাৰ টোকেন নম্বৰ বাৰ।",
+    "description": "Spoken queue token number verification"
+  },
+  {
+    "id": "as-phone",
+    "category": "Phone Number",
+    "text": "আপোনাৰ ফোন নম্বৰটো আকৌ এবাৰ ক'বনে?",
+    "description": "Patient telephone verification prompt"
+  },
+  {
+    "id": "as-rescheduling",
+    "category": "Rescheduling",
+    "text": "আপুনি এপইণ্টমেণ্টৰ তাৰিখ সলনি কৰিব বিচাৰেনে?",
+    "description": "Appointment date and time alteration query"
+  },
+  {
+    "id": "as-cancellation",
+    "category": "Cancellation",
+    "text": "আপুনি এই এপইণ্টমেণ্টটো বাতিল কৰিব বিচাৰেনে?",
+    "description": "Appointment cancellation inquiry"
+  },
+  {
+    "id": "as-medical-terms",
+    "category": "Medical Terminology",
+    "text": "চিকিৎসকৰ পৰামৰ্শৰ বাবে আপোনাক এটা সময় নিৰ্ধাৰণ কৰি দিব পাৰোঁ।",
+    "description": "Formal clinical consultation arrangement phrasing"
   },
   {
     "id": "as-codeswitching",
-    "category": "Clinical Code-Switching",
-    "text": "আপোনাৰ appointment confirm হৈছে। OPD registration counter-ত report কৰিব।",
-    "description": "Natural clinical code-switching combining Assamese syntax with English loanwords"
+    "category": "Code Switching",
+    "text": "ডাক্তৰৰ সৈতে এপইণ্টমেণ্ট বুক কৰিবলৈ আপুনি কোনটো সময় বিচাৰে?",
+    "description": "Natural clinical code-switching combining Assamese grammar with loanwords"
+  },
+  {
+    "id": "as-longer-utterance",
+    "category": "Longer Utterance",
+    "text": "মই উপলব্ধ সময়সমূহ পৰীক্ষা কৰি আপোনাক উপযুক্ত এপইণ্টমেণ্টৰ সময় জনাইছোঁ।",
+    "description": "Compound sentence with multiple clauses for natural prosody evaluation"
   }
 ]

@@ -96,7 +96,7 @@ test("Phase 11 — AI4Bharat IndicF5 TTS & LiveKit Custom Adapter Test Suite", a
   });
 
   await t.test("Test 4: IndicF5TTS LiveKit class inheritance and audio framing", async () => {
-    const ttsInstance = loadTTSProvider({ sampleRate: 24000 });
+    const ttsInstance = loadTTSProvider({ provider: "indicf5", sampleRate: 24000 });
     assert.equal(ttsInstance.label, "ai4bharat.indicf5");
     assert.equal(ttsInstance.sampleRate, 24000);
     assert.equal(ttsInstance.numChannels, 1);
@@ -139,7 +139,7 @@ test("Phase 11 — AI4Bharat IndicF5 TTS & LiveKit Custom Adapter Test Suite", a
   });
 
   await t.test("Test 5: Audio framing zero-pads tail remainder when samples not multiple of 480", async () => {
-    const ttsInstance = loadTTSProvider({ sampleRate: 24000 });
+    const ttsInstance = loadTTSProvider({ provider: "indicf5", sampleRate: 24000 });
     // 500 samples: 1 frame of 480 + 1 remainder frame of 20 samples zero-padded to 480
     const sampleRate = 24000;
     const durationSec = 500 / sampleRate;
@@ -171,7 +171,7 @@ test("Phase 11 — AI4Bharat IndicF5 TTS & LiveKit Custom Adapter Test Suite", a
   });
 
   await t.test("Test 6: AbortSignal immediately cancels synthesis queue", async () => {
-    const ttsInstance = loadTTSProvider();
+    const ttsInstance = loadTTSProvider({ provider: "indicf5" });
     const abortController = new AbortController();
 
     // @ts-expect-error Mock private client with delay
@@ -207,7 +207,7 @@ test("Phase 11 — AI4Bharat IndicF5 TTS & LiveKit Custom Adapter Test Suite", a
       text: string;
     }>;
 
-    assert.equal(corpus.length, 5, "Corpus must have 5 evaluation categories");
+    assert.ok(corpus.length >= 5, "Corpus must have at least 5 evaluation categories");
     for (const item of corpus) {
       assert.ok(item.id.length > 0);
       assert.ok(item.category.length > 0);
@@ -219,7 +219,7 @@ test("Phase 11 — AI4Bharat IndicF5 TTS & LiveKit Custom Adapter Test Suite", a
   });
 
   await t.test("Test 8: StreamAdapter compatibility for sentence-level streaming", async () => {
-    const ttsInstance = loadTTSProvider();
+    const ttsInstance = loadTTSProvider({ provider: "indicf5" });
     const streamWrapper = ttsInstance.stream();
     assert.ok(streamWrapper, "StreamAdapter must instantiate a SynthesizeStream");
     await streamWrapper.close();

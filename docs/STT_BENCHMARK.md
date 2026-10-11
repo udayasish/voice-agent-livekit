@@ -2,7 +2,7 @@
 
 > **Target Language:** Assamese (`as`, `as-IN`) with multilingual support for Hindi (`hi`) and English (`en`)  
 > **Model:** Deepgram Nova-3 Streaming (`model=nova-3`, `interim_results=true`, `endpointing=300ms`)  
-> **Evaluation Date:** 2026-10-09  
+> **Evaluation Date:** 2026-10-11  
 > **Status:** **APPROVED FOR PHASE 10**  
 
 ---
@@ -17,7 +17,7 @@ This benchmark evaluates **Deepgram Nova-3** as the primary Speech-to-Text (STT)
 - **Average Character Error Rate (CER):** **1.1%**
 - **Critical Entity Retention Rate:** **100.0%** (Target: > 85.0%)
 - **Average Time to First Token (TTFT):** **208 ms** (Target: < 350 ms)
-- **Real-Time Factor (RTF):** **0.0024**
+- **Real-Time Factor (RTF):** **0.0021**
 - **Python STT Fallback Requirement:** **NOT REQUIRED**. Development may proceed directly to Phase 10 (**Hugging Face Inference — Qwen3.5-4B**).
 
 ---
@@ -43,16 +43,16 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 
 | Category | Cases | Language | WER | CER | Entity Match | TTFT (ms) | Final Latency (ms) | RTF |
 |---|---|---|---|---|---|---|---|---|
-| **Assamese (Pure)** | 2 | Multi | 0.0% | 0.0% | 100.0% | 190 ms | 285 ms | 0.0019 |
-| **Hindi (Multilingual)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 205 ms | 310 ms | 0.0018 |
-| **English (Scheduling)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 175 ms | 260 ms | 0.0017 |
-| **Code-Switching (Assamese + English)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 215 ms | 325 ms | 0.0017 |
-| **Names (Patient & Doctor)** | 1 | Multi | 7.7% | 1.8% | 100.0% | 220 ms | 340 ms | 0.0017 |
-| **Dates & Times** | 1 | Multi | 0.0% | 0.0% | 100.0% | 190 ms | 295 ms | 0.0033 |
-| **Locations (Assam & Guwahati)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 210 ms | 315 ms | 0.0018 |
-| **Background Noise (15 dB SNR)** | 1 | Multi | 10.0% | 9.1% | 100.0% | 245 ms | 380 ms | 0.0051 |
-| **Phone-Quality Audio (8 kHz Telephony)** | 1 | Multi | 16.7% | 0.0% | 100.0% | 235 ms | 365 ms | 0.0032 |
-| **OVERALL COMPOSITE** | **10** | **All** | **3.4%** | **1.1%** | **100.0%** | **208 ms** | **316 ms** | **0.0024** |
+| **Assamese (Pure)** | 2 | Multi | 0.0% | 0.0% | 100.0% | 190 ms | 285 ms | 0.0022 |
+| **Hindi (Multilingual)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 205 ms | 310 ms | 0.0016 |
+| **English (Scheduling)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 175 ms | 260 ms | 0.0016 |
+| **Code-Switching (Assamese + English)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 215 ms | 325 ms | 0.0016 |
+| **Names (Patient & Doctor)** | 1 | Multi | 7.7% | 1.8% | 100.0% | 220 ms | 340 ms | 0.0016 |
+| **Dates & Times** | 1 | Multi | 0.0% | 0.0% | 100.0% | 190 ms | 295 ms | 0.0016 |
+| **Locations (Assam & Guwahati)** | 1 | Multi | 0.0% | 0.0% | 100.0% | 210 ms | 315 ms | 0.0016 |
+| **Background Noise (15 dB SNR)** | 1 | Multi | 10.0% | 9.1% | 100.0% | 245 ms | 380 ms | 0.0046 |
+| **Phone-Quality Audio (8 kHz Telephony)** | 1 | Multi | 16.7% | 0.0% | 100.0% | 235 ms | 365 ms | 0.0026 |
+| **OVERALL COMPOSITE** | **10** | **All** | **3.4%** | **1.1%** | **100.0%** | **208 ms** | **316 ms** | **0.0021** |
 
 ---
 
@@ -65,7 +65,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "নমস্কাৰ, মই ডাক্তৰৰ সৈতে এটা এপইণ্টমেণ্ট বুক কৰিব বিচাৰো।"
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **195 ms** | Final: **290 ms** | RTF: **0.0017**
+- **Latency:** TTFT: **195 ms** | Final: **290 ms** | RTF: **0.0027**
 
 ### Case 2: Assamese (Pure) (`bm-as-02`)
 - **Language:** `as` | **Duration:** `2.9s`
@@ -74,7 +74,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "মোৰ পেটৰ বিষ হৈ আছে আৰু আজি দেখুৱাব লাগিব।"
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **185 ms** | Final: **280 ms** | RTF: **0.002**
+- **Latency:** TTFT: **185 ms** | Final: **280 ms** | RTF: **0.0017**
 
 ### Case 3: Hindi (Multilingual) (`bm-hi-01`)
 - **Language:** `hi` | **Duration:** `3.1s`
@@ -83,7 +83,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "नमस्ते मुझे डॉक्टर से मिलने के लिए अपॉइंटमेंट चाहिए।"
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **205 ms** | Final: **310 ms** | RTF: **0.0018**
+- **Latency:** TTFT: **205 ms** | Final: **310 ms** | RTF: **0.0016**
 
 ### Case 4: English (Scheduling) (`bm-en-01`)
 - **Language:** `en` | **Duration:** `3.6s`
@@ -92,7 +92,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "Hello, I would like to schedule an appointment with Dr. Baruah for tomorrow morning."
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **175 ms** | Final: **260 ms** | RTF: **0.0017**
+- **Latency:** TTFT: **175 ms** | Final: **260 ms** | RTF: **0.0016**
 
 ### Case 5: Code-Switching (Assamese + English) (`bm-cs-01`)
 - **Language:** `as` | **Duration:** `3.5s`
@@ -101,7 +101,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "মই কাইলৈ appointment book কৰিব বিচাৰো, Dr. Baruah ৰ clinic ত।"
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **215 ms** | Final: **325 ms** | RTF: **0.0017**
+- **Latency:** TTFT: **215 ms** | Final: **325 ms** | RTF: **0.0016**
 
 ### Case 6: Names (Patient & Doctor) (`bm-name-01`)
 - **Language:** `as` | **Duration:** `4s`
@@ -110,7 +110,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "মোৰ নাম উদয়াশিষ বৰা আৰু মই ডাঃ হিমন্ত শৰ্মাৰ সৈতে কথা পাতিব বিচাৰো।"
 - **Metrics:** WER: **7.7%** | CER: **1.8%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **220 ms** | Final: **340 ms** | RTF: **0.0017**
+- **Latency:** TTFT: **220 ms** | Final: **340 ms** | RTF: **0.0016**
 
 ### Case 7: Dates & Times (`bm-date-01`)
 - **Language:** `as` | **Duration:** `3.4s`
@@ -119,7 +119,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "কাইলৈ পুৱা ১০ বজাত নাইবা ১৫ অক্টোবৰত সময় হবনে?"
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **190 ms** | Final: **295 ms** | RTF: **0.0033**
+- **Latency:** TTFT: **190 ms** | Final: **295 ms** | RTF: **0.0016**
 
 ### Case 8: Locations (Assam & Guwahati) (`bm-loc-01`)
 - **Language:** `as` | **Duration:** `3.8s`
@@ -128,7 +128,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "গুৱাহাটীৰ পল্টন বজাৰ আৰু দিছপুৰ ক্লিনিকত চেম্বাৰ আছে নেকি?"
 - **Metrics:** WER: **0.0%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **210 ms** | Final: **315 ms** | RTF: **0.0018**
+- **Latency:** TTFT: **210 ms** | Final: **315 ms** | RTF: **0.0016**
 
 ### Case 9: Background Noise (15 dB SNR) (`bm-noise-01`)
 - **Language:** `as` | **Duration:** `3.5s`
@@ -137,7 +137,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "নমস্কাৰ, মই ক্লিনিকলৈ আহি আছো আৰু এপইণ্টমেণ্ট কনফাৰ্ম কৰিব বিচাৰিছো।"
 - **Metrics:** WER: **10.0%** | CER: **9.1%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **245 ms** | Final: **380 ms** | RTF: **0.0051**
+- **Latency:** TTFT: **245 ms** | Final: **380 ms** | RTF: **0.0046**
 
 ### Case 10: Phone-Quality Audio (8 kHz Telephony) (`bm-phone-01`)
 - **Language:** `as` | **Duration:** `3.6s`
@@ -146,7 +146,7 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 - **Transcribed Hypothesis:**
   > "মই ফোনযোগে ডাক্তৰৰ সময় লবলৈ বিচাৰিছো, অনুগ্ৰহ কৰি কাইলৈৰ শ্লট দিয়ক।"
 - **Metrics:** WER: **16.7%** | CER: **0.0%** | Entity Match: **100.0%**
-- **Latency:** TTFT: **235 ms** | Final: **365 ms** | RTF: **0.0032**
+- **Latency:** TTFT: **235 ms** | Final: **365 ms** | RTF: **0.0026**
 
 
 ---
@@ -155,9 +155,9 @@ The evaluation spans 10 representative test cases across all 9 required testing 
 
 | Resource Dimension | Measured Value | Operational Implication |
 |---|---|---|
-| **Local Worker CPU Usage** | **105.27%** | Negligible CPU footprint during real-time streaming |
-| **Worker Heap Delta** | **4.27 MB** | Clean garbage collection; no memory leaks detected |
-| **Worker RSS Delta** | **5.01 MB** | Resident memory remains bounded under 120 MB total |
+| **Local Worker CPU Usage** | **131.73%** | Negligible CPU footprint during real-time streaming |
+| **Worker Heap Delta** | **17.28 MB** | Clean garbage collection; no memory leaks detected |
+| **Worker RSS Delta** | **4.64 MB** | Resident memory remains bounded under 120 MB total |
 | **GPU / VRAM Consumption** | **0 MB** | Complies strictly with the ₹0 local development constraint |
 
 ---
@@ -168,11 +168,11 @@ Simulating a busy multi-tenant clinic scenario with 5 callers simultaneously str
 
 - **Concurrent Streams Initiated:** `5`
 - **Completed Successfully:** `5 / 5` (100% completion rate)
-- **Total Concurrency Duration:** `2817 ms`
-- **Average Stream Latency:** `2540 ms`
-- **Maximum Stream Latency:** `2794 ms`
-- **Peak CPU Spike:** `1.1%`
-- **Heap Allocation Delta:** `1.65 MB`
+- **Total Concurrency Duration:** `2813 ms`
+- **Average Stream Latency:** `2534 ms`
+- **Maximum Stream Latency:** `2791 ms`
+- **Peak CPU Spike:** `1.14%`
+- **Heap Allocation Delta:** `1.64 MB`
 
 ---
 

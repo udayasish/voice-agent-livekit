@@ -53,6 +53,7 @@ services:
       start_period: 5s
 
   tts:
+    profiles: ["benchmark"]
     build:
       context: ./ai/tts
       dockerfile: Dockerfile

@@ -24,7 +24,21 @@ const envSchema = z.object({
   LIVEKIT_API_SECRET: z.string().default("devsecret"),
   LIVEKIT_AGENT_NAME: z.string().optional(),
 
-  // ── Python TTS Service (AI4Bharat IndicF5) ────────────────────────────────
+  // ── Text-to-Speech (TTS) Configuration ─────────────────────────────────────
+  TTS_PROVIDER: z.enum(["raya", "indicf5"] as const).default("raya"),
+  // Raya BakBak TTS
+  RAYA_API_KEY: z.string().optional(),
+  RAYA_API_BASE_URL: z.string().default("https://hub.getraya.app/v1"),
+  RAYA_TTS_LANGUAGE: z.string().default("as"),
+  RAYA_TTS_MODEL: z.enum(["standard", "m1"] as const).default("standard"),
+  RAYA_TTS_VOICE_ID: z.string().optional(),
+  RAYA_TTS_SAMPLE_RATE: z.coerce.number().default(24000),
+  RAYA_TTS_SPEED: z.coerce.number().min(0.5).max(1.5).default(1.0),
+  RAYA_TTS_CONNECT_TIMEOUT_MS: z.coerce.number().default(3000),
+  RAYA_TTS_FIRST_CHUNK_TIMEOUT_MS: z.coerce.number().default(1000),
+  RAYA_TTS_REQUEST_TIMEOUT_MS: z.coerce.number().default(15000),
+
+  // Python IndicF5 TTS Service (preserved for benchmark comparison)
   TTS_SERVICE_URL: z.string().default("http://localhost:8001"),
   TTS_TIMEOUT_MS: z.coerce.number().default(15000),
   TTS_SAMPLE_RATE: z.coerce.number().default(24000),

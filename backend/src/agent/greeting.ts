@@ -114,13 +114,18 @@ export const generateChimeAudioFrames = (
   return frames;
 };
 
+export interface PlayGreetingResult {
+  source: AudioSource;
+  track: LocalAudioTrack;
+}
+
 /**
  * Publishes an audio track and streams the deterministic greeting chime into the room.
  */
 export const playDeterministicGreeting = async <T = Record<string, unknown>>(
   ctx: JobContext<T>,
   options?: GreetingOptions,
-): Promise<void> => {
+): Promise<PlayGreetingResult> => {
   const sampleRate = options?.sampleRate ?? 24000;
   const frameDurationMs = options?.frameDurationMs ?? 20;
   const trackName = options?.trackName ?? "agent-mic";
@@ -160,7 +165,7 @@ export const playDeterministicGreeting = async <T = Record<string, unknown>>(
       logger.info("[agent:greeting] Greeting streaming aborted by signal (barge-in)", {
         room: ctx.room.name,
       });
-      return;
+      return { source, track };
     }
     await source.captureFrame(frame);
     // Realtime frame pacing (20ms interval)
@@ -170,4 +175,6 @@ export const playDeterministicGreeting = async <T = Record<string, unknown>>(
   logger.info("[agent:greeting] Deterministic greeting streaming completed", {
     room: ctx.room.name,
   });
+
+  return { source, track };
 };

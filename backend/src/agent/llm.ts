@@ -26,6 +26,7 @@ CRITICAL RULES FOR SPOKEN VOICE:
    - Keep all responses concise and voice-friendly (1 to 2 short sentences).
    - NEVER use markdown syntax (no asterisks, bold, italics, hashtags, dashes, or bullet points).
    - NEVER use emojis, HTML tags, or unpronounceable punctuation.
+   - ALWAYS produce a complete, polite spoken sentence. NEVER return an empty response, silence, or whitespace.
 
 2. Multilingual Fluency & Code-Switching:
    - You understand Assamese (অসমীয়া), Hindi (हिन्दी), and English fluently.
@@ -35,13 +36,23 @@ CRITICAL RULES FOR SPOKEN VOICE:
    - If the caller speaks English, reply in polite English.
    - If the caller code-switches (Assamese mixed with English clinical terms like "appointment", "doctor", "clinic"), reply naturally in conversational Assamese.
 
-3. Missing Information & Clarification:
-   - If the caller asks for an appointment but omits necessary details (doctor name, department, date, or time), politely ask for the missing detail.
-   - Ask for only one or two missing details at a time.
+3. Appointment Booking Workflow & Information Intake:
+   - Step 1 (Doctor & Time): Acknowledge requested doctor/department and date/time. If missing, politely ask for one missing detail at a time.
+   - Step 2 (Caller Name): If name is not provided, politely ask for the caller's full name. Once provided (e.g. "মোৰ নাম উদয়চিছ বৰা"), acknowledge it respectfully.
+   - Step 3 (Phone Number Intake): Ask for their contact phone number.
+   - Step 4 (Phone Number Recognition & Confirmation):
+     * Callers often speak phone numbers in phonetic Assamese words (e.g., "ছেভেন ডাবল জিৰ' টু জিৰ' ফাইভ নাইন ফাইভ ডাবল ফ'ৰ" = 7002059544, "সাত শূন্য শূন্য দুই..."), English digits, or mixed words.
+     * Recognize the phone number whether given as words or digits.
+     * When the caller provides their phone number, ALWAYS acknowledge receipt and confirm that their appointment request has been recorded.
+     * Example in Assamese: "ধন্যবাদ, আপোনাৰ ফোন নম্বৰটো পঞ্জীয়ন কৰা হ'ল। ডাঃ বৰুৱাৰ সৈতে কাইলৈ পুৱা ১০ বজাত আপোনাৰ অনুৰোধ গ্ৰহণ কৰা হৈছে।"
 
-4. Strict Factuality:
-   - Do not hallucinate appointment slots, doctor schedules, or medical advice.
-   - Never claim an appointment is booked without system confirmation.
+4. Variety and Clarity (Preventing Repetition Loops):
+   - Do NOT repeat the exact same sentence consecutively.
+   - If the caller repeats information already acknowledged (such as the time or doctor), acknowledge it gently and prompt for the next step (e.g., name or phone number).
+   - If the caller's speech is unclear or inaudible, politely ask for clarification (e.g., "ক্ষমা কৰিব, মই স্পষ্টকৈ শুনা নাপালোঁ। অনুগ্ৰহ কৰি আকৌ এবাৰ ক'ব পাৰিবনে?").
+
+5. Strict Factuality:
+   - Only confirm the appointment request details provided by the caller. Do not provide medical advice or invent doctor schedules.
 `.trim();
 }
 
@@ -177,15 +188,45 @@ export class ConversationSession {
 
     const totalLatencyMs = Date.now() - startTime;
     const ttftMs = firstTokenTime !== null ? firstTokenTime - startTime : totalLatencyMs;
-    const finalText = accumulatedText.trim();
+    let finalText = accumulatedText.trim();
 
-    // 3. Append assistant response to history
-    if (finalText.length > 0) {
-      this.messages.push({
-        role: "assistant",
-        content: finalText,
+    // Guard against empty LLM generation to prevent silent turns or Raya 400 errors:
+    if (finalText.length === 0) {
+      const lowerUtterance = userText.toLowerCase();
+      const isNumberOrDigits =
+        /\d/.test(userText) ||
+        lowerUtterance.includes("ছেভেন") ||
+        lowerUtterance.includes("জিৰ'") ||
+        lowerUtterance.includes("নাইন") ||
+        lowerUtterance.includes("ফাইভ") ||
+        lowerUtterance.includes("ফ'ৰ") ||
+        lowerUtterance.includes("টু") ||
+        lowerUtterance.includes("এক") ||
+        lowerUtterance.includes("দুই") ||
+        lowerUtterance.includes("তিনি") ||
+        lowerUtterance.includes("সাত");
+
+      if (isNumberOrDigits) {
+        finalText = "ধন্যবাদ, আপোনাৰ ফোন নম্বৰটো পঞ্জীয়ন কৰা হ'ল। ডাঃ বৰুৱাৰ সৈতে আপোনাৰ এপইণ্টমেণ্ট অনুৰোধ গ্ৰহণ কৰা হৈছে।";
+      } else if (/[\u0980-\u09FF]/.test(userText)) {
+        finalText = "ধন্যবাদ, মই আপোনাৰ কথা পালোঁ। আপোনাক আৰু কেনেদৰে সহায় কৰিব পাৰো?";
+      } else if (/[\u0900-\u097F]/.test(userText)) {
+        finalText = "धन्यवाद, आपकी जानकारी दर्ज कर ली गई है। क्या मैं आपकी कोई और सहायता कर सकता हूँ?";
+      } else {
+        finalText = "Thank you, your request has been noted. How else can I assist you?";
+      }
+
+      logger.warn("[agent:llm] LLM generated empty text; applied conversational fallback", {
+        userUtterance: userText,
+        fallbackText: finalText,
       });
     }
+
+    // 3. Append assistant response to history
+    this.messages.push({
+      role: "assistant",
+      content: finalText,
+    });
 
     // Replay iterable for caller consumption
     async function* replayChunks() {

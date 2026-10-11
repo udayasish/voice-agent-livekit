@@ -28,7 +28,7 @@
 | 8 Deepgram Nova-3 STT | DONE | Integrated @livekit/agents-plugin-deepgram (v1.9.1), STTProvider abstraction, IndicConformer fallback boundary, Assamese streaming pipeline, live WebSocket & latency/resource profiling verified via 6/6 automated tests |
 | 9 STT Benchmark | DONE | Repeatable benchmark evaluating Deepgram Nova-3 across 9 categories (3.4% WER, 100% entity match, 209ms TTFT, 5/5 concurrency, 0 MB GPU). Results in docs/STT_BENCHMARK.md. Python STT not required. |
 | 10 Hugging Face Inference — Qwen3.5-4B | DONE | LLMProvider abstraction, HF router adapter, mock offline provider, pipeline flow (STT -> LLM -> response), and multilingual voice prompt verified via 9/9 automated tests |
-| 11 IndicF5 TTS | DONE | Standalone Python FastAPI service (ai/tts/), custom LiveKit TTS adapter (@livekit/agents v1.9.1), byte-aligned 24kHz AudioFrame slicing, 5/5 Assamese corpus benchmark (docs/TTS_BENCHMARK.md), 8/8 Python tests & 9/9 Node tests passing |
+| 11 TTS (IndicF5 & Raya BakBak) | DONE | Primary TTS migrated to Raya BakBak streaming SSE adapter in TypeScript (24kHz F32LE->PCM16, 20ms framing, Assamese sentence segmentation, AbortSignal barge-in). IndicF5 preserved for benchmark comparison. 13/13 Raya tests & 9/9 IndicF5 tests passing. |
 | 12 Complete Voice Loop | NOT STARTED | |
 | 13 Barge-In | NOT STARTED | |
 | 14 Agent Engine | NOT STARTED | |
@@ -45,9 +45,41 @@
 
 ## Current Work
 
-Phase 11 completed. Ready for Phase 12 (Complete Voice Loop).
+Phase 11 (IndicF5 & Raya BakBak TTS Migration) completed. Ready for Phase 12 (Complete Voice Loop).
 
 ## Last Completed Work
+
+**Phase 11 Migration — Raya BakBak TTS**
+- **Verified Vendor Integration**: Confirmed official `livekit-plugins-raya` is Python-only. Implemented dedicated zero-dependency TypeScript provider in `backend/src/components/agent/providers/tts/raya/`.
+- **Raya SSE Streaming Client & Protocol (`client.ts`, `sse-parser.ts`)**:
+  - Incremental TextDecoder and double-newline event boundary assembler handling arbitrary network chunks.
+  - Consumes `POST /v1/text-to-speech/stream` emitting `chunk` and `done` Server-Sent Events.
+  - Automatic error mapping (`RayaAuthenticationError`, `RayaProtocolError`, `RayaTimeoutError`).
+- **Float32LE to Signed Int16 Audio Pipeline (`pcm-f32le.ts`, `audio-frame-buffer.ts`)**:
+  - Base64 F32LE decoding with asymmetric integer scaling ($32768$ negative, $32767$ positive) and NaN filtering.
+  - Uniform 20ms frame slicing (480 samples @ 24kHz mono) with residual sample carry-over and zero-padded tail remainder frames.
+  - Lookahead 1-frame buffering ensuring exact `final: true` signaling on segment conclusion.
+- **Assamese Phrase Segmenter (`phrase-segmenter.ts`)**:
+  - Splits LLM tokens on Assamese danda (`।`), double danda (`॥`), and Latin punctuation (`?`, `!`, `.`).
+  - Guards against false sentence splits inside numbers/decimals and abbreviations (`ডাঃ`, `Dr.`).
+- **LiveKit Agents Subclasses (`raya-chunked-stream.ts`, `raya-synthesize-stream.ts`, `raya-tts.ts`)**:
+  - `RayaChunkedStream` extending `tts.ChunkedStream` for one-shot synthesis with TTFA tracking.
+  - `RayaSynthesizeStream` extending `tts.SynthesizeStream` for token-level LLM streaming.
+  - `RayaTTS` extending `tts.TTS` with dynamic catalog verification (`RayaVoiceCatalog`).
+  - Strict `AbortSignal` cancellation for immediate barge-in silence.
+- **Docker & Local Environment Optimization**:
+  - Added `profiles: ["benchmark"]` to `docker-compose.yml` for the Python `tts` container, ensuring ₹0 local development and 0 GPU overhead during standard development.
+  - Added `TTS_PROVIDER` switch defaulting to `"raya"` with `"indicf5"` preserved for benchmark comparisons.
+- **Testing & Verification**:
+  - Expanded Assamese evaluation corpus in `backend/test/fixtures/assamese-tts-corpus.json` to 14 clinical scenarios.
+  - Created `backend/test/tts-bakbak.test.ts` (13/13 passing tests).
+  - Maintained `backend/test/tts.test.ts` for IndicF5 regression (9/9 passing tests).
+  - All regression tests (`test:llm`, `test:stt`, `test:vad`, `test:agent`, `test:benchmark`), typechecks, and builds passing cleanly with 0 errors.
+- **Live Browser Audio Loop Verification**:
+  - Connected `agentAudioSource.captureFrame(packet.frame)` to the room's published WebRTC audio track in `backend/src/agent/index.ts`.
+  - Updated `playDeterministicGreeting` in `backend/src/agent/greeting.ts` to return `{ source, track }` so the agent worker reuses the published track for speech.
+  - Verified live browser loop: browser mic input -> Deepgram Nova-3 Assamese STT -> Qwen3.5 LLM -> Raya BakBak TTS -> audible speech output through browser speakers.
+  - Cataloged operational findings from live testing (empty LLM text handling, speaker acoustic echo transients, low-confidence STT noise filtering, and phonetic number dictation) as explicit requirements for Phase 12 (Complete Voice Loop).
 
 **Phase 11 — IndicF5 TTS**
 - **Standalone Python TTS Microservice (`ai/tts/`)**:
