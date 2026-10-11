@@ -17,10 +17,12 @@ export type AgentLifecycleEvent =
   | "stt_stream_started"
   | "stt_interim_transcript"
   | "stt_final_transcript"
+  | "stt_low_confidence_filtered"
   | "llm_generation_started"
   | "llm_response_completed"
   | "tts_synthesis_started"
   | "tts_synthesis_completed"
+  | "tts_skipped"
   | "room_disconnected"
   | "worker_shutdown"
   | "agent_error";

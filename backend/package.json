@@ -24,6 +24,7 @@
     "test:tts:bakbak": "tsx --env-file .env test/tts-bakbak.test.ts",
     "test:tts:indicf5": "tsx --env-file .env test/tts.test.ts",
     "test:tts:all": "tsx --env-file .env test/tts.test.ts && tsx --env-file .env test/tts-bakbak.test.ts",
+    "test:voice-loop": "tsx --env-file .env test/voice-loop.test.ts",
     "test:benchmark": "tsx --test test/benchmark.test.ts",
     "benchmark:stt": "tsx --env-file .env test/benchmark/runner.ts",
     "agent:dev": "tsx --env-file .env src/agent/index.ts dev",

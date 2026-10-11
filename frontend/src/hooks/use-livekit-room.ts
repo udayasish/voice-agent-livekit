@@ -30,10 +30,18 @@ export type RemoteParticipantInfo = {
 
 export type ConversationTurn = {
   id: string;
+  turnId?: number | undefined;
   userText: string;
   responseText: string;
-  ttftMs?: number;
-  totalLatencyMs?: number;
+  ttftMs?: number | undefined;
+  totalLatencyMs?: number | undefined;
+  isFallback?: boolean | undefined;
+  slots?: {
+    doctor?: string;
+    dateOrTime?: string;
+    patientName?: string;
+    phoneNumber?: string;
+  } | undefined;
   timestamp: string;
 };
 
@@ -287,10 +295,13 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
                     ...prev,
                     {
                       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                      turnId: typeof data.turnId === "number" ? data.turnId : undefined,
                       userText: data.userText,
                       responseText: data.responseText,
-                      ttftMs: data.ttftMs,
-                      totalLatencyMs: data.totalLatencyMs,
+                      ttftMs: typeof data.ttftMs === "number" ? data.ttftMs : undefined,
+                      totalLatencyMs: typeof data.totalLatencyMs === "number" ? data.totalLatencyMs : undefined,
+                      isFallback: typeof data.isFallback === "boolean" ? data.isFallback : undefined,
+                      slots: data.slots && typeof data.slots === "object" ? data.slots : undefined,
                       timestamp: data.timestamp || new Date().toISOString(),
                     },
                   ]);

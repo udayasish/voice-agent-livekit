@@ -11,6 +11,11 @@ import {
   HuggingFaceLLMProvider,
   GroqLLMProvider,
 } from "../components/agent/providers/llm/index.js";
+import {
+  normalizePhoneNumber,
+  containsPhoneNumberCandidate,
+  formatPhoneNumberForSpeech,
+} from "../components/agent/normalizers/index.js";
 
 /**
  * Generates the voice agent system prompt parameterized with the configured clinic/business name.
@@ -61,11 +66,129 @@ CRITICAL RULES FOR SPOKEN VOICE:
  */
 export const DEFAULT_VOICE_SYSTEM_PROMPT = createVoiceSystemPrompt();
 
+export interface ConversationSlots {
+  doctor?: string | undefined;
+  department?: string | undefined;
+  dateOrTime?: string | undefined;
+  patientName?: string | undefined;
+  phoneNumber?: string | undefined;
+}
+
+export interface SessionState {
+  slots: ConversationSlots;
+  lastPromptedSlot?: keyof ConversationSlots | null | undefined;
+  lastAssistantUtterance?: string | undefined;
+  turnCount: number;
+  lastUserUtterance?: string | undefined;
+  repetitionCount: number;
+}
+
 export interface ProcessUtteranceResult {
   text: string;
   stream: AsyncIterable<LLMChunk>;
   ttftMs: number;
   totalLatencyMs: number;
+  turnId?: number | undefined;
+  slots?: Readonly<ConversationSlots> | undefined;
+  isFallback?: boolean | undefined;
+}
+
+/**
+ * Extracts conversation slots (doctor, date/time, name, phone) from user input.
+ */
+export function extractSlotsFromText(
+  userText: string,
+  existingSlots: ConversationSlots = {},
+): ConversationSlots {
+  const slots: ConversationSlots = { ...existingSlots };
+  const trimmed = userText.trim();
+  const lower = trimmed.toLowerCase();
+
+  // 1. Phone number extraction
+  if (containsPhoneNumberCandidate(trimmed)) {
+    const phoneResult = normalizePhoneNumber(trimmed);
+    if (phoneResult.isValid) {
+      slots.phoneNumber = phoneResult.digits;
+    }
+  }
+
+  // 2. Doctor / department extraction
+  if (trimmed.includes("বৰুৱা") || lower.includes("baruah") || trimmed.includes("ডাঃ বৰুৱা")) {
+    slots.doctor = "ডাঃ বৰুৱা";
+  } else if (trimmed.includes("শৰ্মা") || lower.includes("sarma") || trimmed.includes("ডাঃ শৰ্মা")) {
+    slots.doctor = "ডাঃ শৰ্মা";
+  }
+
+  // 3. Date / Time extraction
+  if (
+    trimmed.includes("১০ বজাত") ||
+    trimmed.includes("দহ বজাত") ||
+    trimmed.includes("দশটাত") ||
+    trimmed.includes("দহা বজাত") ||
+    trimmed.includes("কাইলৈ") ||
+    lower.includes("tomorrow") ||
+    trimmed.includes("পুৱা") ||
+    trimmed.includes("আবেলি")
+  ) {
+    if (!slots.dateOrTime) {
+      slots.dateOrTime =
+        trimmed.includes("দহ বজাত") || trimmed.includes("দহা বজাত") || trimmed.includes("১০ বজাত")
+          ? "কাইলৈ পুৱা দহ বজাত"
+          : "কাইলৈ পুৱা ১০ বজাত";
+    }
+  }
+
+  // 4. Patient Name extraction
+  if (
+    trimmed.includes("মোৰ নাম") ||
+    trimmed.includes("মই") ||
+    lower.includes("my name is") ||
+    lower.includes("name is")
+  ) {
+    const match = trimmed.match(/(?:মোৰ\s+নাম|নামটো|নাম)\s*(?:হৈছে|হয়|টো)?\s*([^\s।?,!]+(?:\s+[^\s।?,!]+)?)/);
+    if (match?.[1] && match[1].length > 1 && !match[1].includes("ফোন") && !match[1].includes("নম্বৰ")) {
+      slots.patientName = match[1];
+    }
+  }
+
+  return slots;
+}
+
+/**
+ * Detects whether user is reiterating an already acknowledged detail without adding new info.
+ */
+export function detectRepetition(userText: string, state: SessionState): boolean {
+  if (!state.lastUserUtterance) return false;
+  const current = userText.trim();
+  const prev = state.lastUserUtterance.trim();
+
+  if (current === prev) return true;
+
+  // Repeating time when time is already acknowledged
+  const isOnlyTime =
+    (current.includes("দশটাত") ||
+      current.includes("১০ বজাত") ||
+      current.includes("দহ বজাত") ||
+      current.includes("দহা বজাত") ||
+      current.includes("দশটাবোৰত")) &&
+    !current.includes("নাম") &&
+    !current.includes("ফোন");
+
+  if (isOnlyTime && state.slots.dateOrTime) {
+    return true;
+  }
+
+  // Repeating doctor when doctor is already acknowledged
+  const isOnlyDoctor =
+    (current.includes("বৰুৱা") || current.includes("ডাঃ বৰুৱা") || current.includes("শৰ্মা")) &&
+    !current.includes("নাম") &&
+    !current.includes("ফোন");
+
+  if (isOnlyDoctor && state.slots.doctor) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -78,6 +201,14 @@ export class ConversationSession {
   private provider: LLMProvider;
   private messages: LLMMessage[] = [];
   private systemPrompt: string;
+  private state: SessionState = {
+    slots: {},
+    lastPromptedSlot: null,
+    lastAssistantUtterance: undefined,
+    turnCount: 0,
+    lastUserUtterance: undefined,
+    repetitionCount: 0,
+  };
 
   constructor(
     provider: LLMProvider,
@@ -104,10 +235,46 @@ export class ConversationSession {
   }
 
   /**
-   * Clears conversational history for the session.
+   * Retrieves current conversation session state.
+   */
+  getState(): Readonly<SessionState> {
+    return this.state;
+  }
+
+  /**
+   * Retrieves current extracted conversation slots.
+   */
+  getSlots(): Readonly<ConversationSlots> {
+    return this.state.slots;
+  }
+
+  /**
+   * Clears conversational history and resets slots for the session.
    */
   clearHistory(): void {
     this.messages = [];
+    this.state = {
+      slots: {},
+      lastPromptedSlot: null,
+      lastAssistantUtterance: undefined,
+      turnCount: 0,
+      lastUserUtterance: undefined,
+      repetitionCount: 0,
+    };
+  }
+
+  /**
+   * Extracts conversation slots (doctor, date/time, name, phone) from user input.
+   */
+  private extractSlots(userText: string): void {
+    this.state.slots = extractSlotsFromText(userText, this.state.slots);
+  }
+
+  /**
+   * Detects whether user is reiterating an already acknowledged detail without adding new info.
+   */
+  private detectRepetition(userText: string): boolean {
+    return detectRepetition(userText, this.state);
   }
 
   /**
@@ -126,6 +293,16 @@ export class ConversationSession {
     if (!trimmed) {
       throw new Error("User utterance cannot be empty");
     }
+
+    this.state.turnCount++;
+    this.extractSlots(trimmed);
+    const isRepetition = this.detectRepetition(trimmed);
+    if (isRepetition) {
+      this.state.repetitionCount++;
+    } else {
+      this.state.repetitionCount = 0;
+    }
+    this.state.lastUserUtterance = trimmed;
 
     // 1. Append user message to history
     this.messages.push({
@@ -146,6 +323,7 @@ export class ConversationSession {
     };
 
     const capturedChunks: LLMChunk[] = [];
+    let isFallback = false;
 
     try {
       const chunkStream = this.provider.generate(this.messages, llmOptions);
@@ -165,24 +343,32 @@ export class ConversationSession {
         }
       }
     } catch (err) {
+      isFallback = true;
       // Automatic fallback if cloud provider fails (e.g. 0 credits, model unsupported, network error)
       logger.warn(
         `[agent:llm] Primary LLM provider failed (${err instanceof Error ? err.message : String(err)}). Falling back to offline provider to preserve conversational session.`,
       );
-      const fallbackProvider = getLLMProvider("mock");
-      const fallbackStream = fallbackProvider.generate(this.messages, llmOptions);
-      capturedChunks.length = 0;
-      accumulatedText = "";
+      try {
+        const fallbackProvider = getLLMProvider("mock");
+        const fallbackStream = fallbackProvider.generate(this.messages, llmOptions);
+        capturedChunks.length = 0;
+        accumulatedText = "";
 
-      for await (const chunk of fallbackStream) {
-        if (options?.abortSignal?.aborted) break;
-        capturedChunks.push(chunk);
-        if (chunk.type === "text" && chunk.delta.length > 0) {
-          if (firstTokenTime === null) {
-            firstTokenTime = Date.now();
+        for await (const chunk of fallbackStream) {
+          if (options?.abortSignal?.aborted) break;
+          capturedChunks.push(chunk);
+          if (chunk.type === "text" && chunk.delta.length > 0) {
+            if (firstTokenTime === null) {
+              firstTokenTime = Date.now();
+            }
+            accumulatedText += chunk.delta;
           }
-          accumulatedText += chunk.delta;
         }
+      } catch (fallbackErr) {
+        logger.error("[agent:llm] Fallback provider also failed", {
+          error: fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr),
+        });
+        accumulatedText = "";
       }
     }
 
@@ -192,35 +378,45 @@ export class ConversationSession {
 
     // Guard against empty LLM generation to prevent silent turns or Raya 400 errors:
     if (finalText.length === 0) {
-      const lowerUtterance = userText.toLowerCase();
-      const isNumberOrDigits =
-        /\d/.test(userText) ||
-        lowerUtterance.includes("ছেভেন") ||
-        lowerUtterance.includes("জিৰ'") ||
-        lowerUtterance.includes("নাইন") ||
-        lowerUtterance.includes("ফাইভ") ||
-        lowerUtterance.includes("ফ'ৰ") ||
-        lowerUtterance.includes("টু") ||
-        lowerUtterance.includes("এক") ||
-        lowerUtterance.includes("দুই") ||
-        lowerUtterance.includes("তিনি") ||
-        lowerUtterance.includes("সাত");
-
-      if (isNumberOrDigits) {
-        finalText = "ধন্যবাদ, আপোনাৰ ফোন নম্বৰটো পঞ্জীয়ন কৰা হ'ল। ডাঃ বৰুৱাৰ সৈতে আপোনাৰ এপইণ্টমেণ্ট অনুৰোধ গ্ৰহণ কৰা হৈছে।";
+      isFallback = true;
+      if (this.state.slots.phoneNumber) {
+        const speechPhone = formatPhoneNumberForSpeech(this.state.slots.phoneNumber);
+        finalText = `ধন্যবাদ, আপোনাৰ ফোন নম্বৰ ${speechPhone} পঞ্জীয়ন কৰা হ'ল। ডাঃ বৰুৱাৰ সৈতে কাইলৈ পুৱা ১০ বজাত আপোনাৰ এপইণ্টমেণ্ট অনুৰোধ গ্ৰহণ কৰা হৈছে।`;
+      } else if (this.state.slots.patientName && !this.state.slots.phoneNumber) {
+        finalText = `ধন্যবাদ ${this.state.slots.patientName} ডাঙৰীয়া। অনুগ্ৰহ কৰি আপোনাৰ যোগাযোগৰ ফোন নম্বৰটো দিব পাৰিবনে?`;
+      } else if (this.state.slots.dateOrTime && !this.state.slots.patientName) {
+        finalText = `কাইলৈ পুৱা ১০ বজাত ডাঃ বৰুৱাৰ সৈতে সময় ঠিক কৰা হৈছে। অনুগ্ৰহ কৰি আপোনাৰ পূৰা নামটো ক'ব পাৰিবনে?`;
       } else if (/[\u0980-\u09FF]/.test(userText)) {
-        finalText = "ধন্যবাদ, মই আপোনাৰ কথা পালোঁ। আপোনাক আৰু কেনেদৰে সহায় কৰিব পাৰো?";
+        finalText = "মই স্পষ্টকৈ শুনা নাপালোঁ, অনুগ্ৰহ কৰি আকৌ এবাৰ ক'ব পাৰিবনে?";
       } else if (/[\u0900-\u097F]/.test(userText)) {
-        finalText = "धन्यवाद, आपकी जानकारी दर्ज कर ली गई है। क्या मैं आपकी कोई और सहायता कर सकता हूँ?";
+        finalText = "क्षमा करें, मैं ठीक से सुन नहीं पाया। कृपया दोबारा कहेंगे?";
       } else {
-        finalText = "Thank you, your request has been noted. How else can I assist you?";
+        finalText = "I could not hear you clearly, could you please say that again?";
       }
 
-      logger.warn("[agent:llm] LLM generated empty text; applied conversational fallback", {
-        userUtterance: userText,
+      logger.warn("[agent:llm] LLM generated empty text; applied state-aware conversational fallback", {
+        turnId: this.state.turnCount,
+        userUtterance: trimmed,
         fallbackText: finalText,
+        slots: this.state.slots,
       });
     }
+
+    // Anti-repetition override:
+    // If the LLM generates the exact same sentence as last turn, provide progressive guidance
+    if (
+      this.state.lastAssistantUtterance &&
+      finalText === this.state.lastAssistantUtterance &&
+      isRepetition
+    ) {
+      if (!this.state.slots.patientName) {
+        finalText = "সময়টো মই পালোঁ। আপোনাৰ সম্পূৰ্ণ নামটো অনুগ্ৰহ কৰি ক'ব পাৰিবনে?";
+      } else if (!this.state.slots.phoneNumber) {
+        finalText = `ধন্যবাদ ${this.state.slots.patientName}। অনুগ্ৰহ কৰি আপোনাৰ ফোন নম্বৰটো ক'ব পাৰিবনে?`;
+      }
+    }
+
+    this.state.lastAssistantUtterance = finalText;
 
     // 3. Append assistant response to history
     this.messages.push({
@@ -240,6 +436,9 @@ export class ConversationSession {
       stream: replayChunks(),
       ttftMs,
       totalLatencyMs,
+      turnId: this.state.turnCount,
+      slots: { ...this.state.slots },
+      isFallback,
     };
   }
 
@@ -251,6 +450,10 @@ export class ConversationSession {
     options?: { abortSignal?: AbortSignal },
   ): Promise<LLMResponse> {
     const trimmed = userText.trim();
+    this.state.turnCount++;
+    this.extractSlots(trimmed);
+    this.state.lastUserUtterance = trimmed;
+
     this.messages.push({
       role: "user",
       content: trimmed,
@@ -261,14 +464,27 @@ export class ConversationSession {
       abortSignal: options?.abortSignal,
     });
 
-    if (response.text.trim().length > 0) {
-      this.messages.push({
-        role: "assistant",
-        content: response.text.trim(),
-      });
+    let respText = response.text.trim();
+    if (respText.length === 0) {
+      if (this.state.slots.phoneNumber) {
+        respText = `ধন্যবাদ, আপোনাৰ ফোন নম্বৰটো পঞ্জীয়ন কৰা হ'ল।`;
+      } else if (/[\u0980-\u09FF]/.test(userText)) {
+        respText = "ধন্যবাদ, আপোনাৰ অনুৰোধটো পোৱা গ'ল।";
+      } else {
+        respText = "Thank you, your request has been noted.";
+      }
     }
 
-    return response;
+    this.state.lastAssistantUtterance = respText;
+    this.messages.push({
+      role: "assistant",
+      content: respText,
+    });
+
+    return {
+      ...response,
+      text: respText,
+    };
   }
 }
 

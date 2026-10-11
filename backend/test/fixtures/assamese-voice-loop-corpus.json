@@ -1,0 +1,65 @@
+[
+  {
+    "id": "turn-1-doctor-intent",
+    "category": "Intent & Doctor Slot",
+    "rawText": "নমস্কাৰ, মই ডাঃ বৰুৱাৰ সৈতে এটা এপইণ্টমেণ্ট বুক কৰিব বিচাৰোঁ।",
+    "expectedDoctor": "ডাঃ বৰুৱা",
+    "description": "Greeting and doctor selection in polite Assamese"
+  },
+  {
+    "id": "turn-2-datetime-selection",
+    "category": "Date & Time Slot",
+    "rawText": "কাইলৈ পুৱা দহ বজাত সময় হ'বনে?",
+    "expectedTime": "কাইলৈ পুৱা দহ বজাত",
+    "description": "Morning appointment slot selection"
+  },
+  {
+    "id": "turn-3-patient-name",
+    "category": "Patient Identity Slot",
+    "rawText": "মোৰ নাম ৰাহুল বৰা।",
+    "expectedName": "ৰাহুল বৰা",
+    "description": "Patient full name introduction"
+  },
+  {
+    "id": "turn-4-phonetic-phone-english-loanwords",
+    "category": "Phonetic Phone Dictation",
+    "rawText": "মোৰ ফোন নম্বৰটো হৈছে ছেভেন ডাবল জিৰ' টু জিৰ' ফাইভ নাইন ফাইভ ফোৰ ফোৰ।",
+    "expectedNormalizedPhone": "7002059544",
+    "description": "Assamese phonetic loanwords with multiplier ('ডাবল')"
+  },
+  {
+    "id": "turn-5-native-assamese-digits-phone",
+    "category": "Native Assamese Digits Phone",
+    "rawText": "মোৰ নম্বৰ ন আঠ চাৰি তিনি দুই এক শূন্য পাঁচ ছয় সাত।",
+    "expectedNormalizedPhone": "9843210567",
+    "description": "Native Assamese digit words dictation"
+  },
+  {
+    "id": "turn-6-mixed-script-phone",
+    "category": "Mixed Digit Phone",
+    "rawText": "নাইন ৮ ফ'ৰ তিনি 2 1 জিৰ' 5 6 7",
+    "expectedNormalizedPhone": "9843210567",
+    "description": "Mixed English loanwords, ASCII numbers, and Assamese digits"
+  },
+  {
+    "id": "turn-7-code-switching",
+    "category": "Code Switching",
+    "rawText": "Doctor Baruah appointment book koribo bisaru, tomorrow morning 10 am please.",
+    "expectedDoctor": "Doctor Baruah",
+    "description": "Assamese-English hybrid conversational request"
+  },
+  {
+    "id": "turn-8-repetition",
+    "category": "Repetition Detection",
+    "rawText": "মই কৈছোঁ ডাঃ বৰুৱা, কাইলৈ পুৱা দহ বজাত।",
+    "description": "User repeats already-provided slots requiring dialogue advancement rather than looping"
+  },
+  {
+    "id": "turn-9-noise-artifact",
+    "category": "STT Low Confidence Hallucination",
+    "rawText": "এই দেশৰে",
+    "confidence": 0.056,
+    "shouldFilter": true,
+    "description": "Acoustic room noise or transient mic burst that STT transcribed with extremely low confidence"
+  }
+]

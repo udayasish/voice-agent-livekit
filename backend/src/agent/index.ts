@@ -106,6 +106,8 @@ const agent = defineAgent<AgentProcessUserData>({
     let isGreetingPlaying = false;
     let activeTtsAbortController: AbortController | null = null;
     let isTtsPlaying = false;
+    let ttsPlaybackStartTime = 0;
+    let currentTurnId = 0;
     const attachedTracks = new Set<string>();
 
     const attachAudioPipelines = (track: Track, participantIdentity: string) => {
@@ -142,16 +144,24 @@ const agent = defineAgent<AgentProcessUserData>({
           }
 
           if (isTtsPlaying) {
-            isTtsPlaying = false;
-            activeTtsAbortController?.abort();
-            logLifecycle(
-              "interruption_detected",
-              `User interrupted agent speech playback (TTS barge-in detected)`,
-              {
-                roomName: ctx.room.name,
-                participantIdentity,
-              },
-            );
+            const elapsedSinceTtsStart = Date.now() - ttsPlaybackStartTime;
+            if (elapsedSinceTtsStart < 250) {
+              logger.debug("[agent:vad] Ignoring speech start within initial speaker audio output buffer", {
+                elapsedSinceTtsStart,
+              });
+            } else {
+              isTtsPlaying = false;
+              activeTtsAbortController?.abort();
+              logLifecycle(
+                "interruption_detected",
+                `User interrupted agent speech playback (TTS barge-in detected)`,
+                {
+                  roomName: ctx.room.name,
+                  participantIdentity,
+                  elapsedSinceTtsStart,
+                },
+              );
+            }
           }
         },
         onSpeechEnd: (event) => {
@@ -218,13 +228,34 @@ const agent = defineAgent<AgentProcessUserData>({
             const text = primaryAlt?.text;
             if (text && text.trim().length > 0) {
               const userUtterance = text.trim();
+              const confidence = primaryAlt.confidence ?? 1.0;
+
+              // Phase 12 Issue B: Confidence gating against low-confidence acoustic noise
+              if (confidence < 0.30 && userUtterance.length < 15) {
+                logLifecycle(
+                  "stt_low_confidence_filtered",
+                  `Ignoring low-confidence noise transcript: "${userUtterance}" (confidence: ${confidence.toFixed(2)})`,
+                  {
+                    roomName: ctx.room.name,
+                    participantIdentity,
+                    text: userUtterance,
+                    confidence,
+                  },
+                );
+                return;
+              }
+
+              currentTurnId++;
+              const turnId = currentTurnId;
+
               logLifecycle("stt_final_transcript", `Final transcript: "${userUtterance}"`, {
                 roomName: ctx.room.name,
                 participantIdentity,
                 text: userUtterance,
                 language: primaryAlt.language,
-                confidence: primaryAlt.confidence,
+                confidence,
                 latencyMs,
+                turnId,
               });
 
               // Flow: STT text -> LLM provider -> response text
@@ -232,6 +263,7 @@ const agent = defineAgent<AgentProcessUserData>({
                 roomName: ctx.room.name,
                 participantIdentity,
                 userText: userUtterance,
+                turnId,
               });
 
               try {
@@ -243,6 +275,9 @@ const agent = defineAgent<AgentProcessUserData>({
                   responseText: llmResult.text,
                   ttftMs: llmResult.ttftMs,
                   totalLatencyMs: llmResult.totalLatencyMs,
+                  turnId,
+                  slots: llmResult.slots,
+                  isFallback: llmResult.isFallback,
                 });
 
                 // Broadcast transcript and response over WebRTC DataChannel to room (e.g. browser sandbox)
@@ -250,10 +285,13 @@ const agent = defineAgent<AgentProcessUserData>({
                   const encoder = new TextEncoder();
                   const payload = JSON.stringify({
                     type: "transcript_turn",
+                    turnId,
                     userText: userUtterance,
                     responseText: llmResult.text,
                     ttftMs: llmResult.ttftMs,
                     totalLatencyMs: llmResult.totalLatencyMs,
+                    slots: llmResult.slots,
+                    isFallback: llmResult.isFallback,
                     timestamp: new Date().toISOString(),
                   });
                   await ctx.room.localParticipant?.publishData(encoder.encode(payload), {
@@ -264,22 +302,35 @@ const agent = defineAgent<AgentProcessUserData>({
                   // Best-effort data channel broadcast
                 }
 
-                // Synthesize response audio using configured TTS adapter (Raya BakBak / IndicF5)
-                try {
-                  logLifecycle("tts_synthesis_started", `Synthesizing speech with ${tts.label} for: "${llmResult.text.slice(0, 40)}"`, {
+                // Phase 12 Issue A: Mandatory non-empty text guard before every TTS call
+                const speechText = llmResult.text.trim();
+                if (!speechText) {
+                  logLifecycle("tts_skipped", "Skipping TTS synthesis: empty response text", {
                     roomName: ctx.room.name,
                     participantIdentity,
-                    text: llmResult.text,
+                    turnId,
+                  });
+                  return;
+                }
+
+                // Synthesize response audio using configured TTS adapter (Raya BakBak / IndicF5)
+                try {
+                  logLifecycle("tts_synthesis_started", `Synthesizing speech with ${tts.label} for: "${speechText.slice(0, 40)}"`, {
+                    roomName: ctx.room.name,
+                    participantIdentity,
+                    text: speechText,
                     provider: tts.label,
+                    turnId,
                   });
 
                   activeTtsAbortController = new AbortController();
                   isTtsPlaying = true;
+                  ttsPlaybackStartTime = Date.now();
                   const ttsStart = Date.now();
-                  const ttsStream = tts.synthesize(llmResult.text, undefined, activeTtsAbortController.signal);
+                  const ttsStream = tts.synthesize(speechText, undefined, activeTtsAbortController.signal);
                   let frameCount = 0;
                   for await (const packet of ttsStream) {
-                    if (activeTtsAbortController?.signal.aborted) {
+                    if (turnId !== currentTurnId || activeTtsAbortController?.signal.aborted) {
                       break;
                     }
                     frameCount++;
@@ -298,6 +349,7 @@ const agent = defineAgent<AgentProcessUserData>({
                       frameCount,
                       ttsDurationMs,
                       provider: tts.label,
+                      turnId,
                     },
                   );
                 } catch (ttsErr) {
@@ -308,11 +360,14 @@ const agent = defineAgent<AgentProcessUserData>({
                       roomName: ctx.room.name,
                       participantIdentity,
                       error: ttsErr instanceof Error ? ttsErr.message : String(ttsErr),
+                      turnId,
                     },
                   );
                 } finally {
-                  isTtsPlaying = false;
-                  activeTtsAbortController = null;
+                  if (turnId === currentTurnId) {
+                    isTtsPlaying = false;
+                    activeTtsAbortController = null;
+                  }
                 }
               } catch (llmErr) {
                 logLifecycle(

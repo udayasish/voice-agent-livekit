@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 12 — Complete Voice Loop
+**Phase:** 13 — Barge-In
 
 **Status:** NOT STARTED
 
@@ -29,7 +29,7 @@
 | 9 STT Benchmark | DONE | Repeatable benchmark evaluating Deepgram Nova-3 across 9 categories (3.4% WER, 100% entity match, 209ms TTFT, 5/5 concurrency, 0 MB GPU). Results in docs/STT_BENCHMARK.md. Python STT not required. |
 | 10 Hugging Face Inference — Qwen3.5-4B | DONE | LLMProvider abstraction, HF router adapter, mock offline provider, pipeline flow (STT -> LLM -> response), and multilingual voice prompt verified via 9/9 automated tests |
 | 11 TTS (IndicF5 & Raya BakBak) | DONE | Primary TTS migrated to Raya BakBak streaming SSE adapter in TypeScript (24kHz F32LE->PCM16, 20ms framing, Assamese sentence segmentation, AbortSignal barge-in). IndicF5 preserved for benchmark comparison. 13/13 Raya tests & 9/9 IndicF5 tests passing. |
-| 12 Complete Voice Loop | NOT STARTED | |
+| 12 Complete Voice Loop | DONE | End-to-end multi-turn Assamese loop (Mic -> VAD -> Deepgram Nova-3 -> ConversationSession/Qwen3.5 -> Raya BakBak TTS -> Speakers) verified. State slot extraction, Assamese phonetic phone normalizer, repetition loop guard, empty text Raya 400 prevention, STT noise gating, 250ms echo guard, and WebRTC diagnostics completed. 8/8 voice-loop tests passing. |
 | 13 Barge-In | NOT STARTED | |
 | 14 Agent Engine | NOT STARTED | |
 | 15 Tool System | NOT STARTED | |
@@ -45,9 +45,34 @@
 
 ## Current Work
 
-Phase 11 (IndicF5 & Raya BakBak TTS Migration) completed. Ready for Phase 12 (Complete Voice Loop).
+Phase 12 (Complete Voice Loop) completed. Ready for Phase 13 (Barge-In).
 
 ## Last Completed Work
+
+**Phase 12 — Complete Voice Loop**
+- **Resolved Live Conversational Issues & Edge Cases**:
+  - **Issue A: Empty LLM Response Crash (Raya HTTP 400)**: Enforced strict non-empty response guards in `backend/src/agent/llm.ts` and `backend/src/agent/index.ts`. If the LLM generates whitespace or empty text, the session automatically falls back to an empathetic, state-aware Assamese recovery prompt (acknowledging known slots), and bypasses TTS invocation completely if text is blank, eliminating Raya HTTP 400 crashes.
+  - **Issue B: STT Hallucination & Low-Confidence Acoustic Noise Filtering**: Added confidence gating (`STT_CONFIDENCE_THRESHOLD = 0.30`) in `backend/src/agent/index.ts` to reject spurious room noise or mic pops (such as `"এই দেশৰে"` with confidence 0.056) before triggering unneeded LLM inference or synthetic speech.
+  - **Issue C: Spoken Assamese Phonetic Phone Number Normalization**: Implemented `backend/src/components/agent/normalizers/phone-number-normalizer.ts` with comprehensive mapping for phonetic English loanwords in Assamese script (`"ছেভেন"`, `"ডাবল"`, `"জিৰ'"`, `"টু"`, `"ফাইভ"`, `"নাইন"`), native Assamese numeral words (`"এক"`, `"দুই"`, `"সাত"`, `"শূন্য"`), multipliers (`"ডাবল"`, `"ট্ৰিপল"`), and mixed ASCII/Indic scripts. Converts spoken dictation like `"ছেভেন ডাবল জিৰ' টু জিৰ' ফাইভ নাইন ফাইভ ফোৰ ফোৰ"` into verified 10-digit Indian mobile numbers (`7002059544`). Also includes `formatPhoneNumberForSpeech` for natural Assamese speech readouts.
+  - **Issue D: Anti-Repetition Loop Mitigation**: Added `detectRepetition` and slot accumulation in `backend/src/agent/llm.ts` to track clinic appointment slots (`doctor`, `dateOrTime`, `patientName`, `phoneNumber`). When callers repeat acknowledged details, the dialogue advances to missing information rather than looping mechanically.
+  - **Speaker Acoustic Echo & False Interruption Protection**: Added a 250ms transient cutoff guard in `backend/src/agent/index.ts` during speech playback. If speech activity lasts less than 250ms right after synthesis starts, the system buffers the cancellation signal, preventing acoustic speaker feedback from killing agent utterances at 0 frames.
+  - **Monotonic Turn Tracking & Superseded Frame Cancellation**: Introduced monotonic `currentTurnId` in `backend/src/agent/index.ts`. Audio frames from superseded or interrupted turns are dropped at the packet boundary so stale audio never plays over active turns.
+- **Frontend LiveKit Diagnostics & Visualization (`frontend/src/components/voice/voice-sandbox.tsx`, `use-livekit-room.ts`)**:
+  - Enriched WebRTC DataChannel message payload with `turnId`, `isFallback`, `slots`, and latency breakdown (`ttftMs`, `totalLatencyMs`).
+  - Added turn badges (`#1`, `#2`), safe-guard badges, latency metrics, and interactive slot chips (doctor, date/time, patient, phone) directly in the UI.
+  - Updated voice sandbox documentation note to reflect the Phase 12 Complete Voice Loop pipeline.
+- **Automated Voice Loop Test Suite (`backend/test/voice-loop.test.ts`)**:
+  - Created 8 comprehensive automated unit and integration tests covering:
+    - Test 1: Spoken phone number normalization (loanwords, native digits, multipliers, formats).
+    - Test 2: Multi-turn conversation progression and persistent slot tracking across 4 turns.
+    - Test 3: Anti-repetition mitigation advancing dialogue to missing slots.
+    - Test 4: Empty LLM output fallback and Raya HTTP 400 prevention.
+    - Test 5: STT low-confidence noise gating rejecting low-confidence artifacts.
+    - Test 6: Monotonic turn ID tracking and stale frame discard.
+    - Test 7: Error isolation and provider failure recovery.
+    - Test 8: Uniform 20ms audio framing integrity (480 samples @ 24kHz mono = 960 bytes).
+  - Created fixture `backend/test/fixtures/assamese-voice-loop-corpus.json`.
+  - Added npm script `"test:voice-loop"`. All 8 tests pass cleanly. All backend regression suites (`test:llm`, `test:tts:bakbak`, `test:vad`, `test:stt`, `test:agent`) pass 100%. TypeScript strict typecheck passes with 0 errors across backend and frontend.
 
 **Phase 11 Migration — Raya BakBak TTS**
 - **Verified Vendor Integration**: Confirmed official `livekit-plugins-raya` is Python-only. Implemented dedicated zero-dependency TypeScript provider in `backend/src/components/agent/providers/tts/raya/`.

@@ -231,8 +231,13 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
               {conversationTurns.map((turn) => (
                 <div key={turn.id} className="space-y-1.5 rounded-lg border bg-muted/30 p-2.5">
                   <div className="flex items-start justify-between text-muted-foreground text-[10px]">
-                    <span className="font-semibold text-foreground flex items-center gap-1">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
                       <span>👤 You (STT):</span>
+                      {turn.turnId !== undefined && (
+                        <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 font-mono">
+                          #{turn.turnId}
+                        </Badge>
+                      )}
                     </span>
                     <span>{new Date(turn.timestamp).toLocaleTimeString()}</span>
                   </div>
@@ -241,16 +246,46 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                   </p>
                   <div className="border-t border-muted/50 pt-1.5 mt-1.5">
                     <div className="flex items-center justify-between text-[10px] text-primary font-semibold">
-                      <span>🤖 Agent (LLM Brain):</span>
-                      {turn.totalLatencyMs !== undefined && (
-                        <span className="font-mono text-muted-foreground text-[10px]">
-                          {turn.totalLatencyMs} ms
-                        </span>
-                      )}
+                      <span className="flex items-center gap-1.5">
+                        <span>🤖 Agent (LLM + Raya TTS):</span>
+                        {turn.isFallback && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-amber-500 border-amber-500/40">
+                            Safe Guard
+                          </Badge>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1.5 font-mono text-muted-foreground text-[10px]">
+                        {turn.ttftMs !== undefined && <span>TTFT: {turn.ttftMs}ms</span>}
+                        {turn.totalLatencyMs !== undefined && <span>Total: {turn.totalLatencyMs}ms</span>}
+                      </div>
                     </div>
                     <p className="text-primary/90 pl-3 text-xs font-medium leading-relaxed mt-0.5">
                       &quot;{turn.responseText}&quot;
                     </p>
+                    {turn.slots && (turn.slots.doctor || turn.slots.dateOrTime || turn.slots.patientName || turn.slots.phoneNumber) && (
+                      <div className="flex flex-wrap gap-1 pl-3 pt-1.5">
+                        {turn.slots.doctor && (
+                          <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
+                            🩺 Dr: {turn.slots.doctor}
+                          </span>
+                        )}
+                        {turn.slots.dateOrTime && (
+                          <span className="inline-flex items-center rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[9px] font-medium text-blue-600 dark:text-blue-400">
+                            📅 {turn.slots.dateOrTime}
+                          </span>
+                        )}
+                        {turn.slots.patientName && (
+                          <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-600 dark:text-emerald-400">
+                            👤 {turn.slots.patientName}
+                          </span>
+                        )}
+                        {turn.slots.phoneNumber && (
+                          <span className="inline-flex items-center rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[9px] font-medium text-purple-600 dark:text-purple-400 font-mono">
+                            📞 {turn.slots.phoneNumber}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -258,11 +293,11 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
           </div>
         )}
 
-        {/* Phase 10 Live AI Note */}
+        {/* Phase 12 Complete Voice Loop Note */}
         <div className="rounded-lg bg-muted/50 p-2.5 text-[11px] text-muted-foreground space-y-1">
-          <p className="font-semibold text-foreground">Phase 10 Multilingual AI Voice Pipeline:</p>
+          <p className="font-semibold text-foreground">Phase 12 Complete Voice Loop (Production Pipeline):</p>
           <p>
-            Speak in Assamese, Hindi, or English. Your speech is recognized in real-time by Deepgram Nova-3 and processed by the Qwen3.5-4B LLM conversational brain. (Voice speech synthesis will be added in Phase 11 TTS).
+            Realtime WebRTC voice loop: Deepgram Nova-3 (Assamese STT) &rarr; Silero VAD turn boundary &rarr; Qwen3.5-4B (with slot tracking &amp; repetition guards) &rarr; Raya BakBak TTS streaming 20ms audio frames directly back to your browser speakers.
           </p>
         </div>
 
