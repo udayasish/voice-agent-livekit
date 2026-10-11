@@ -26,6 +26,8 @@ const envSchema = z.object({
 
   // ── Python TTS Service (AI4Bharat IndicF5) ────────────────────────────────
   TTS_SERVICE_URL: z.string().default("http://localhost:8001"),
+  TTS_TIMEOUT_MS: z.coerce.number().default(15000),
+  TTS_SAMPLE_RATE: z.coerce.number().default(24000),
 
   // ── Speech-to-Text (STT) Configuration ─────────────────────────────────────
   STT_PROVIDER: z.enum(["deepgram", "indicconformer"]).default("deepgram"),

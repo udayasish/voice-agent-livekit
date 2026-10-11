@@ -1,0 +1,32 @@
+[
+  {
+    "id": "as-greeting",
+    "category": "Short Greeting",
+    "text": "নমস্কাৰ, ব্ৰহ্মপুত্ৰ হেলথ ক্লিনিকত আপোনাক স্বাগতম।",
+    "description": "Standard clinic receptionist opening greeting in pure polite Assamese"
+  },
+  {
+    "id": "as-booking",
+    "category": "Clinical Appointment",
+    "text": "ডক্টৰ বৰুৱাৰ সৈতে কাইলৈ পুৱা ১০ বজাত এটা এপইণ্টমেণ্ট বুক কৰিব পাৰিবনে?",
+    "description": "Appointment scheduling query with doctor name, relative day, and hour"
+  },
+  {
+    "id": "as-specialist",
+    "category": "Medical Specialists",
+    "text": "ডাঃ প্ৰণৱ জ্যোতি দাস, শিশু ৰোগ বিশেষজ্ঞ আৰু ডাঃ অৰুণিমা শৰ্মা, হৃদৰোগ বিশেষজ্ঞ উপস্থিত আছে।",
+    "description": "Complex compound doctor titles, specialist designations, and conjunctions"
+  },
+  {
+    "id": "as-datetime-numbers",
+    "category": "Dates, Times & Numbers",
+    "text": "আপোনাৰ এপইণ্টমেণ্ট ১৫ অক্টোবৰ, বিয়লি ৪:৩০ বজাত নিশ্চিত কৰা হৈছে। অনুগ্ৰহ কৰি টোকেন নম্বৰ ১২ মনত ৰাখিব।",
+    "description": "Confirmation with numerical dates, 12-hour clock times, and token integers"
+  },
+  {
+    "id": "as-codeswitching",
+    "category": "Clinical Code-Switching",
+    "text": "আপোনাৰ appointment confirm হৈছে। OPD registration counter-ত report কৰিব।",
+    "description": "Natural clinical code-switching combining Assamese syntax with English loanwords"
+  }
+]

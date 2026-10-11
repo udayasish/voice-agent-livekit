@@ -542,6 +542,7 @@ docs/AGENTS.md
 docs/PROGRESS.md
 Phase 11 in docs/PHASES.md
 docs/VOICE_AI_ARCHITECTURE.md
+docs/BACKEND_ARCHITECTURE.md
 
 Implement ONLY Phase 11.
 

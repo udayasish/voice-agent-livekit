@@ -52,8 +52,35 @@ services:
       retries: 5
       start_period: 5s
 
+  tts:
+    build:
+      context: ./ai/tts
+      dockerfile: Dockerfile
+    container_name: voice-agent-tts
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - TTS_MODE=${TTS_MODE:-indicf5}
+      - DEVICE=${TTS_DEVICE:-auto}
+      - PORT=8001
+      - HOST=0.0.0.0
+      - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN:-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}
+      - HF_TOKEN=${HUGGINGFACE_API_TOKEN:-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}
+    volumes:
+      - tts_cache:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 volumes:
   postgres_data:
     name: voice_agent_postgres_data
   redis_data:
     name: voice_agent_redis_data
+  tts_cache:
+    name: voice_agent_tts_cache

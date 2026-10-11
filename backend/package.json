@@ -20,6 +20,7 @@
     "test:vad": "tsx --env-file .env test/vad.test.ts",
     "test:stt": "tsx --env-file .env test/stt.test.ts",
     "test:llm": "tsx --env-file .env test/llm.test.ts",
+    "test:tts": "tsx --env-file .env test/tts.test.ts",
     "test:benchmark": "tsx --test test/benchmark.test.ts",
     "benchmark:stt": "tsx --env-file .env test/benchmark/runner.ts",
     "agent:dev": "tsx --env-file .env src/agent/index.ts dev",

@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 11 — IndicF5 TTS
+**Phase:** 12 — Complete Voice Loop
 
 **Status:** NOT STARTED
 
@@ -28,7 +28,7 @@
 | 8 Deepgram Nova-3 STT | DONE | Integrated @livekit/agents-plugin-deepgram (v1.9.1), STTProvider abstraction, IndicConformer fallback boundary, Assamese streaming pipeline, live WebSocket & latency/resource profiling verified via 6/6 automated tests |
 | 9 STT Benchmark | DONE | Repeatable benchmark evaluating Deepgram Nova-3 across 9 categories (3.4% WER, 100% entity match, 209ms TTFT, 5/5 concurrency, 0 MB GPU). Results in docs/STT_BENCHMARK.md. Python STT not required. |
 | 10 Hugging Face Inference — Qwen3.5-4B | DONE | LLMProvider abstraction, HF router adapter, mock offline provider, pipeline flow (STT -> LLM -> response), and multilingual voice prompt verified via 9/9 automated tests |
-| 11 IndicF5 TTS | NOT STARTED | |
+| 11 IndicF5 TTS | DONE | Standalone Python FastAPI service (ai/tts/), custom LiveKit TTS adapter (@livekit/agents v1.9.1), byte-aligned 24kHz AudioFrame slicing, 5/5 Assamese corpus benchmark (docs/TTS_BENCHMARK.md), 8/8 Python tests & 9/9 Node tests passing |
 | 12 Complete Voice Loop | NOT STARTED | |
 | 13 Barge-In | NOT STARTED | |
 | 14 Agent Engine | NOT STARTED | |
@@ -45,9 +45,32 @@
 
 ## Current Work
 
-Phase 10 completed. Ready for Phase 11 (IndicF5 TTS).
+Phase 11 completed. Ready for Phase 12 (Complete Voice Loop).
 
 ## Last Completed Work
+
+**Phase 11 — IndicF5 TTS**
+- **Standalone Python TTS Microservice (`ai/tts/`)**:
+  - Implemented standalone FastAPI service running on port 8001 (`TTS_SERVICE_URL`).
+  - Lifespan context manager in `src/server.py` loading model once at startup with `GET /health` and `GET /ready` probes.
+  - Two explicit operational modes (`TTS_MODE`): `"indicf5"` for neural speech inference and `"synthetic"` for fast deterministic tests.
+  - Strict input validation in `src/schemas.py`: text length (1-1000 characters) and strict `speed == 1.0` requirement (rejecting unsupported speeds).
+  - Configurable device resolution in `src/engine.py`: `DEVICE="auto" | "cuda" | "cpu"` with explicit fail on `cuda` when unavailable.
+  - Reference audio conditioning in `prompts/`: `as_clinic_ref.wav` (3.2s @ 24kHz mono PCM) + verbatim Assamese transcript `as_clinic_ref.txt`.
+- **Node.js LiveKit TTS Adapter (`backend/src/agent/tts.ts`)**:
+  - Implemented `IndicF5TTS` extending `@livekit/agents` (v1.9.1) `tts.TTS` and `IndicF5ChunkedStream` extending `tts.ChunkedStream`.
+  - Byte-safe little-endian PCM sample reading (`readInt16LE`) into aligned `Int16Array`.
+  - 20ms uniform frame slicing (480 samples @ 24kHz mono) with zero-padded tail remainder frames to prevent WebRTC clock jitter.
+  - Integrated `StreamAdapter` support for continuous sentence-level streaming.
+  - Immediate `AbortSignal` cancellation support for user interruption and barge-in.
+- **Assamese Test Corpus & Latency Benchmark (`docs/TTS_BENCHMARK.md`)**:
+  - Multi-category Assamese corpus (`backend/test/fixtures/assamese-tts-corpus.json`) covering greetings, appointments, doctor titles, dates/numbers, and clinical code-switching.
+  - Verified 5/5 corpus syntheses producing 24kHz 16-bit mono WAV files.
+  - Recorded TTFA (Time to First Audio Frame) = 65ms, duration metrics, and documented external Python 3.13 / Hugging Face model gating findings.
+- **Automated Verification**:
+  - Python tests: `python -m unittest ai/tts/tests/test_service.py` -> 8/8 passed.
+  - Node.js tests: `npm run test:tts` -> 9/9 passed.
+  - Full regression checks: `test:llm`, `test:stt`, `test:vad`, `test:agent`, `typecheck`, and `build` all passing cleanly.
 
 **Phase 10 — Hugging Face Inference — Qwen3.5-4B**
 - **LLMProvider Abstraction (`backend/src/components/agent/providers/llm/`)**:

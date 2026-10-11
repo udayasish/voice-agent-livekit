@@ -17,18 +17,22 @@ import { logLifecycle, registerShutdownHandlers } from "./lifecycle.js";
 import { attachVADToTrack, loadSileroVAD } from "./vad.js";
 import { attachSTTToTrack, loadDeepgramSTT } from "./stt.js";
 import { loadLLMProvider, ConversationSession } from "./llm.js";
+import { loadTTSProvider, IndicF5TTS } from "./tts.js";
 import type { LLMProvider } from "../components/agent/providers/llm/index.js";
 
 interface AgentProcessUserData extends Record<string, unknown> {
   vad?: BaseVAD | undefined;
   stt?: deepgram.STT | null | undefined;
   llm?: LLMProvider | undefined;
+  tts?: IndicF5TTS | undefined;
 }
 
 /**
  * Node.js LiveKit Agent definition.
  * Prewarms Silero VAD model on process initialization.
  * Prewarms Deepgram Nova-3 STT for Assamese real-time transcription.
+ * Prewarms LLM Provider (Qwen3.5 / Groq).
+ * Prewarms IndicF5 TTS adapter.
  * Detects speech start, speech end (turn boundaries), and user interruption (barge-in).
  */
 const agent = defineAgent<AgentProcessUserData>({
@@ -46,6 +50,10 @@ const agent = defineAgent<AgentProcessUserData>({
     logger.info("[agent:prewarm] Initializing LLM provider (Qwen3.5-4B)...");
     proc.userData.llm = loadLLMProvider();
     logger.info("[agent:prewarm] LLM provider initialized successfully");
+
+    logger.info("[agent:prewarm] Initializing IndicF5 TTS adapter...");
+    proc.userData.tts = loadTTSProvider();
+    logger.info("[agent:prewarm] IndicF5 TTS adapter initialized successfully");
   },
   entry: async (ctx: JobContext<AgentProcessUserData>) => {
     const targetRoomName = ctx.job?.room?.name ?? ctx.room.name ?? "unnamed-room";
@@ -79,10 +87,11 @@ const agent = defineAgent<AgentProcessUserData>({
       },
     );
 
-    // Ensure VAD, STT, and LLM are available (prewarmed or lazy fallback)
+    // Ensure VAD, STT, LLM, and TTS are available (prewarmed or lazy fallback)
     const vad = ctx.proc.userData.vad ?? (await loadSileroVAD());
     const stt = ctx.proc.userData.stt ?? (await loadDeepgramSTT());
     const llm = ctx.proc.userData.llm ?? loadLLMProvider();
+    const tts = ctx.proc.userData.tts ?? loadTTSProvider();
 
     // Setup greeting interruption controller (barge-in primitive)
     const greetingAbortController = new AbortController();
@@ -230,6 +239,44 @@ const agent = defineAgent<AgentProcessUserData>({
                   });
                 } catch {
                   // Best-effort data channel broadcast
+                }
+
+                // Synthesize response audio using IndicF5 TTS adapter (Phase 11)
+                try {
+                  logLifecycle("tts_synthesis_started", `Synthesizing speech with IndicF5 for: "${llmResult.text.slice(0, 40)}"`, {
+                    roomName: ctx.room.name,
+                    participantIdentity,
+                    text: llmResult.text,
+                  });
+
+                  const ttsStart = Date.now();
+                  const ttsStream = tts.synthesize(llmResult.text);
+                  let frameCount = 0;
+                  for await (const _packet of ttsStream) {
+                    frameCount++;
+                  }
+                  const ttsDurationMs = Date.now() - ttsStart;
+
+                  logLifecycle(
+                    "tts_synthesis_completed",
+                    `IndicF5 speech synthesis completed (${frameCount} frames in ${ttsDurationMs}ms)`,
+                    {
+                      roomName: ctx.room.name,
+                      participantIdentity,
+                      frameCount,
+                      ttsDurationMs,
+                    },
+                  );
+                } catch (ttsErr) {
+                  logLifecycle(
+                    "agent_error",
+                    `IndicF5 TTS synthesis error: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`,
+                    {
+                      roomName: ctx.room.name,
+                      participantIdentity,
+                      error: ttsErr instanceof Error ? ttsErr.message : String(ttsErr),
+                    },
+                  );
                 }
               } catch (llmErr) {
                 logLifecycle(

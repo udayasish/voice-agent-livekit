@@ -19,6 +19,8 @@ export type AgentLifecycleEvent =
   | "stt_final_transcript"
   | "llm_generation_started"
   | "llm_response_completed"
+  | "tts_synthesis_started"
+  | "tts_synthesis_completed"
   | "room_disconnected"
   | "worker_shutdown"
   | "agent_error";
