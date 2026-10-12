@@ -140,14 +140,21 @@ export function extractSlotsFromText(
 
   // 4. Patient Name extraction
   if (
-    trimmed.includes("মোৰ নাম") ||
+    trimmed.includes("নাম") ||
+    trimmed.includes("নামটো") ||
     trimmed.includes("মই") ||
-    lower.includes("my name is") ||
+    lower.includes("my name") ||
     lower.includes("name is")
   ) {
-    const match = trimmed.match(/(?:মোৰ\s+নাম|নামটো|নাম)\s*(?:হৈছে|হয়|টো)?\s*([^\s।?,!]+(?:\s+[^\s।?,!]+)?)/);
+    const match = trimmed.match(/(?:মোৰ\s+নাম|মো\s+নামটো|মোৰ\s+নামটো|নামটো|নাম)\s*(?:হৈছে|হয়|টো)?\s*([^\s।?,!]+(?:\s+[^\s।?,!]+)?)/);
     if (match?.[1] && match[1].length > 1 && !match[1].includes("ফোন") && !match[1].includes("নম্বৰ")) {
       slots.patientName = match[1];
+    }
+  } else if (slots.dateOrTime && !slots.patientName && !containsPhoneNumberCandidate(trimmed)) {
+    // If appointment time is already acknowledged, and user provides 1 to 3 words (e.g. "উদয়চিছ বৰা")
+    const words = trimmed.split(/\s+/).filter((w) => w.length > 1 && !w.includes("ডাঃ") && !w.includes("বৰুৱা") && !w.includes("কাইলৈ") && !w.includes("বজাত"));
+    if (words.length >= 1 && words.length <= 3) {
+      slots.patientName = words.join(" ").replace(/[।॥,;:"?!=+()[\]{}]/g, "").trim();
     }
   }
 
@@ -403,17 +410,26 @@ export class ConversationSession {
     }
 
     // Anti-repetition override:
-    // If the LLM generates the exact same sentence as last turn, provide progressive guidance
+    // If the LLM generates the exact same sentence as last turn, provide progressive guidance based on missing slots
     if (
       this.state.lastAssistantUtterance &&
-      finalText === this.state.lastAssistantUtterance &&
-      isRepetition
+      finalText === this.state.lastAssistantUtterance
     ) {
-      if (!this.state.slots.patientName) {
+      if (!this.state.slots.dateOrTime) {
+        finalText = "আপুনি কেতিয়া বা কি সময়ত দেখুৱাব বিচাৰে?";
+      } else if (!this.state.slots.patientName) {
         finalText = "সময়টো মই পালোঁ। আপোনাৰ সম্পূৰ্ণ নামটো অনুগ্ৰহ কৰি ক'ব পাৰিবনে?";
       } else if (!this.state.slots.phoneNumber) {
         finalText = `ধন্যবাদ ${this.state.slots.patientName}। অনুগ্ৰহ কৰি আপোনাৰ ফোন নম্বৰটো ক'ব পাৰিবনে?`;
+      } else {
+        const speechPhone = formatPhoneNumberForSpeech(this.state.slots.phoneNumber);
+        finalText = `ধন্যবাদ, আপোনাৰ ফোন নম্বৰ ${speechPhone} পঞ্জীয়ন কৰা হ'ল। ডাঃ বৰুৱাৰ সৈতে কাইলৈ পুৱা ১০ বজাত আপোনাৰ এপইণ্টমেণ্ট অনুৰোধ গ্ৰহণ কৰা হৈছে।`;
       }
+    }
+
+    if (finalText !== accumulatedText.trim()) {
+      capturedChunks.length = 0;
+      capturedChunks.push({ type: "text", delta: finalText });
     }
 
     this.state.lastAssistantUtterance = finalText;

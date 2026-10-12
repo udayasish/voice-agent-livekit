@@ -18,6 +18,7 @@ export type AgentLifecycleEvent =
   | "stt_interim_transcript"
   | "stt_final_transcript"
   | "stt_low_confidence_filtered"
+  | "stt_echo_filtered"
   | "llm_generation_started"
   | "llm_response_completed"
   | "tts_synthesis_started"

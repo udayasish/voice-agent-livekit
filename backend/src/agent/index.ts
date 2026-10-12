@@ -18,6 +18,7 @@ import { attachVADToTrack, loadSileroVAD } from "./vad.js";
 import { attachSTTToTrack, loadDeepgramSTT } from "./stt.js";
 import { loadLLMProvider, ConversationSession } from "./llm.js";
 import { loadTTSProvider, type TTSAdapter, RayaTTS } from "./tts.js";
+import { InterruptionManager } from "../components/agent/index.js";
 import type { LLMProvider } from "../components/agent/providers/llm/index.js";
 
 interface AgentProcessUserData extends Record<string, unknown> {
@@ -100,20 +101,15 @@ const agent = defineAgent<AgentProcessUserData>({
     const llm = ctx.proc.userData.llm ?? loadLLMProvider();
     const tts = ctx.proc.userData.tts ?? loadTTSProvider();
 
-    // Setup audio source and interruption controllers (barge-in primitives)
+    // Setup audio source and single authoritative interruption coordinator
     let agentAudioSource: AudioSource | null = null;
-    const greetingAbortController = new AbortController();
-    let isGreetingPlaying = false;
-    let activeTtsAbortController: AbortController | null = null;
-    let isTtsPlaying = false;
-    let ttsPlaybackStartTime = 0;
-    let currentTurnId = 0;
-    const attachedTracks = new Set<string>();
+    const interruptionManager = new InterruptionManager();
+    const attachedParticipants = new Set<string>();
 
     const attachAudioPipelines = (track: Track, participantIdentity: string) => {
-      const trackId = track.sid || `${participantIdentity}-${track.kind}`;
-      if (attachedTracks.has(trackId)) return;
-      attachedTracks.add(trackId);
+      // Ensure only one active audio pipeline (VAD, STT, and ConversationSession) per participant
+      if (attachedParticipants.has(participantIdentity)) return;
+      attachedParticipants.add(participantIdentity);
 
       logLifecycle("audio_published", `Attaching Silero VAD to user audio track (${participantIdentity})`, {
         roomName: ctx.room.name,
@@ -129,38 +125,43 @@ const agent = defineAgent<AgentProcessUserData>({
             speaking: true,
           });
 
-          // Interruption / Barge-in handling:
-          if (isGreetingPlaying) {
-            isGreetingPlaying = false;
-            greetingAbortController.abort();
+          // Interruption / Barge-in handling via InterruptionManager
+          const interruption = interruptionManager.handleUserSpeechStart();
+          if (interruption) {
+            // Discard already queued native WebRTC audio frames immediately
+            if (agentAudioSource && !agentAudioSource.closed) {
+              agentAudioSource.clearQueue();
+            }
+
             logLifecycle(
               "interruption_detected",
-              `User interrupted agent greeting playback (barge-in detected)`,
+              `User interrupted agent playback/generation (${interruption.phase} barge-in detected)`,
               {
                 roomName: ctx.room.name,
                 participantIdentity,
+                turnId: interruption.turnId,
+                playbackDurationMs: interruption.playbackDurationMs,
+                interruptionCount: interruption.interruptionCount,
+                phase: interruption.phase,
               },
             );
-          }
 
-          if (isTtsPlaying) {
-            const elapsedSinceTtsStart = Date.now() - ttsPlaybackStartTime;
-            if (elapsedSinceTtsStart < 250) {
-              logger.debug("[agent:vad] Ignoring speech start within initial speaker audio output buffer", {
-                elapsedSinceTtsStart,
+            // Informational DataChannel broadcast to frontend clients
+            try {
+              const payload = JSON.stringify({
+                type: "agent_interrupted",
+                turnId: interruption.turnId,
+                phase: interruption.phase,
+                timestamp: interruption.timestamp,
               });
-            } else {
-              isTtsPlaying = false;
-              activeTtsAbortController?.abort();
-              logLifecycle(
-                "interruption_detected",
-                `User interrupted agent speech playback (TTS barge-in detected)`,
-                {
-                  roomName: ctx.room.name,
-                  participantIdentity,
-                  elapsedSinceTtsStart,
-                },
-              );
+              ctx.room.localParticipant
+                ?.publishData(new TextEncoder().encode(payload), {
+                  reliable: true,
+                  topic: "agent_transcript",
+                })
+                .catch(() => {});
+            } catch {
+              // Best-effort
             }
           }
         },
@@ -245,8 +246,34 @@ const agent = defineAgent<AgentProcessUserData>({
                 return;
               }
 
-              currentTurnId++;
-              const turnId = currentTurnId;
+              // Acoustic self-echo filtering:
+              // When testing via laptop speakers without headphones, the microphone may capture
+              // the agent's recent speech. Discard transcripts that echo the assistant's own utterance.
+              const lastAssistantText = session.getState().lastAssistantUtterance?.trim();
+              if (lastAssistantText) {
+                const u = userUtterance.toLowerCase();
+                const a = lastAssistantText.toLowerCase();
+                const isEcho =
+                  (u.length >= 10 && u === a) ||
+                  (a.includes(u) && (u.length >= a.length * 0.6 || u.length >= 20)) ||
+                  (u.includes(a) && a.length >= 15);
+
+                if (isEcho) {
+                  logLifecycle(
+                    "stt_echo_filtered",
+                    `Ignoring acoustic echo of agent's own speech: "${userUtterance}"`,
+                    {
+                      roomName: ctx.room.name,
+                      participantIdentity,
+                      userUtterance,
+                      lastAssistantText,
+                    },
+                  );
+                  return;
+                }
+              }
+
+              const turnId = interruptionManager.beginTurn();
 
               logLifecycle("stt_final_transcript", `Final transcript: "${userUtterance}"`, {
                 roomName: ctx.room.name,
@@ -266,8 +293,24 @@ const agent = defineAgent<AgentProcessUserData>({
                 turnId,
               });
 
+              const llmSignal = interruptionManager.startThinking(turnId);
+
               try {
-                const llmResult = await session.processUserUtterance(userUtterance);
+                const llmResult = await session.processUserUtterance(userUtterance, {
+                  abortSignal: llmSignal,
+                });
+
+                // Verify turn is still active before proceeding to broadcast and TTS
+                if (!interruptionManager.isTurnActive(turnId)) {
+                  logLifecycle("tts_skipped", `Skipping response for superseded turn #${turnId}`, {
+                    roomName: ctx.room.name,
+                    participantIdentity,
+                    turnId,
+                  });
+                  return;
+                }
+                interruptionManager.finishThinking(turnId);
+
                 logLifecycle("llm_response_completed", `LLM generated response: "${llmResult.text}"`, {
                   roomName: ctx.room.name,
                   participantIdentity,
@@ -315,6 +358,10 @@ const agent = defineAgent<AgentProcessUserData>({
 
                 // Synthesize response audio using configured TTS adapter (Raya BakBak / IndicF5)
                 try {
+                  if (!interruptionManager.isTurnActive(turnId)) {
+                    return;
+                  }
+
                   logLifecycle("tts_synthesis_started", `Synthesizing speech with ${tts.label} for: "${speechText.slice(0, 40)}"`, {
                     roomName: ctx.room.name,
                     participantIdentity,
@@ -323,36 +370,40 @@ const agent = defineAgent<AgentProcessUserData>({
                     turnId,
                   });
 
-                  activeTtsAbortController = new AbortController();
-                  isTtsPlaying = true;
-                  ttsPlaybackStartTime = Date.now();
+                  const ttsSignal = interruptionManager.startSpeaking(turnId);
                   const ttsStart = Date.now();
-                  const ttsStream = tts.synthesize(speechText, undefined, activeTtsAbortController.signal);
+                  const ttsStream = tts.synthesize(speechText, undefined, ttsSignal);
                   let frameCount = 0;
                   for await (const packet of ttsStream) {
-                    if (turnId !== currentTurnId || activeTtsAbortController?.signal.aborted) {
+                    if (!interruptionManager.canDeliverFrame(turnId)) {
                       break;
                     }
                     frameCount++;
-                    if (agentAudioSource) {
+                    if (agentAudioSource && !agentAudioSource.closed) {
                       await agentAudioSource.captureFrame(packet.frame);
                     }
                   }
                   const ttsDurationMs = Date.now() - ttsStart;
 
-                  logLifecycle(
-                    "tts_synthesis_completed",
-                    `${tts.label} speech synthesis completed (${frameCount} frames in ${ttsDurationMs}ms)`,
-                    {
-                      roomName: ctx.room.name,
-                      participantIdentity,
-                      frameCount,
-                      ttsDurationMs,
-                      provider: tts.label,
-                      turnId,
-                    },
-                  );
+                  if (interruptionManager.isTurnActive(turnId)) {
+                    interruptionManager.finishSpeaking(turnId);
+                    logLifecycle(
+                      "tts_synthesis_completed",
+                      `${tts.label} speech synthesis completed (${frameCount} frames in ${ttsDurationMs}ms)`,
+                      {
+                        roomName: ctx.room.name,
+                        participantIdentity,
+                        frameCount,
+                        ttsDurationMs,
+                        provider: tts.label,
+                        turnId,
+                      },
+                    );
+                  }
                 } catch (ttsErr) {
+                  if (!interruptionManager.isTurnActive(turnId)) {
+                    return; // Aborted cleanly
+                  }
                   logLifecycle(
                     "agent_error",
                     `${tts.label} TTS synthesis error: ${ttsErr instanceof Error ? ttsErr.message : String(ttsErr)}`,
@@ -364,12 +415,17 @@ const agent = defineAgent<AgentProcessUserData>({
                     },
                   );
                 } finally {
-                  if (turnId === currentTurnId) {
-                    isTtsPlaying = false;
-                    activeTtsAbortController = null;
+                  if (
+                    interruptionManager.getActiveTurnId() === turnId &&
+                    interruptionManager.getPhase() === "speaking"
+                  ) {
+                    interruptionManager.finishSpeaking(turnId);
                   }
                 }
               } catch (llmErr) {
+                if (llmSignal.aborted || !interruptionManager.isTurnActive(turnId)) {
+                  return; // Turn was superseded or aborted by interruption
+                }
                 logLifecycle(
                   "agent_error",
                   `LLM generation error: ${llmErr instanceof Error ? llmErr.message : String(llmErr)}`,
@@ -412,6 +468,7 @@ const agent = defineAgent<AgentProcessUserData>({
     });
 
     ctx.room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+      attachedParticipants.delete(participant.identity);
       logLifecycle(
         "participant_left",
         `Remote participant disconnected: ${participant.identity}`,
@@ -456,16 +513,19 @@ const agent = defineAgent<AgentProcessUserData>({
 
     // Step 3: Stream deterministic harmonic greeting chime with barge-in support
     try {
-      isGreetingPlaying = true;
+      const greetingSignal = interruptionManager.startGreeting();
       logLifecycle("greeting_started", `Streaming deterministic greeting chime in room '${roomName}'`, {
         roomName,
         participantsCount: ctx.room.remoteParticipants.size,
       });
 
-      const greetingResult = await playDeterministicGreeting(ctx, { signal: greetingAbortController.signal });
+      const greetingResult = await playDeterministicGreeting(ctx, { signal: greetingSignal });
       agentAudioSource = greetingResult.source;
 
-      if (greetingAbortController.signal.aborted) {
+      if (greetingSignal.aborted) {
+        if (agentAudioSource && !agentAudioSource.closed) {
+          agentAudioSource.clearQueue();
+        }
         logLifecycle(
           "greeting_completed",
           `Deterministic greeting was interrupted by user in room '${roomName}' (barge-in successful)`,
@@ -474,6 +534,7 @@ const agent = defineAgent<AgentProcessUserData>({
           },
         );
       } else {
+        interruptionManager.finishGreeting();
         logLifecycle(
           "greeting_completed",
           `Deterministic greeting successfully streamed to room '${roomName}'`,
@@ -492,8 +553,15 @@ const agent = defineAgent<AgentProcessUserData>({
         },
       );
     } finally {
-      isGreetingPlaying = false;
+      interruptionManager.finishGreeting();
     }
+
+    ctx.addShutdownCallback(async () => {
+      interruptionManager.reset();
+      if (agentAudioSource && !agentAudioSource.closed) {
+        agentAudioSource.clearQueue();
+      }
+    });
   },
 });
 

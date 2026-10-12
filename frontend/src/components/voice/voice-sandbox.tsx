@@ -248,6 +248,11 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                     <div className="flex items-center justify-between text-[10px] text-primary font-semibold">
                       <span className="flex items-center gap-1.5">
                         <span>🤖 Agent (LLM + Raya TTS):</span>
+                        {turn.isInterrupted && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-rose-500 border-rose-500/40">
+                            ⚡ Interrupted
+                          </Badge>
+                        )}
                         {turn.isFallback && (
                           <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-amber-500 border-amber-500/40">
                             Safe Guard
@@ -293,11 +298,11 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
           </div>
         )}
 
-        {/* Phase 12 Complete Voice Loop Note */}
+        {/* Phase 13 Barge-In & Voice Pipeline Note */}
         <div className="rounded-lg bg-muted/50 p-2.5 text-[11px] text-muted-foreground space-y-1">
-          <p className="font-semibold text-foreground">Phase 12 Complete Voice Loop (Production Pipeline):</p>
+          <p className="font-semibold text-foreground">Phase 13 Voice Loop with Realtime Barge-In:</p>
           <p>
-            Realtime WebRTC voice loop: Deepgram Nova-3 (Assamese STT) &rarr; Silero VAD turn boundary &rarr; Qwen3.5-4B (with slot tracking &amp; repetition guards) &rarr; Raya BakBak TTS streaming 20ms audio frames directly back to your browser speakers.
+            Realtime conversational interruption active: Silero VAD detects user speech onsets, immediately halts active speech playback, clears native audio buffers, and captures user turns seamlessly. Speak over the agent at any point to interrupt.
           </p>
         </div>
 

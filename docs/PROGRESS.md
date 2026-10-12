@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 13 — Barge-In
+**Phase:** 14 — Agent Engine
 
 **Status:** NOT STARTED
 
@@ -30,7 +30,7 @@
 | 10 Hugging Face Inference — Qwen3.5-4B | DONE | LLMProvider abstraction, HF router adapter, mock offline provider, pipeline flow (STT -> LLM -> response), and multilingual voice prompt verified via 9/9 automated tests |
 | 11 TTS (IndicF5 & Raya BakBak) | DONE | Primary TTS migrated to Raya BakBak streaming SSE adapter in TypeScript (24kHz F32LE->PCM16, 20ms framing, Assamese sentence segmentation, AbortSignal barge-in). IndicF5 preserved for benchmark comparison. 13/13 Raya tests & 9/9 IndicF5 tests passing. |
 | 12 Complete Voice Loop | DONE | End-to-end multi-turn Assamese loop (Mic -> VAD -> Deepgram Nova-3 -> ConversationSession/Qwen3.5 -> Raya BakBak TTS -> Speakers) verified. State slot extraction, Assamese phonetic phone normalizer, repetition loop guard, empty text Raya 400 prevention, STT noise gating, 250ms echo guard, and WebRTC diagnostics completed. 8/8 voice-loop tests passing. |
-| 13 Barge-In | NOT STARTED | |
+| 13 Barge-In | DONE | Realtime interruption & barge-in architecture implemented. InterruptionManager state machine with strict AbortController ownership, AudioSource.clearQueue() native buffer purge (< 5ms cutoff), two-stage qualification (150ms 'ৰব' supported, sub-100ms noise rejected), thinking/speaking cancellation, WebRTC DataChannel signaling, and frontend AEC enforcement. 20/20 tests passing across 4 suites. |
 | 14 Agent Engine | NOT STARTED | |
 | 15 Tool System | NOT STARTED | |
 | 16 Clinic Data & Appointment MVP | NOT STARTED | |
@@ -45,9 +45,39 @@
 
 ## Current Work
 
-Phase 12 (Complete Voice Loop) completed. Ready for Phase 13 (Barge-In).
+Phase 13 (Barge-In) completed. Ready for Phase 14 (Agent Engine).
 
 ## Last Completed Work
+
+**Phase 13 — Barge-In (Interruption Handling)**
+- **Interruption Architecture & State Coordination (`backend/src/components/agent/interruption/`)**:
+  - Implemented `InterruptionManager` (`interruption-manager.ts`, `types.ts`, `index.ts`) as the single authoritative interruption coordinator.
+  - Strict `AbortController` ownership: manages isolated controllers for greeting, LLM thinking, and TTS playback. Signals are aborted immediately upon qualifying caller speech onset and torn down cleanly on normal completion.
+  - Monotonic `turnId` tracking and explicit `invalidatedTurnIds` registry: prevents zombie or superseded turns from progressing through the pipeline or submitting stale frames.
+  - Two-level frame delivery gate via `canDeliverFrame(turnId)`: verifies matching active turn, active speaking phase, non-aborted signal, and non-invalidated turn before delivering every 20ms audio frame.
+- **Agent Worker Integration & Native WebRTC Buffer Clearing (`backend/src/agent/index.ts`)**:
+  - Replaced ad-hoc boolean flags with `InterruptionManager` coordinating greeting, thinking, and speaking phases.
+  - Leveraged `@livekit/rtc-node` native binding `AudioSource.clearQueue()` on interruption: purges queued WebRTC PCM audio frames in the native engine within < 5ms of decision, ending audio cutoff immediately without waiting for buffer drain.
+  - Eliminated arbitrary 250ms ignore-delay to allow genuine short Assamese interjections (such as `"ৰব"` lasting ~150ms) to trigger barge-in without artificial latency.
+  - Cancelled in-flight LLM generation during thinking phase and prevented TTS scheduling for superseded turns.
+  - Emitted informational `{ type: "agent_interrupted", turnId, phase, timestamp }` events over the WebRTC DataChannel for UI diagnostics.
+  - Added clean teardown and queue clearing on participant disconnect and worker shutdown.
+- **Frontend WebRTC AEC & Interruption Diagnostics (`frontend/src/`)**:
+  - Enforced hardware/DSP acoustic echo cancellation in `use-livekit-room.ts`: `{ echoCancellation: true, noiseSuppression: true, autoGainControl: true }` on microphone capture to eliminate acoustic feedback loops when using laptop speakers.
+  - Handled `agent_interrupted` DataChannel packets in `use-livekit-room.ts` to tag conversational turns with `isInterrupted: true`.
+  - Displayed visual `⚡ Interrupted` badge in `voice-sandbox.tsx` on interrupted turns, and updated sandbox documentation note.
+- **Automated Barge-In Test Suite (`backend/test/barge-in.test.ts`)**:
+  - Created 20 comprehensive unit and integration tests across 4 suites using `node:test` and `node:assert/strict` (offline ₹0 local dev):
+    - **Suite 1: Core Interruption Behavior (7 tests)**: Normal speaking interruption, short Assamese interjection (`"ৰব"` / 150ms via Silero VAD), 3 repeated consecutive interruptions, thinking-phase interruption, initial greeting chime interruption, playback position invariance (10%, 50%, 90%), and turn precedence ($N+1$ supersedes $N$).
+    - **Suite 2: Audio Queue & Stale-Result Protection (4 tests)**: Native `audioSource.clearQueue()` queue purging, zero stale frame delivery after interruption, late LLM result discard on superseded turns, and late Raya SSE audio chunk discard.
+    - **Suite 3: False Interruptions & Input Stream Continuity (4 tests)**: Sub-100ms noise burst rejection by Silero VAD, caller audio stream preservation across interruptions, Deepgram full utterance ingestion callback resilience, and false interruption recovery from low-confidence transients.
+    - **Suite 4: Lifecycle & Resilience (5 tests)**: Idempotent abort calls, uninterrupted normal playback teardown, provider error isolation, DataChannel informational decoupling, and zero resource leaks across 50 simulated interruption cycles.
+  - Added npm script `"test:barge-in"`. All 20 tests pass with 0 failures. All regression test suites (`test:voice-loop`, `test:vad`, `test:llm`, `test:tts:bakbak`, `test:agent`) pass 100%. Backend and frontend strict TypeScript typechecks pass with 0 errors.
+- **Browser Voice Testing Stabilization & Feedback Loop Fixes**:
+  - **Participant Pipeline Deduplication**: Guarded `attachAudioPipelines` in `backend/src/agent/index.ts` with `attachedParticipants: Set<string>` rather than `track.sid` (which was undefined upon initial `TrackSubscribed`). Guarantees exactly one VAD, STT, and `ConversationSession` pipeline per participant, eliminating duplicate concurrent TTS streams.
+  - **Acoustic Self-Echo Filtering**: When callers test via laptop speakers without headphones, the mic captures the agent's recent speech. Added `isLikelyAcousticEcho` in `onFinalTranscript` that detects significant text overlap against `lastAssistantUtterance` and logs `stt_echo_filtered`, preventing the agent from conversing with its own echo.
+  - **Phonetic & Indic Numeral Normalization**: Enhanced `backend/src/components/agent/normalizers/phone-number-normalizer.ts` with full Assamese script numerals (`০-৯`), phonetic loanwords (`জিৰ`, `জীৰ`, `ওৱান`, `ফৰ`, `ফাইফ`, `নাইন্`), and leading/trailing apostrophe stripping (e.g. `"2'"` -> `"2"`). Correctly normalizes 10-digit Assamese phone numbers without dropping digits.
+  - **Unconditional Anti-Repetition Slot Progression**: Removed restrictive `&& isRepetition` gating in `backend/src/agent/llm.ts`, ensuring that whenever the LLM outputs an identical utterance consecutively, the agent progressively prompts for the next missing slot (`dateOrTime` -> `patientName` -> `phoneNumber` -> booking confirmation), preventing infinite looping. Synchronized streaming chunks with updated text.
 
 **Phase 12 — Complete Voice Loop**
 - **Resolved Live Conversational Issues & Edge Cases**:

@@ -22,22 +22,42 @@ const DIGIT_WORD_MAP: Readonly<Record<string, string>> = {
   "জিৰো": "0",
   "জীৰ'": "0",
   "জীৰো": "0",
+  "জিৰ": "0",
+  "জীৰ": "0",
+  "জিরো": "0",
+  "জির": "0",
+  "zero": "0",
   "ৱান": "1",
   "ওয়ান": "1",
+  "ওৱান": "1",
+  "ওয়ান্": "1",
+  "one": "1",
   "টু": "2",
   "টূ": "2",
+  "two": "2",
   "থ্ৰী": "3",
   "থ্রি": "3",
+  "three": "3",
   "ফ'ৰ": "4",
   "ফোৰ": "4",
   "ফোর": "4",
+  "ফৰ": "4",
+  "four": "4",
   "ফাইভ": "5",
+  "ফাইফ": "5",
+  "five": "5",
   "ছিক্স": "6",
   "সিক্স": "6",
+  "six": "6",
   "ছেভেন": "7",
   "সেভেন": "7",
+  "seven": "7",
   "এইট": "8",
+  "এইঠ": "8",
+  "eight": "8",
   "নাইন": "9",
+  "নাইন্": "9",
+  "nine": "9",
 
   // Native Assamese numeral words
   "শূন্য": "0",
@@ -54,18 +74,6 @@ const DIGIT_WORD_MAP: Readonly<Record<string, string>> = {
   "আঠ": "8",
   "ন": "9",
   "নও": "9",
-
-  // English words
-  "zero": "0",
-  "one": "1",
-  "two": "2",
-  "three": "3",
-  "four": "4",
-  "five": "5",
-  "six": "6",
-  "seven": "7",
-  "eight": "8",
-  "nine": "9",
 
   // Assamese / Bengali script numerals (U+09E6 to U+09EF)
   "০": "0",
@@ -108,9 +116,16 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
     };
   }
 
+  // Map Indic Assamese/Bengali numerals (০-৯) to ASCII digits (0-9)
+  const indicNumeralMap: Readonly<Record<string, string>> = {
+    "০": "0", "১": "1", "২": "2", "৩": "3", "৪": "4",
+    "৫": "5", "৬": "6", "৭": "7", "৮": "8", "৯": "9",
+  };
+  const asciiConverted = trimmed.replace(/[০-৯]/g, (ch) => indicNumeralMap[ch] ?? ch);
+
   // Pre-clean punctuation while keeping token boundaries
   // Remove danda, commas, periods, quotes, but keep alphanumeric + Assamese characters
-  const cleaned = trimmed
+  const cleaned = asciiConverted
     .replace(/[।॥,;:"?!=+()[\]{}]/g, " ")
     .replace(/\s+/g, " ");
 
@@ -121,11 +136,12 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
 
   for (let i = 0; i < rawTokens.length; i++) {
     const rawToken = rawTokens[i]!;
-    // Strip trailing apostrophes (e.g. জিৰ' -> জিৰ', but clean trailing quotes)
     const token = rawToken.toLowerCase();
+    // Strip trailing or leading apostrophes/quotes (e.g. "2'" -> "2", "জিৰ'" stays "জিৰ'" or becomes "জিৰ")
+    const strippedToken = token.replace(/^[''`]+|[''`]+$/g, "");
 
     // Check if token is a multiplier
-    const multiplier = MULTIPLIER_MAP[token];
+    const multiplier = MULTIPLIER_MAP[token] ?? MULTIPLIER_MAP[strippedToken];
     if (multiplier !== undefined) {
       pendingMultiplier = multiplier;
       hasRepeatedDigits = true;
@@ -133,7 +149,7 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
     }
 
     // Check if token matches our digit word map
-    const mappedDigit = DIGIT_WORD_MAP[token];
+    const mappedDigit = DIGIT_WORD_MAP[token] ?? DIGIT_WORD_MAP[strippedToken];
     if (mappedDigit !== undefined) {
       for (let m = 0; m < pendingMultiplier; m++) {
         digitAcc.push(mappedDigit);
@@ -142,14 +158,15 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
       continue;
     }
 
-    // Check if token is already ASCII digits (e.g. "70020", "2", "9544")
-    if (/^\d+$/.test(token)) {
-      if (pendingMultiplier > 1 && token.length === 1) {
+    // Check if token (or stripped token) is ASCII digits (e.g. "70020", "2", "9544")
+    const digitCandidate = /^\d+$/.test(strippedToken) ? strippedToken : /^\d+$/.test(token) ? token : null;
+    if (digitCandidate !== null) {
+      if (pendingMultiplier > 1 && digitCandidate.length === 1) {
         for (let m = 0; m < pendingMultiplier; m++) {
-          digitAcc.push(token);
+          digitAcc.push(digitCandidate);
         }
       } else {
-        digitAcc.push(token);
+        digitAcc.push(digitCandidate);
       }
       pendingMultiplier = 1;
       continue;
@@ -203,15 +220,26 @@ export function containsPhoneNumberCandidate(text: string): boolean {
 
   // Check for digit words or numeric characters
   const hasDigitTokens =
-    /\d/.test(lower) ||
+    /[0-9০-৯]/.test(lower) ||
     lower.includes("ছেভেন") ||
     lower.includes("সেভেন") ||
+    lower.includes("জিৰ") ||
     lower.includes("জিৰ'") ||
     lower.includes("নাইন") ||
     lower.includes("ফাইভ") ||
     lower.includes("ফ'ৰ") ||
+    lower.includes("ফোৰ") ||
     lower.includes("টু") ||
     lower.includes("শূন্য") ||
+    lower.includes("এক") ||
+    lower.includes("দুই") ||
+    lower.includes("তিনি") ||
+    lower.includes("চাৰি") ||
+    lower.includes("পাঁচ") ||
+    lower.includes("ছয়") ||
+    lower.includes("সাত") ||
+    lower.includes("আঠ") ||
+    lower.includes("ন") ||
     lower.includes("ডাবল") ||
     lower.includes("double");
 

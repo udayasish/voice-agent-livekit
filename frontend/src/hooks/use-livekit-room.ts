@@ -36,6 +36,7 @@ export type ConversationTurn = {
   ttftMs?: number | undefined;
   totalLatencyMs?: number | undefined;
   isFallback?: boolean | undefined;
+  isInterrupted?: boolean | undefined;
   slots?: {
     doctor?: string;
     dateOrTime?: string;
@@ -301,10 +302,20 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
                       ttftMs: typeof data.ttftMs === "number" ? data.ttftMs : undefined,
                       totalLatencyMs: typeof data.totalLatencyMs === "number" ? data.totalLatencyMs : undefined,
                       isFallback: typeof data.isFallback === "boolean" ? data.isFallback : undefined,
+                      isInterrupted: false,
                       slots: data.slots && typeof data.slots === "object" ? data.slots : undefined,
                       timestamp: data.timestamp || new Date().toISOString(),
                     },
                   ]);
+                } else if (data.type === "agent_interrupted") {
+                  const interruptedTurnId = typeof data.turnId === "number" ? data.turnId : undefined;
+                  if (interruptedTurnId !== undefined) {
+                    setConversationTurns((prev) =>
+                      prev.map((turn) =>
+                        turn.turnId === interruptedTurnId ? { ...turn, isInterrupted: true } : turn,
+                      ),
+                    );
+                  }
                 }
               } catch {
                 // Ignore non-JSON or unhandled data packets
@@ -316,9 +327,13 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
         // Step 4: Connect to LiveKit server with token
         await room.connect(tokenData.url, tokenData.token);
 
-        // Step 5: Acquire microphone and publish audio track
+        // Step 5: Acquire microphone with echo cancellation and publish audio track
         try {
-          await room.localParticipant.setMicrophoneEnabled(true);
+          await room.localParticipant.setMicrophoneEnabled(true, {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          });
           setIsMicEnabled(true);
           setIsMuted(false);
 
