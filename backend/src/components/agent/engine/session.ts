@@ -7,10 +7,15 @@ import { MemorySessionStore, type SessionStore } from "./store.js";
 import { silentEngineLogger, type EngineLogger } from "./lifecycle.js";
 import { ProviderModel } from "../providers/llm/agents-model.js";
 import type { LLMChunk, LLMProvider, LLMResponse } from "../providers/llm/types.js";
+import { ToolExecutor } from "../tools/executor.js";
+import { sdkTools } from "../tools/sdk.js";
+import type { ToolRuntime } from "../tools/types.js";
 
 // This application owns observability through Winston; never export caller data to SDK tracing.
 setTracingDisabled(true);
 setTraceProcessors([]);
+process.env["OPENAI_AGENTS_DONT_LOG_MODEL_DATA"] = "true";
+process.env["OPENAI_AGENTS_DONT_LOG_TOOL_DATA"] = "true";
 
 export interface AgentResponse<T> {
   text: string;
@@ -41,14 +46,22 @@ export class AgentSession<T> {
   private readonly store: SessionStore;
   private readonly log: EngineLogger;
   private readonly runner = new Runner({ tracingDisabled: true });
+  private readonly tools: ToolRuntime | undefined;
   readonly ready: Promise<void>;
 
   constructor(config: AgentConfigInput, context: SessionContext, private readonly provider: LLMProvider,
-    private readonly behavior: BusinessBehavior<T>, dependencies: { store?: SessionStore; logger?: EngineLogger } = {}) {
+    private readonly behavior: BusinessBehavior<T>, dependencies: { store?: SessionStore; logger?: EngineLogger; tools?: ToolRuntime } = {}) {
     this.config = agentConfigSchema.parse(config);
     this.context = Object.freeze(sessionContextSchema.parse(context));
     if (this.config.agentId !== this.context.agentId) throw new Error("Agent context does not match configuration");
     this.config = snapshot(this.config) as AgentConfig;
+    if (this.config.enabledTools.length) {
+      if (!dependencies.tools) throw new Error("Enabled tools require a server-owned runtime");
+      if (!provider.capabilities.toolCalling) throw new Error("Provider does not support tools");
+      dependencies.tools.registry.enabled(this.config.enabledTools);
+      if (!dependencies.tools.callId.trim() || !dependencies.tools.conversationId.trim()) throw new Error("Tool runtime identifiers are required");
+    }
+    this.tools = dependencies.tools ? Object.freeze({ ...dependencies.tools }) : undefined;
     this.store = dependencies.store ?? new MemorySessionStore();
     this.log = dependencies.logger ?? silentEngineLogger;
     const now = new Date().toISOString();
@@ -60,7 +73,7 @@ export class AgentSession<T> {
     this.log.event("session_started", this.context);
   }
   private initialConversation(): ConversationState<T> {
-    return { history: [], language: this.config.defaultLanguage,
+    return { history: [], toolHistory: [], language: this.config.defaultLanguage,
       businessState: this.behavior.stateSchema.parse(this.behavior.initialState()),
       lastUserUtterance: undefined, lastAssistantUtterance: undefined, repetitionCount: 0 };
   }
@@ -97,6 +110,7 @@ export class AgentSession<T> {
     if (this.session.status === "closed") return;
     if (this.active?.turnId === turnId) this.active.controller.abort();
     for (const message of this.conversation.history) if (message.turnId === turnId && message.role === "assistant") message.interrupted = true;
+    for (const call of this.conversation.toolHistory) if (call.turnId === turnId) call.interrupted = true;
     this.log.event("turn_interrupted", this.context, { turnId });
     await this.persist();
   }
@@ -135,6 +149,7 @@ export class AgentSession<T> {
     if (!Number.isSafeInteger(turnId) || turnId <= this.session.turnCount) throw new Error("Turn IDs must increase");
     const nextBusiness = this.behavior.stateSchema.parse(this.behavior.update(text, snapshot(this.conversation.businessState)));
     if (this.active) {
+      for (const call of this.conversation.toolHistory) if (call.turnId === this.active.turnId) call.interrupted = true;
       for (const message of this.conversation.history) {
         if (message.role === "assistant" && message.turnId === this.active.turnId) message.interrupted = true;
       }
@@ -162,25 +177,36 @@ export class AgentSession<T> {
       await this.ready;
       await this.persist();
       this.current(turnId, signal);
-      const model = new ProviderModel(this.provider, () => { firstToken ??= Date.now(); });
       const settings = this.config.modelSettings;
+      const executor = this.tools && this.config.enabledTools.length ? new ToolExecutor(this.tools.registry, this.config.enabledTools,
+        { ...this.context, callId: this.tools.callId, conversationId: this.tools.conversationId, turnId }, signal, this.tools.logger, this.tools.limits) : undefined;
+      const model = new ProviderModel(this.provider, () => { firstToken ??= Date.now(); }, executor ? call => executor.prepareCall(call) : undefined);
       const agent = new Agent<SessionContext>({ name: this.config.name, model,
         instructions: buildPrompt(this.config, turnState.language, this.behavior.promptContext(snapshot(nextBusiness))),
         modelSettings: { temperature: options.temperature ?? settings.temperature,
           maxTokens: options.maxTokens ?? settings.maxTokens,
-          providerData: { model: settings.model } }, tools: [],
+          providerData: { model: settings.model }, parallelToolCalls: false },
+        tools: executor && this.tools ? sdkTools(this.tools.registry, this.config.enabledTools, executor) : [],
       });
-      const input: AgentInputItem[] = turnState.history.filter(m => !m.interrupted).map(m => m.role === "user"
-        ? { role: "user", content: m.content }
-        : { role: "assistant", status: "completed", content: [{ type: "output_text", text: m.content }] });
+      const input: AgentInputItem[] = [];
+      for (const message of turnState.history.filter(m => !m.interrupted)) {
+        if (message.role === "assistant") input.push({ role: "assistant", status: "completed", content: [{ type: "output_text", text: message.content }] });
+        else {
+          input.push({ role: "user", content: message.content });
+          for (const call of turnState.toolHistory.filter(c => !c.interrupted && c.turnId === message.turnId)) {
+            input.push({ type: "function_call", callId: call.invocationId, name: call.name, arguments: call.arguments },
+              { type: "function_call_result", callId: call.invocationId, name: call.name, status: "completed", output: JSON.stringify(call.result) });
+          }
+        }
+      }
       let generated = "";
       try {
-        // A text-only turn may safely retry once; no business action can run in Phase 14.
+        // Empty output can retry only before any tool request has occurred.
         for (let attempt = 1; attempt <= 2; attempt++) {
           this.current(turnId, signal);
-          const result = await this.runner.run(agent, input, { context: this.context, signal, maxTurns: 1 });
+          const result = await this.runner.run(agent, input, { context: executor?.context ?? this.context, signal, maxTurns: executor ? 5 : 1 });
           generated = result.finalOutput ?? "";
-          if (normalizeSpokenText(generated)) break;
+          if (normalizeSpokenText(generated) || executor?.invocationCount) break;
           this.log.event("provider_empty_output", this.context, { turnId, attempt, finishReason: model.finishReason ?? "unknown",
             completionTokens: model.usage?.completionTokens ?? 0 });
         }
@@ -193,6 +219,7 @@ export class AgentSession<T> {
         this.log.event("provider_failed", this.context, { turnId });
       }
       this.current(turnId, signal);
+      if (executor) this.conversation.toolHistory.push(...executor.history.map(call => ({ ...call, turnId, interrupted: false })));
       let finalText = applyResponsePolicy(generated, this.config, turnState.language);
       if (isFallback) finalText = recoveryResponse(this.config, turnState.language, turnState.lastAssistantUtterance);
       const repeated = finalText === turnState.lastAssistantUtterance;
@@ -221,6 +248,7 @@ export class AgentSession<T> {
       options.abortSignal?.removeEventListener("abort", abort);
       if (signal.aborted && this.session.status !== "closed") {
         const reply = this.conversation.history.find(m => m.turnId === turnId && m.role === "assistant");
+        for (const call of this.conversation.toolHistory) if (call.turnId === turnId) call.interrupted = true;
         if (reply && !reply.interrupted) { reply.interrupted = true; await this.persist(); }
       }
       if (this.active?.turnId === turnId) this.active = undefined;

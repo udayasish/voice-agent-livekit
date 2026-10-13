@@ -676,6 +676,7 @@ docs/PROGRESS.md
 Phase 15 in docs/PHASES.md
 docs/VOICE_AI_ARCHITECTURE.md
 docs/DATA_MODEL_AND_API_CONTRACT.md
+docs/BACKEND_ARCHITECTURE.md
 
 Implement ONLY the typed tool system.
 

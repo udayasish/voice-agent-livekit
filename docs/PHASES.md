@@ -370,15 +370,20 @@ Voice transport and business logic are clearly separated.
 - DATA_MODEL_AND_API_CONTRACT.md
 
 ### Build
+- typed tool definitions and result contracts
 - tool registry
 - Zod schemas
 - tool executor
 - tool context
 - logging
 - error handling
+- SDK function-tool adapters and provider call/result transport
+- harmless offline server-time tool demonstration
+
+Implementation lives under `backend/src/components/agent/tools/`, with optional runtime injection into the existing engine. The SDK Runner owns orchestration; tools are disabled by default. No business tools or database access are added in this phase.
 
 ### Done when
-LLM can safely call a typed server-side tool.
+The real SDK completes a deterministic tool request → validated execution → structured result → assistant reply. Input/output validation, trusted context, allowlists, serial execution, timeout/cancellation, invocation caching/limits, history replay and safe errors are tested. Offline provider protocol tests, affected regressions, strict typechecks and backend build pass.
 
 ---
 

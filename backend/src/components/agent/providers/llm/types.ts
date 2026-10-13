@@ -5,6 +5,7 @@ export type LLMMessage = {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
   toolCallId?: string;
+  toolCalls?: LLMToolCall[];
 };
 
 /**
@@ -40,6 +41,7 @@ export type LLMToolSpec = {
   name: string;
   description: string;
   parameters: Record<string, unknown>;
+  strict?: boolean;
 };
 
 /**
@@ -48,6 +50,8 @@ export type LLMToolSpec = {
 export type LLMOptions = {
   model?: string | undefined;
   tools?: LLMToolSpec[] | undefined;
+  toolChoice?: string | undefined;
+  parallelToolCalls?: boolean | undefined;
   temperature?: number | undefined;
   maxTokens?: number | undefined;
   systemPrompt?: string | undefined;
@@ -63,6 +67,7 @@ export type LLMResponse = {
   usage?: LLMUsage | undefined;
   finishReason?: string | undefined;
   latencyMs?: number | undefined;
+  toolCalls?: LLMToolCall[] | undefined;
 };
 
 /**

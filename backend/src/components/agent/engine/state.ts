@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { AgentLanguage, SessionContext } from "./config.js";
+import type { ToolInvocation } from "../tools/types.js";
 
 export type DeepReadonly<T> = T extends object ? { readonly [K in keyof T]: DeepReadonly<T[K]> } : T;
 export function snapshot<T>(value: T): DeepReadonly<T> {
@@ -22,6 +23,7 @@ export interface ConversationMessage {
 }
 export interface ConversationState<T> {
   history: ConversationMessage[];
+  toolHistory: Array<ToolInvocation & { turnId: number; interrupted: boolean }>;
   language: AgentLanguage;
   businessState: T;
   lastUserUtterance: string | undefined;

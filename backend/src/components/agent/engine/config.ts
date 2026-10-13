@@ -10,6 +10,7 @@ export const agentConfigSchema = z.object({
   instructions: spokenText,
   languages: z.array(languageSchema).min(1),
   defaultLanguage: languageSchema.default("as"),
+  enabledTools: z.array(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/u)).default([]),
   greeting: spokenText.optional(),
   modelSettings: z.object({
     model: z.string().trim().min(1).optional(),

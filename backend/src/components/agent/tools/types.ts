@@ -1,23 +1,25 @@
-import type { ZodSchema } from "zod";
+import type { z } from "zod";
+import type { SessionContext } from "../engine/config.js";
+import type { ToolRegistry } from "./registry.js";
 
-export type ToolContext = {
-  organizationId: string;
-  agentId: string;
+export type ToolResult<T = unknown> =
+  | { success: true; data: T }
+  | { success: false; error: { code: string; message: string } };
+/** Server-owned context. Never assembled from model arguments. */
+export type ToolContext = Readonly<SessionContext & {
+  callId: string; conversationId: string; turnId: number; invocationId: string; signal: AbortSignal;
+}>;
+export type ToolDefinition<I, O> = {
+  name: string; description: string; inputSchema: z.ZodType<I>; outputSchema: z.ZodType<O>;
+  execute(input: I, context: ToolContext): Promise<ToolResult<O>>;
+};
+export type ToolEvent = "tool_started" | "tool_completed" | "tool_rejected" | "tool_failed" | "tool_cancelled" | "tool_timeout";
+export interface ToolLogger { event(event: ToolEvent, metadata: Readonly<Record<string, string | number | boolean>>): void; }
+export interface ToolInvocation { name: string; invocationId: string; arguments: string; result: ToolResult; }
+export interface ToolRuntime {
+  registry: ToolRegistry;
   callId: string;
   conversationId: string;
-};
-
-export type ToolResult =
-  | { success: true; data: unknown }
-  | { success: false; error: { code: string; message: string } };
-
-export type ToolDefinition<TInput = unknown> = {
-  name: string;
-  description: string;
-  inputSchema: ZodSchema<TInput>;
-  execute: (input: TInput, context: ToolContext) => Promise<ToolResult>;
-};
-
-export type RegisteredTool = ToolDefinition & {
-  phase: number;
-};
+  logger?: ToolLogger;
+  limits?: { maxCalls?: number; timeoutMs?: number };
+}

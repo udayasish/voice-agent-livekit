@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-**Phase:** 14 — Agent Engine
+**Phase:** 15 — Tool System
 
 **Status:** DONE
 
@@ -32,7 +32,7 @@
 | 12 Complete Voice Loop | DONE | End-to-end multi-turn Assamese loop (Mic -> VAD -> Deepgram Nova-3 -> ConversationSession/Qwen3.5 -> Raya BakBak TTS -> Speakers) verified. State slot extraction, Assamese phonetic phone normalizer, repetition loop guard, empty text Raya 400 prevention, STT noise gating, 250ms echo guard, and WebRTC diagnostics completed. 8/8 voice-loop tests passing. |
 | 13 Barge-In | DONE | Realtime interruption & barge-in architecture implemented. InterruptionManager state machine with strict AbortController ownership, AudioSource.clearQueue() native buffer purge (< 5ms cutoff), two-stage qualification (150ms 'ৰব' supported, sub-100ms noise rejected), thinking/speaking cancellation, WebRTC DataChannel signaling, and frontend AEC enforcement. 20/20 tests passing across 4 suites. |
 | 14 Agent Engine | DONE | Configurable SDK-backed engine, typed business behavior, Redis session snapshots, unified response policy and lifecycle; clinic demo isolated; 37 engine tests, 24 listening/dictation tests, 5 STT language-switch tests and local Redis integration pass |
-| 15 Tool System | NOT STARTED | |
+| 15 Tool System | DONE | Typed registry/executor, trusted context, SDK tool loop, Groq/HF protocol adapters and harmless offline clock tool; 27 tool tests and required regressions/checks pass |
 | 16 Clinic Data & Appointment MVP | NOT STARTED | |
 | 17 Voice Appointment Agent | NOT STARTED | |
 | 18 Agent Configuration | NOT STARTED | |
@@ -45,9 +45,23 @@
 
 ## Current Work
 
-Phase 14 (Agent Engine) completed. Next: Phase 15 (Tool System), which remains NOT STARTED. Stop here.
+Phase 15 (Tool System) completed. Next: Phase 16 (Clinic Data & Appointment MVP), which remains NOT STARTED. Stop here. The live clinic voice backlog below remains unresolved and was outside this phase.
 
 ## Last Completed Work
+
+**Phase 15 — Typed Tool System (2026-10-13)**
+- Extended `backend/src/components/agent/tools/` with generic typed definitions/results, strict Zod object input validation, successful output/JSON validation, immutable registry, duplicate-definition rejection, explicit enabled-tool allowlists and server-bound execution. Reuses existing errors and Winston; no dependency upgrades or second agent framework.
+- Added readonly `ToolContext` from server-owned organization, agent, session, call, conversation and turn identifiers, plus invocation ID and cancellation signal. Context travels separately in SDK run context and is checked against the executor. Model arguments cannot provide or override it. Unknown/disabled tools, extra fields, malformed JSON, invalid context and bad output fail safely before useful execution.
+- Executor serializes handlers, defaults to four attempts per turn and five seconds per invocation, caches identical invocation IDs/arguments within a run and rejects conflicting reuse. There are no automatic handler retries. Cancellation aborts handler signals and discards late results; timeout returns a stable envelope and stops further handlers in the run. Exceptions never expose their message, stack or payload.
+- Optional runtime injection and `AgentConfig.enabledTools` (default `[]`) connect registered tools to the installed `@openai/agents` SDK. The Runner owns the model/tool loop with at most five model turns. Existing buffered speech, response policy and cancellation remain shared by `chat` and utterance processing. Empty output can retry only before a tool attempt; it never restarts an executed sequence to obtain speech.
+- Extended `ProviderModel`, Groq and Hugging Face adapters to advertise function schemas, assemble fragmented/multiple streaming calls, preserve invocation IDs, replay assistant calls and correlated result messages, and support non-streaming parity. A shared wire module removes duplicated vendor protocol handling while preserving provider/model selection and cancellation. Optional Zod fields use compatible provider schema mode while server validation stays strict. SDK 0.8's pre-parse failure path is routed through a reserved invalid argument to return our safe validation envelope without exposing parser text.
+- Active session snapshots retain validated call/result pairs for later model context. Interrupted/superseded pairs are excluded, reset clears them, and close cancels pending tools. Existing snapshot write ordering, TTL and cleanup remain in effect. SDK tracing and model/tool payload logging are disabled; Winston logs only operational identifiers, tool name, duration and error code.
+- Added the sole harmless tool, `get_server_time`: strict `{}` input, injected clock, validated ISO UTC timestamp and `timezone: "UTC"`. It performs no database, network or business operation. The offline smoke harness uses server-generated ephemeral IDs and the real SDK with a deterministic provider. Run `npm --prefix backend run smoke:tools`; no `.env`, external credentials or paid calls are needed. The live clinic worker keeps its empty tool allowlist.
+- **Verification:** `test:tools` 27/27 (registry, schemas, context spoofing/isolation, safe errors, serialization, timeout/cancellation, invocation caching/limits, real SDK loop/history/recovery, close/supersession and mocked Groq/HF wire protocols); `smoke:tools` passes; `test:engine` 37/37; `test:llm` 8/8 offline with 1 live-cloud skip; `test:voice-loop` 8/8; `test:barge-in` 20/20; `test:agent` 5/5; `test:voice-turns` 24/24. Strict engine/tool-test typecheck, backend typecheck/build and frontend typecheck pass. Tool tests also run without an `.env` file.
+- **Documentation and scope:** Updated Voice/AI, Backend, Data Model/API tool contracts and Phase 15 acceptance/layout documentation. No HTTP endpoints changed, so Bruno changes were unnecessary. No clinic tools, booking services, migrations, dashboards, permanent tool-event storage or voice-behavior fixes were added. No Git commands were run.
+- **Explanation guide follow-up:** Added `docs/PHASE_15_EXPLAINED.md` with simple examples, diagrams, expandable quiz answers, an offline test checklist, reasons for the approved architecture-document edits and the distinction between frontend voice checks and actual tool verification. The clinic frontend still has no tools enabled; this follow-up adds documentation only and does not start Phase 16.
+- **Code walkthrough follow-up:** Extended the same guide with a final section showing the Phase 15 folder structure, new/modified code files, each file's purpose, key functions and short source excerpts, plus the complete request/result code path. Checked the explanation against the source; no application code changed and Phase 16 remains NOT STARTED.
+- **Limits:** Real cloud tool-calling and live browser/audio behavior were not tested in this phase. The current clinic voice inconsistencies remain in the backlog below. Invocation caching is per run, not durable business idempotency. Abort signals cannot undo side effects or forcibly terminate a non-cooperative handler; future business services must enforce cancellation where applicable, tenant access, transactions and durable idempotency. Active snapshots are not permanent audit records or crash-resumable sessions. Phase 16 remains NOT STARTED.
 
 **Phase 14 — Reusable Agent Engine (2026-10-12)**
 - Added `backend/src/components/agent/engine/` with Zod-validated `AgentConfig`, trusted session context, separate session/conversation state, multilingual prompt construction, shared response policy, immutable snapshots, reset/interruption/close lifecycle, and an injected session store/logger. Core imports no LiveKit, environment configuration, clinic implementation or database services.
@@ -456,7 +470,7 @@ No confirmed blocker to implementing the Phase 15 typed tool system or Phase 16 
 - **Assamese response quality:** The model's initial greeting sometimes uses Bengali phrasing. Assamese wording and spoken-language consistency need a dedicated clinic voice evaluation before pilot acceptance.
 - **STT entity accuracy:** The supplied feed contains an incomplete number on one attempt and the complete number on the next, plus name/date recognition errors. Validate exact captured values using a focused Assamese/English clinic voice benchmark and clear correction/fallback flows. Do not repair missing digits or names by guessing.
 
-Recommended sequencing: build Phase 15 tools and Phase 16 clinic services with deterministic text/API tests, carry this backlog into Phase 17, and resolve state loss before connecting live conversation data to business actions. Later phases do not automatically fix speech recognition. Phase 15 remains NOT STARTED until implementation is requested.
+Recommended sequencing: Phase 15 tools are now complete; build Phase 16 clinic services with deterministic text/API tests, carry this backlog into Phase 17, and resolve state loss before connecting live conversation data to business actions. Later phases do not automatically fix speech recognition. Phase 16 remains NOT STARTED.
 
 ## Important Decisions
 

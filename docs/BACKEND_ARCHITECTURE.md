@@ -272,6 +272,18 @@ The reusable engine is `backend/src/components/agent/engine/`. It owns validated
 
 `backend/src/agent/` owns LiveKit resources and session disposal. Organization context comes from validated token-service-issued participant metadata. Engine state does not authorize database operations; subsequent tools must enforce the trusted tenant context. No API endpoints or database schema were added in Phase 14.
 
+### Phase 15 Typed Tool Boundary
+
+`backend/src/components/agent/tools/` contains `types.ts`, `registry.ts`, `executor.ts`, `sdk.ts`, `server-time.ts` and `logger.ts`. This extends the existing component boundary and keeps `@openai/agents` as the orchestrator. `AgentSession` accepts an optional injected registry/runtime and `enabledTools` configuration; the live clinic worker continues with no enabled tools.
+
+The SDK `Runner` owns up to five model turns. Groq and Hugging Face share an OpenAI-compatible wire adapter that advertises enabled function schemas, reconstructs fragmented streaming calls, preserves invocation IDs and sends correlated tool-result messages. The adapter executes no actions. The executor checks server-owned organization/agent/session/call/conversation/turn context, validates strict arguments and outputs, and serializes handlers with four attempts and five seconds per invocation by default.
+
+Only `get_server_time` is implemented. `npm run smoke:tools` in `backend/` exercises the actual SDK loop with a deterministic offline provider and Winston events. `npm run test:tools` covers the execution boundary and mocked vendor HTTP responses. Neither command makes paid/cloud calls. No endpoint or Bruno changes were needed.
+
+Tool results are retained in the existing active snapshots, with the same serialized writes, TTL and cleanup. They are not permanent audit records. Interruption/supersession prevents late commits and excludes interrupted pairs from replay. Per-run invocation caching prevents duplicate handler execution for matching IDs; it is not durable business idempotency. Future booking tools must use trusted services with tenant access checks and transactions; PostgreSQL clients and SQL remain outside providers and the reusable engine.
+
+Winston tool events include identifiers, tool name, duration and error code only. SDK tracing and model/tool payload logging are disabled. Exceptions are mapped to safe error envelopes, and empty-output recovery cannot restart a tool sequence that has already been attempted.
+
 ## 11. Logging
 
 Use structured logging.

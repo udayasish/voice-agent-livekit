@@ -199,8 +199,8 @@ The engine separates session lifecycle from conversation state:
 ```ts
 SessionContext    // organizationId, agentId, sessionId
 SessionState      // active/closed, monotonic turn IDs, timestamps
-ConversationState<T> // messages, language, repetition tracking, validated businessState
-AgentConfig       // name/business, instructions, languages, greeting, model settings, recovery messages
+ConversationState<T> // messages, toolHistory, language, repetition tracking, validated businessState
+AgentConfig       // name/business, instructions, languages, greeting, model settings, recovery messages, enabledTools
 ```
 
 Active state:
@@ -214,7 +214,7 @@ Permanent outcome:
 
 The engine uses the installed `@openai/agents` `Agent` and `Runner` with an SDK `Model` adapter over the existing `LLMProvider`. Vendor selection and credentials remain outside the core. SDK tracing/export processors are disabled; Winston receives operational IDs, events and timing, without transcripts or provider payloads.
 
-`AgentSession<T>` provides `ready`, `processUserUtterance`, `chat`, immutable state/history/snapshot access, `reset`, `notifyInterruption` and idempotent `close`. Generation is buffered before approved response text and replay chunks are returned. Both entry points use the same prompt/response policy. Provider errors and empty output use localized recovery. Phase 14 exposes no tools and rejects unsolicited tool calls.
+`AgentSession<T>` provides `ready`, `processUserUtterance`, `chat`, immutable state/history/snapshot access, `reset`, `notifyInterruption` and idempotent `close`. Generation is buffered before approved response text and replay chunks are returned. Both entry points use the same prompt/response policy. Provider errors and empty output use localized recovery. Phase 15 adds optional injected tools; the default empty allowlist preserves existing voice sessions and rejects unsolicited calls.
 
 New turns supersede in-flight generation. Cancellation retains the accepted user message and discards late output without recovery speech. Interrupted playback is marked in history and excluded from later model context. Reset preserves monotonic IDs. The existing `InterruptionManager` remains the authority for audio abort signals, native queue clearing and frame delivery.
 
@@ -222,7 +222,7 @@ Business behavior is injected through `BusinessBehavior<T>` with a Zod state sch
 
 The response guidance hook also receives the previous approved reply. The optional `onResponse` hook returns validated business state after the approved reply; this records the question actually asked, including model-generated intake questions. Clinic intake uses that context to interpret short doctor/name answers, accepts spoken title spellings including `ডঃ`, and clarifies unrecognized details without repeating the exact same prompt. Worker diagnostics report only whether each detail is present and whether the reply repeated, without logging the detail values.
 
-Empty or formatting-only model output retries once for this text-only phase, respecting cancellation and preserving a single accepted user/history turn. Recovery policy applies after business guidance and removes internal reasoning text before speech. `fallbackReason` distinguishes empty output, provider failure and repeated-response replacement; empty-output events include provider completion reason/token counts when available. No sensitive provider payload is logged. The sandbox Safe Guard tooltip explains the category.
+Empty or formatting-only model output retries once only when no tool invocation has been attempted, respecting cancellation and preserving a single accepted user/history turn. Recovery policy applies after business guidance and removes internal reasoning text before speech. `fallbackReason` distinguishes empty output, provider failure and repeated-response replacement; empty-output events include provider completion reason/token counts when available. No sensitive provider payload is logged. The sandbox Safe Guard tooltip explains the category.
 
 STT final-transcript callbacks dispatch without blocking the speech-event consumer on LLM generation or TTS playback. A finalized Deepgram segment is not a completed caller turn. `backend/src/agent/turn-collector.ts` groups final segments, preserves repeated words/digits, and waits for a quiet interval: 1,200 ms normally and 3,000 ms when the sandbox adapter is collecting a phone number. VAD speech start cancels the timer and immediately interrupts ongoing generation/playback through `InterruptionManager`; VAD speech end, interim results and later final segments refresh the listening window. The interval starts after the latest such activity, so VAD/STT latency is additional. Pending fragments/timers are discarded on participant departure, room disconnect and shutdown. Existing TTFT/total generation metrics exclude this listening interval.
 
@@ -242,9 +242,21 @@ Phase 14 limitations: snapshots are active state, not crash-resumable sessions; 
 
 ## 9. Tool Architecture
 
-Tools are typed functions.
+Phase 15 implements reusable typed functions in `backend/src/components/agent/tools/`. Only explicitly enabled tools are adapted into SDK function tools. The engine injects server-owned context into the SDK run; it never obtains tenant identity from model arguments. Tool definitions validate both input and successful output and return the standard success/error envelope.
 
-Example:
+```text
+Provider function call -> SDK Runner -> ToolExecutor -> validated handler
+                       <- SDK Runner <- ToolResult  <- output validation
+Final assistant reply -> shared response policy -> buffered speech
+```
+
+The SDK owns the loop (maximum five model turns); the executor serializes handlers with four attempts and a five-second timeout by default. Matching invocation IDs reuse their cached result within the run, conflicting reuse is rejected, and executed sequences are never restarted to recover an empty spoken reply. Cancellation propagates into handlers and discards late results. A timeout stops further handlers in that run. Validated call/result pairs are retained in active session state and replayed next turn; interrupted and superseded pairs are excluded.
+
+Groq and Hugging Face support fragmented streaming function calls, multiple correlated results and equivalent non-streaming responses through `providers/llm/chat-protocol.ts`. SDK 0.8 pre-parses malformed JSON before tool invocation; the adapter routes syntax errors through a reserved, always-invalid argument so our executor returns a safe validation envelope instead of SDK exception text. SDK tracing and model/tool payload logging are disabled. Winston records operational identifiers, tool names, duration and error codes.
+
+The harmless `get_server_time` tool has strict empty input and returns a validated UTC timestamp from an injected clock. Run `npm run smoke:tools` in `backend/` for an offline demonstration using the real SDK with a deterministic provider. The live clinic demo still has an empty allowlist; its listening, recognition and confirmation backlog is unchanged. No database/network/business tool or persisted call record was added. This phase validates mocked vendor protocols; cloud tool-calling behavior still needs later live qualification.
+
+Future business-tool example (not implemented in Phase 15):
 
 ```ts
 bookAppointment({
