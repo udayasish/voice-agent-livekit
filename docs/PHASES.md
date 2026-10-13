@@ -339,13 +339,13 @@ The user can naturally interrupt the agent.
 ### Build
 
 ```text
-services/agent/
-├── agent.ts
-├── session.ts
-├── state.ts
-├── prompts.ts
-├── providers/
-└── tools/
+backend/src/components/agent/
+├── engine/             # config, session, state, prompts, response policy, lifecycle, store contract
+├── business/           # isolated clinic intake demo
+├── providers/          # existing STT/LLM/TTS adapters, SDK Model bridge
+└── session-store.ts    # Redis implementation
+
+backend/src/agent/      # LiveKit worker, audio pipeline and sandbox compatibility adapter
 ```
 
 Implement:
@@ -354,6 +354,9 @@ Implement:
 - provider interfaces
 - prompt builder
 - response policy
+- session lifecycle and Redis-backed active state
+
+Use `@openai/agents` for orchestration. Keep transport and business demo behavior outside the core.
 
 ### Done when
 Voice transport and business logic are clearly separated.

@@ -15,6 +15,7 @@ export type AgentLifecycleEvent =
   | "speech_ended"
   | "interruption_detected"
   | "stt_stream_started"
+  | "stt_input_mode_changed"
   | "stt_interim_transcript"
   | "stt_final_transcript"
   | "stt_low_confidence_filtered"
@@ -61,14 +62,21 @@ export interface LifecycleMetadata {
  */
 export const logLifecycle = (
   event: AgentLifecycleEvent,
-  message: string,
+  _message: string,
   meta?: LifecycleMetadata,
 ): void => {
+  // Allowlist operational metadata; transcripts and provider errors can contain private data.
+  const safeKeys = new Set(["workerId", "agentName", "jobId", "roomName", "participantIdentity",
+    "participantsCount", "durationSeconds", "speechDurationMs", "silenceDurationMs", "speaking",
+    "probability", "ttftMs", "totalLatencyMs", "latencyMs", "confidence", "language", "signal",
+    "turnId", "frameCount", "ttsDurationMs", "provider", "isFallback", "playbackDurationMs", "inputMode",
+    "interruptionCount", "phase", "hasDoctor", "hasDateOrTime", "hasPatientName", "hasPhoneNumber", "responseRepeated", "fallbackReason"]);
   const payload = {
     lifecycleEvent: event,
     timestamp: new Date().toISOString(),
-    ...meta,
+    ...Object.fromEntries(Object.entries(meta ?? {}).filter(([key]) => safeKeys.has(key))),
   };
+  const message = event.replace(/_/gu, " ");
 
   switch (event) {
     case "agent_error":

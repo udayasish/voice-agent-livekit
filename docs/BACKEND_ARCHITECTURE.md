@@ -2,7 +2,7 @@
 
 **Stack:** Node.js + Express.js + TypeScript + PostgreSQL + Drizzle ORM + Redis
 
-**Project path:** `apps/api/`
+**Project path:** `backend/`
 
 ## Reference Project — ConexusCRM-BE
 
@@ -263,6 +263,14 @@ Use Redis for:
 - idempotency keys where useful
 
 Do not use Redis as the permanent source of truth.
+
+### Phase 14 Active Agent Sessions
+
+The reusable engine is `backend/src/components/agent/engine/`. It owns validated configuration, conversational state, prompt construction, response policy and lifecycle. It receives providers, typed business behavior, a session store and a logger by injection; it imports no LiveKit, environment configuration, database services or clinic implementation.
+
+`backend/src/components/agent/session-store.ts` adapts the existing Redis client. Active snapshots use `agent-session:<encoded organizationId>:<encoded sessionId>`, with a sliding 30-minute TTL. Writes are serialized per session and close waits for pending writes before deleting the key. A storage failure closes the affected session and attempts cleanup; TTL bounds retention if Redis remains unavailable. The in-memory store is for offline tests.
+
+`backend/src/agent/` owns LiveKit resources and session disposal. Organization context comes from validated token-service-issued participant metadata. Engine state does not authorize database operations; subsequent tools must enforce the trusted tenant context. No API endpoints or database schema were added in Phase 14.
 
 ## 11. Logging
 

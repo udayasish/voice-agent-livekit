@@ -254,7 +254,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                           </Badge>
                         )}
                         {turn.isFallback && (
-                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-amber-500 border-amber-500/40">
+                          <Badge variant="outline" title={turn.fallbackReason === "empty_output" ? "The AI returned no spoken reply after one retry." : turn.fallbackReason === "provider_error" ? "The AI provider request failed." : turn.fallbackReason === "repeated_response" ? "A repeated reply was replaced." : "A recovery response was used."} className="text-[9px] px-1 py-0 h-4 text-amber-500 border-amber-500/40">
                             Safe Guard
                           </Badge>
                         )}

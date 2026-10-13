@@ -95,9 +95,8 @@ export class HuggingFaceLLMProvider implements LLMProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
-    if (options?.abortSignal) {
-      options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true });
-    }
+    const requestSignal = options?.abortSignal
+      ? AbortSignal.any([controller.signal, options.abortSignal]) : controller.signal;
 
     let response: Response;
     try {
@@ -108,12 +107,12 @@ export class HuggingFaceLLMProvider implements LLMProvider {
           Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify(payload),
-        signal: controller.signal,
+        signal: requestSignal,
       });
     } catch (err) {
       clearTimeout(timeout);
       const message = err instanceof Error ? err.message : String(err);
-      logger.error("[llm:huggingface] Network error calling Hugging Face router", { error: message });
+      logger.error("[llm:huggingface] Network error calling Hugging Face router");
       throw new Error(`Hugging Face inference network error: ${message}`);
     }
 
@@ -128,7 +127,6 @@ export class HuggingFaceLLMProvider implements LLMProvider {
       logger.error("[llm:huggingface] HTTP error from Hugging Face router", {
         status: response.status,
         statusText: response.statusText,
-        body: errorBody,
       });
       throw new Error(
         `Hugging Face API returned ${response.status} ${response.statusText}: ${errorBody || "Unknown error"}`,
@@ -219,9 +217,8 @@ export class HuggingFaceLLMProvider implements LLMProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
-    if (options?.abortSignal) {
-      options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true });
-    }
+    const requestSignal = options?.abortSignal
+      ? AbortSignal.any([controller.signal, options.abortSignal]) : controller.signal;
 
     try {
       const response = await fetch(url, {
@@ -231,7 +228,7 @@ export class HuggingFaceLLMProvider implements LLMProvider {
           Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify(payload),
-        signal: controller.signal,
+        signal: requestSignal,
       });
 
       if (!response.ok) {

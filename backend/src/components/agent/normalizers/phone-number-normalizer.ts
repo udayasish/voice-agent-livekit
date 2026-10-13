@@ -11,6 +11,8 @@ export interface PhoneNumberResult {
   rawText: string;
   digitCount: number;
   hasRepeatedDigits: boolean;
+  unrecognizedTokens: string[];
+  hasPendingMultiplier: boolean;
 }
 
 /**
@@ -34,6 +36,7 @@ const DIGIT_WORD_MAP: Readonly<Record<string, string>> = {
   "one": "1",
   "টু": "2",
   "টূ": "2",
+  "টu": "2",
   "two": "2",
   "থ্ৰী": "3",
   "থ্রি": "3",
@@ -113,6 +116,8 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
       rawText: text,
       digitCount: 0,
       hasRepeatedDigits: false,
+      unrecognizedTokens: [],
+      hasPendingMultiplier: false,
     };
   }
 
@@ -126,19 +131,25 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
   // Pre-clean punctuation while keeping token boundaries
   // Remove danda, commas, periods, quotes, but keep alphanumeric + Assamese characters
   const cleaned = asciiConverted
-    .replace(/[।॥,;:"?!=+()[\]{}]/g, " ")
+    // STT can join a spoken digit and numeric run, e.g. "ছেভেন00".
+    // Split only script/digit boundaries; unknown words remain unknown.
+    .replace(/([\p{L}\p{M}'’‘`])([0-9])/gu, "$1 $2")
+    .replace(/([0-9])([\p{L}\p{M}])/gu, "$1 $2")
+    .replace(/[।॥.,;:"?!=+()[\]{}]/g, " ")
     .replace(/\s+/g, " ");
 
   const rawTokens = cleaned.split(" ").filter((t) => t.length > 0);
   const digitAcc: string[] = [];
   let pendingMultiplier = 1;
   let hasRepeatedDigits = false;
+  const unrecognizedTokens: string[] = [];
+  const fillerWords = new Set(["মোৰ", "ফোন", "নম্বৰ", "নম্বৰটো", "হৈছে", "হয়", "হয়", "হ'ল", "যোগাযোগৰ", "মোবাইল", "my", "phone", "number", "is", "mobile", "contact", "the", "yes"]);
 
   for (let i = 0; i < rawTokens.length; i++) {
     const rawToken = rawTokens[i]!;
     const token = rawToken.toLowerCase();
     // Strip trailing or leading apostrophes/quotes (e.g. "2'" -> "2", "জিৰ'" stays "জিৰ'" or becomes "জিৰ")
-    const strippedToken = token.replace(/^[''`]+|[''`]+$/g, "");
+    const strippedToken = token.replace(/^['’‘`]+|['’‘`]+$/g, "");
 
     // Check if token is a multiplier
     const multiplier = MULTIPLIER_MAP[token] ?? MULTIPLIER_MAP[strippedToken];
@@ -161,6 +172,8 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
     // Check if token (or stripped token) is ASCII digits (e.g. "70020", "2", "9544")
     const digitCandidate = /^\d+$/.test(strippedToken) ? strippedToken : /^\d+$/.test(token) ? token : null;
     if (digitCandidate !== null) {
+      // "double 020" is ambiguous: do not silently discard the multiplier.
+      if (pendingMultiplier > 1 && digitCandidate.length > 1) unrecognizedTokens.push(rawToken);
       if (pendingMultiplier > 1 && digitCandidate.length === 1) {
         for (let m = 0; m < pendingMultiplier; m++) {
           digitAcc.push(digitCandidate);
@@ -173,6 +186,7 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
     }
 
     // Token did not match a digit or multiplier; reset pending multiplier
+    if (!fillerWords.has(strippedToken)) unrecognizedTokens.push(rawToken);
     pendingMultiplier = 1;
   }
 
@@ -201,6 +215,8 @@ export function normalizePhoneNumber(text: string): PhoneNumberResult {
     rawText: text,
     digitCount: finalDigits.length,
     hasRepeatedDigits,
+    unrecognizedTokens,
+    hasPendingMultiplier: pendingMultiplier > 1,
   };
 }
 

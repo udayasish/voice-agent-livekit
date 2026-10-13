@@ -1,4 +1,5 @@
 import logger from "../../../../lib/logger.js";
+import { z } from "zod";
 import { getGroqConfig, type GroqConfig, type ResolvedGroqConfig } from "./config.js";
 import type {
   LLMCapabilities,
@@ -13,7 +14,7 @@ import type {
 /**
  * Groq Cloud LLM Provider implementation.
  * Connects to Groq's high-speed OpenAI-compatible endpoint (https://api.groq.com/openai/v1).
- * Supports free models such as Qwen 2.5 32B ('qwen-2.5-32b').
+ * Provider-specific voice settings are kept here, outside the reusable engine.
  */
 export class GroqLLMProvider implements LLMProvider {
   readonly label = "Groq Cloud (qwen/qwen3.8-27b)";
@@ -37,6 +38,11 @@ export class GroqLLMProvider implements LLMProvider {
 
   get model(): string {
     return this.config.model;
+  }
+
+  private voiceSettings(model: string) {
+    // Groq documents 'none' for Qwen 3; GPT-OSS and other models have different supported values.
+    return model.startsWith("qwen/qwen3") ? { reasoning_effort: "none", reasoning_format: "hidden" } : {};
   }
 
   private prepareMessages(
@@ -77,16 +83,16 @@ export class GroqLLMProvider implements LLMProvider {
       model: targetModel,
       messages: this.prepareMessages(messages, options?.systemPrompt),
       temperature: options?.temperature ?? this.config.temperature,
-      max_tokens: options?.maxTokens ?? this.config.maxTokens,
+      max_completion_tokens: options?.maxTokens ?? this.config.maxTokens,
+      ...this.voiceSettings(targetModel),
       stream: true,
     };
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
-    if (options?.abortSignal) {
-      options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true });
-    }
+    const requestSignal = options?.abortSignal
+      ? AbortSignal.any([controller.signal, options.abortSignal]) : controller.signal;
 
     let response: Response;
     try {
@@ -97,12 +103,12 @@ export class GroqLLMProvider implements LLMProvider {
           Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify(payload),
-        signal: controller.signal,
+        signal: requestSignal,
       });
     } catch (err) {
       clearTimeout(timeout);
       const message = err instanceof Error ? err.message : String(err);
-      logger.error("[llm:groq] Network error calling Groq API", { error: message });
+      logger.error("[llm:groq] Network error calling Groq API");
       throw new Error(`Groq API network error: ${message}`);
     }
 
@@ -117,7 +123,6 @@ export class GroqLLMProvider implements LLMProvider {
       logger.error("[llm:groq] HTTP error from Groq API", {
         status: response.status,
         statusText: response.statusText,
-        body: errorBody,
       });
       throw new Error(
         `Groq API returned ${response.status} ${response.statusText}: ${errorBody || "Unknown error"}`,
@@ -132,6 +137,17 @@ export class GroqLLMProvider implements LLMProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let buffer = "";
+    let finishReason: string | undefined;
+    let usage: LLMUsage | undefined;
+    const usageSchema = z.object({ prompt_tokens: z.number().optional(), completion_tokens: z.number().optional(), total_tokens: z.number().optional() });
+    const eventSchema = z.object({
+      choices: z.array(z.object({
+        delta: z.object({ content: z.string().nullable().optional() }).optional(),
+        finish_reason: z.string().nullable().optional(),
+      })).optional(),
+      usage: usageSchema.nullable().optional(),
+      x_groq: z.object({ usage: usageSchema.optional() }).optional(),
+    });
 
     try {
       while (true) {
@@ -140,11 +156,9 @@ export class GroqLLMProvider implements LLMProvider {
         }
 
         const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+        buffer = done ? "" : lines.pop() ?? "";
 
         for (const line of lines) {
           const trimmed = line.trim();
@@ -154,13 +168,17 @@ export class GroqLLMProvider implements LLMProvider {
 
           const dataStr = trimmed.replace(/^data:\s*/, "");
           if (dataStr === "[DONE]") {
-            yield { type: "done" };
+            yield { type: "done", usage, finishReason };
             return;
           }
 
           try {
-            const parsed = JSON.parse(dataStr);
-            const delta = parsed.choices?.[0]?.delta?.content;
+            const parsed = eventSchema.parse(JSON.parse(dataStr));
+            const choice = parsed.choices?.[0];
+            finishReason = choice?.finish_reason ?? finishReason;
+            const tokenUsage = parsed.usage ?? parsed.x_groq?.usage;
+            if (tokenUsage) usage = { promptTokens: tokenUsage.prompt_tokens, completionTokens: tokenUsage.completion_tokens, totalTokens: tokenUsage.total_tokens };
+            const delta = choice?.delta?.content;
             if (typeof delta === "string" && delta.length > 0) {
               yield { type: "text", delta };
             }
@@ -168,9 +186,11 @@ export class GroqLLMProvider implements LLMProvider {
             // Ignore incomplete JSON chunks in SSE stream
           }
         }
+        if (done) break;
       }
 
-      yield { type: "done" };
+      requestSignal.throwIfAborted();
+      yield { type: "done", usage, finishReason };
     } finally {
       clearTimeout(timeout);
       try {
@@ -198,16 +218,16 @@ export class GroqLLMProvider implements LLMProvider {
       model: targetModel,
       messages: this.prepareMessages(messages, options?.systemPrompt),
       temperature: options?.temperature ?? this.config.temperature,
-      max_tokens: options?.maxTokens ?? this.config.maxTokens,
+      max_completion_tokens: options?.maxTokens ?? this.config.maxTokens,
+      ...this.voiceSettings(targetModel),
       stream: false,
     };
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
-    if (options?.abortSignal) {
-      options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true });
-    }
+    const requestSignal = options?.abortSignal
+      ? AbortSignal.any([controller.signal, options.abortSignal]) : controller.signal;
 
     try {
       const response = await fetch(url, {
@@ -217,7 +237,7 @@ export class GroqLLMProvider implements LLMProvider {
           Authorization: `Bearer ${this.config.apiKey}`,
         },
         body: JSON.stringify(payload),
-        signal: controller.signal,
+        signal: requestSignal,
       });
 
       if (!response.ok) {

@@ -283,3 +283,7 @@ It remains a useful provider/model adapter and can be introduced later if we nee
 
 Do not make the Claude SDK the primary abstraction at this stage. Keep Anthropic as a future provider option behind the model/provider boundary.
 
+### Existing Groq Voice Adapter — Phase 14 Regression Fix
+
+The existing Groq adapter keeps the configured model and applies vendor-specific voice settings outside the engine. For Qwen 3 models it explicitly sends `reasoning_effort: "none"` and `reasoning_format: "hidden"`; other models do not receive these Qwen settings. It uses `max_completion_tokens` and retains streamed finish/usage metadata for empty-output diagnostics. These parameters follow the [Groq API reference](https://console.groq.com/docs/api-reference) and [reasoning documentation](https://console.groq.com/docs/reasoning). This does not establish that reasoning caused the reported empty replies; generic live probes succeeded with both default and explicit non-reasoning settings.
+

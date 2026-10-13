@@ -31,7 +31,7 @@ export type LLMUsage = {
 export type LLMChunk =
   | { type: "text"; delta: string }
   | { type: "tool_call"; toolCall: LLMToolCall }
-  | { type: "done"; usage?: LLMUsage | undefined };
+  | { type: "done"; usage?: LLMUsage | undefined; finishReason?: string | undefined };
 
 /**
  * Specification for structured tools passed to LLM.

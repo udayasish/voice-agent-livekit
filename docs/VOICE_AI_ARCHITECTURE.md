@@ -192,25 +192,53 @@ Never allow the agent to keep talking over the user after a confirmed interrupti
 
 ## 8. Agent State
 
-Example:
+The reusable runtime lives in `backend/src/components/agent/engine/`; LiveKit integration lives in `backend/src/agent/`. This follows the existing backend layout rather than introducing a separate service/package in Phase 14.
+
+The engine separates session lifecycle from conversation state:
 
 ```ts
-type ConversationState = {
-  intent?: "appointment_booking" | "appointment_cancel" | "general_query";
-  doctorId?: string;
-  date?: string;
-  time?: string;
-  patientName?: string;
-  patientPhone?: string;
-  confirmed?: boolean;
-};
+SessionContext    // organizationId, agentId, sessionId
+SessionState      // active/closed, monotonic turn IDs, timestamps
+ConversationState<T> // messages, language, repetition tracking, validated businessState
+AgentConfig       // name/business, instructions, languages, greeting, model settings, recovery messages
 ```
 
 Active state:
 - Redis
+- organization/session-scoped snapshots, serialized writes, refreshed 30-minute TTL
+- delete on close; storage failure closes the affected session
 
 Permanent outcome:
 - PostgreSQL
+- permanent call/outcome persistence is deferred to later phases
+
+The engine uses the installed `@openai/agents` `Agent` and `Runner` with an SDK `Model` adapter over the existing `LLMProvider`. Vendor selection and credentials remain outside the core. SDK tracing/export processors are disabled; Winston receives operational IDs, events and timing, without transcripts or provider payloads.
+
+`AgentSession<T>` provides `ready`, `processUserUtterance`, `chat`, immutable state/history/snapshot access, `reset`, `notifyInterruption` and idempotent `close`. Generation is buffered before approved response text and replay chunks are returned. Both entry points use the same prompt/response policy. Provider errors and empty output use localized recovery. Phase 14 exposes no tools and rejects unsolicited tool calls.
+
+New turns supersede in-flight generation. Cancellation retains the accepted user message and discards late output without recovery speech. Interrupted playback is marked in history and excluded from later model context. Reset preserves monotonic IDs. The existing `InterruptionManager` remains the authority for audio abort signals, native queue clearing and frame delivery.
+
+Business behavior is injected through `BusinessBehavior<T>` with a Zod state schema, an initial state, an update operation, prompt context and optional response guidance. The clinic intake demo is isolated under `business/clinic-demo.ts`; phone normalization remains a reused domain utility. It captures requested details without inventing dates/availability or confirming bookings. The mock provider is business-neutral. A hotel test configuration exercises the same engine without clinic code branches.
+
+The response guidance hook also receives the previous approved reply. The optional `onResponse` hook returns validated business state after the approved reply; this records the question actually asked, including model-generated intake questions. Clinic intake uses that context to interpret short doctor/name answers, accepts spoken title spellings including `ডঃ`, and clarifies unrecognized details without repeating the exact same prompt. Worker diagnostics report only whether each detail is present and whether the reply repeated, without logging the detail values.
+
+Empty or formatting-only model output retries once for this text-only phase, respecting cancellation and preserving a single accepted user/history turn. Recovery policy applies after business guidance and removes internal reasoning text before speech. `fallbackReason` distinguishes empty output, provider failure and repeated-response replacement; empty-output events include provider completion reason/token counts when available. No sensitive provider payload is logged. The sandbox Safe Guard tooltip explains the category.
+
+STT final-transcript callbacks dispatch without blocking the speech-event consumer on LLM generation or TTS playback. A finalized Deepgram segment is not a completed caller turn. `backend/src/agent/turn-collector.ts` groups final segments, preserves repeated words/digits, and waits for a quiet interval: 1,200 ms normally and 3,000 ms when the sandbox adapter is collecting a phone number. VAD speech start cancels the timer and immediately interrupts ongoing generation/playback through `InterruptionManager`; VAD speech end, interim results and later final segments refresh the listening window. The interval starts after the latest such activity, so VAD/STT latency is additional. Pending fragments/timers are discarded on participant departure, room disconnect and shutdown. Existing TTFT/total generation metrics exclude this listening interval.
+
+Phone drafts and confirmation belong to the isolated clinic demo, not the engine or collector. Valid digit fragments are retained across turns, including a multiplier split from its following digit. Unknown tokens, extra digits and incomplete numbers trigger clarification without guessed digits. Full valid retries replace a draft; callers can explicitly restart it. The completed number is read back and requires an affirmative answer; a negative answer clears it. Full doctor names and explicitly supplied morning/clock information are preserved. This does not validate a doctor's identity, improve recognition accuracy, or book an appointment.
+
+The phone normalizer splits joined word/numeral boundaries (for example `ছেভেন00`) while retaining unknown words as ambiguous. A multiplier applied to an entire numeric run requires clarification. An incomplete transcript does not establish where a digit was lost: prompts allow continuation if the caller has not finished, or a complete digit-by-digit retry if they have. Repeated unclear-number prompts vary their guidance to avoid generic repetition recovery. Guided group collection and typed/DTMF fallback are recommendations for further work, not implemented features.
+
+The clinic sandbox requests English digit dictation. Before speaking that prompt, the worker sets the participant's STT input mode to `english-digits`: Deepgram Nova-3 `language=en-IN`, `numerals=true`, `smartFormat=false`, `punctuate=false`. On entering confirmation it restores the configured conversation recognition settings, including Assamese by default. `attachSTTToAudio` owns one continuous audio reader and replaces only the recognizer; incoming frames queue in the replacement during connection setup. Superseded recognizers cannot emit stale transcripts or close the current audio reader. Close/abort cancels the reader, closes the recognizer and removes the abort listener. The shared prewarmed STT provider is never reconfigured. Winston logs `stt_input_mode_changed` with mode/language and operational identifiers only.
+
+The generic engine's validated `TurnOptions.responseLanguage` can preserve the conversational reply language independently of specialized input recognition. The sandbox adapter uses it during phone capture, so English digits do not switch an Assamese conversation's replies to English. Phone confirmation accepts natural affirmative sentences in the supported languages, checks negation first, and leaves unclear/questioning answers unconfirmed. An unclear answer gets a short yes/no clarification rather than repeated full readback. This confirms only the collected number, never a booking. Stream behavior is tested with deterministic streams and the real Deepgram SDK against a local WebSocket server; microphone recognition accuracy still needs live validation.
+
+Groq's Qwen 3 adapter explicitly requests non-reasoning/hidden output for voice, uses the documented completion-token field, and preserves completion metadata. Generic live text probes validate that adapter; they do not replace live browser/audio testing.
+
+The LiveKit worker validates participant organization metadata and creates one engine session per participant. STT confidence and acoustic echo filters, speech providers and diagnostic DataChannel fields remain compatible. Participant departure, room disconnect and job shutdown close subscriptions and sessions.
+
+Phase 14 limitations: snapshots are active state, not crash-resumable sessions; greetings remain transport-managed; voice quality and cloud inference need their existing live validation procedures. Generic factuality rules are prompt constraints, not a semantic proof of model claims. The clinic demo uses deterministic intake responses; real business actions require the typed tool system in subsequent phases.
 
 ## 9. Tool Architecture
 

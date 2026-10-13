@@ -36,6 +36,7 @@ export type ConversationTurn = {
   ttftMs?: number | undefined;
   totalLatencyMs?: number | undefined;
   isFallback?: boolean | undefined;
+  fallbackReason?: "empty_output" | "provider_error" | "repeated_response" | undefined;
   isInterrupted?: boolean | undefined;
   slots?: {
     doctor?: string;
@@ -302,6 +303,7 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
                       ttftMs: typeof data.ttftMs === "number" ? data.ttftMs : undefined,
                       totalLatencyMs: typeof data.totalLatencyMs === "number" ? data.totalLatencyMs : undefined,
                       isFallback: typeof data.isFallback === "boolean" ? data.isFallback : undefined,
+                      fallbackReason: ["empty_output", "provider_error", "repeated_response"].includes(data.fallbackReason) ? data.fallbackReason : undefined,
                       isInterrupted: false,
                       slots: data.slots && typeof data.slots === "object" ? data.slots : undefined,
                       timestamp: data.timestamp || new Date().toISOString(),

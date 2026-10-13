@@ -148,6 +148,8 @@ describe("Phase 12 — Complete Voice Loop Integration & Reliability Test Suite"
     assert.equal(finalState.slots.doctor, "ডাঃ বৰুৱা");
     assert.equal(finalState.slots.dateOrTime, "কাইলৈ পুৱা দহ বজাত");
     assert.equal(finalState.slots.patientName, "ৰাহুল বৰা");
+    assert.match(turn4Result.text, /বুক হোৱা নাই/u, "Collecting intake must not confirm a booking");
+    assert.doesNotMatch(turn4Result.text, /পঞ্জীয়ন কৰা হ'ল|অনুৰোধ গ্ৰহণ কৰা হৈছে/u);
   });
 
   it("Test 3: Anti-Repetition Loop Mitigation", async () => {
