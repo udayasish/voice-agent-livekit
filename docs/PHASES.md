@@ -407,6 +407,12 @@ The real SDK completes a deterministic tool request → validated execution → 
 ### Done when
 A booking can be completed safely through API and database.
 
+### Selected service-adoption milestone (2026-10-13)
+
+Adopt the existing WhatsApp appointment platform's clinic models and domain services locally under `backend/src/components/clinic/`, using an independent voice database. Preserve capacity-based concrete slots, transactional advisory/row locking and per-doctor/day tokens; adapt tenant scope, trusted context, safe contracts and timezone handling. Include internal service/database tests and reminder/booking-alert scheduling contracts without actual delivery.
+
+This milestone adds no HTTP endpoints, voice tools, WhatsApp transport, live-data migration or rescheduling implementation. Its completion is recorded separately in `PROGRESS.md`; the full phase remains **IN PROGRESS** until API/database acceptance and rescheduling are completed. Phase 17 remains **NOT STARTED**. The existing source has no rescheduling service to copy, so that requirement must be designed as remaining Phase 16 work before enabling its voice tool.
+
 ---
 
 # Phase 17 — Voice Appointment Agent

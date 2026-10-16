@@ -8,6 +8,13 @@
       "when": 1790860083652,
       "tag": "0000_worried_sphinx",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791893710062,
+      "tag": "0001_lucky_daredevil",
+      "breakpoints": true
     }
   ]
 }

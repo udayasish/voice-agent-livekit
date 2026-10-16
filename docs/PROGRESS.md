@@ -2,9 +2,9 @@
 
 ## Current Phase
 
-**Phase:** 15 — Tool System
+**Phase:** 16 — Clinic Data & Appointment MVP
 
-**Status:** DONE
+**Status:** IN PROGRESS — local service-adoption milestone complete
 
 ## Status Legend
 
@@ -33,7 +33,7 @@
 | 13 Barge-In | DONE | Realtime interruption & barge-in architecture implemented. InterruptionManager state machine with strict AbortController ownership, AudioSource.clearQueue() native buffer purge (< 5ms cutoff), two-stage qualification (150ms 'ৰব' supported, sub-100ms noise rejected), thinking/speaking cancellation, WebRTC DataChannel signaling, and frontend AEC enforcement. 20/20 tests passing across 4 suites. |
 | 14 Agent Engine | DONE | Configurable SDK-backed engine, typed business behavior, Redis session snapshots, unified response policy and lifecycle; clinic demo isolated; 37 engine tests, 24 listening/dictation tests, 5 STT language-switch tests and local Redis integration pass |
 | 15 Tool System | DONE | Typed registry/executor, trusted context, SDK tool loop, Groq/HF protocol adapters and harmless offline clock tool; 27 tool tests and required regressions/checks pass |
-| 16 Clinic Data & Appointment MVP | NOT STARTED | |
+| 16 Clinic Data & Appointment MVP | IN PROGRESS | Local clinic service adoption complete; HTTP/API and rescheduling acceptance remain outstanding |
 | 17 Voice Appointment Agent | NOT STARTED | |
 | 18 Agent Configuration | NOT STARTED | |
 | 19 Calls & Conversations Dashboard | NOT STARTED | |
@@ -45,9 +45,22 @@
 
 ## Current Work
 
-Phase 15 (Tool System) completed. Next: Phase 16 (Clinic Data & Appointment MVP), which remains NOT STARTED. Stop here. The live clinic voice backlog below remains unresolved and was outside this phase.
+Phase 16 local service adoption is complete and verified. Stop here, as requested. Remaining Phase 16 work: clinic HTTP/API acceptance and rescheduling. Phase 17 remains NOT STARTED; clinic voice tools are not enabled. The live clinic voice backlog below remains unresolved and was outside this milestone.
 
 ## Last Completed Work
+
+**Phase 16 — Local Clinic Service Adoption Milestone (2026-10-13)**
+- Completed the source module/dependency inventory before adopting code: 174 source/reference files, including all 159 `src/` TypeScript modules, classified as 20 adapted, 4 equivalent infrastructure patterns reused and 150 excluded. Recorded SHA-256 provenance, imports/exports and reasons in `backend/test/fixtures/clinic-source-inventory.json` and `docs/CLINIC_SERVICE_ADOPTION.md`. Inspected the actual booking flow, Drizzle/migration history, tenant resolution, timezone helpers, shared WhatsApp/IVR service calls, notification schedulers/workers and unrelated transport/admin/report/QR dependencies. Actual source behavior takes precedence over outdated single-capacity/complaint descriptions in its guide.
+- Adopted the existing clinic models and service algorithms locally under `backend/src/components/clinic/`; no cross-repository imports or source-backend calls. The voice product uses an independent database/data set without sharing, synchronization or live-data migration. Original WhatsApp files are unchanged. Clinic contacts (`clinic_people`) preserve source patient/doctor/receptionist roles separately from login `users`; doctor profiles, capacity-based concrete slots, blocked dates, appointment snapshots/statuses/tokens and notification switches are adapted rather than creating a second patient/schedule/booking design.
+- Added the additive voice migration `backend/drizzle/migrations/0001_lucky_daredevil.sql` and exported clinic models through the existing Drizzle schema entry point. Existing organizations provide clinic identity, status and timezone; clinic settings retain reminder/alert switches. Organization-scoped composite FKs and positive capacity/token/duration/valid-age/interval checks enforce related-record integrity. Server-owned source metadata and nullable UUID call correlation are stored without creating calls records. Migration was applied only to the guarded local `voice_agent_clinic_test` database during verification; the main voice and WhatsApp databases were not migrated.
+- Added an immutable, server-bound facade with strict Zod input/output contracts and safe standard envelopes for doctor listing/name matches, available dates/slots, race-safe patient lookup/creation, booking, upcoming appointments, cancellation, concrete-slot generation and date block/unblock. Organization status/type/timezone reload from PostgreSQL. Context cannot be overridden by operation arguments; caller-supplied ORM rows, booking date/time and cancellation slot IDs are rejected. Future adapters must authorize organization/staff access and patient ownership before binding identity; phone lookup is not authentication. Bound patient context cannot switch patients or run operator actions, and cancellation requires it.
+- Preserved the original booking transaction, doctor/day advisory lock, slot `FOR UPDATE`, booked-count/capacity checks and max-token-plus-one allocation. Date/time come from the stored slot. Cancellation derives its slot, reopens remaining capacity safely, preserves blocked/cancelled states and is repeatable. Generation, cancellation and date blocking use the same doctor/day lock; block/unblock changes are atomic. Date/availability checks use clinic-local days rather than server/UTC dates; the adopted Intl conversion validates actual wall-clock time and rejects DST gaps/overlaps. No patient age, doctor, date, availability or booking result is invented.
+- Extracted the existing transaction-hook pattern into `src/lib/db/transaction-with-hooks.ts` for injection into isolated tests while retaining `db.ts`'s exported application helper. Reminder timing (24 hours before) and immediate doctor-alert requests execute only after commit through an injected scheduler. Outcomes distinguish scheduled/disabled/skipped-window/unconfigured/failed. Missing/failed scheduling cannot turn a committed booking into a failure or cause another booking attempt. A recording adapter proves the contract; there is no real queue, delivery worker or message send. Winston logs operational identifiers, timing and error codes without names, numbers, ages, complaints, raw queries/payloads or exception stacks.
+- **Verification:** offline clinic tests **12/12**; local PostgreSQL tests **24/24**, including tenant/related-ID isolation, contact races, exact last-capacity contention, tokens across simultaneous different-slot bookings, cancellation/blocking races, booking and blocking rollback, post-commit visibility, notification failure behavior, local-day/DST checks and source-derived channel-neutral business scenarios. `smoke:clinic` completed doctor/date/slot lookup → patient → booking → upcoming → cancellation → capacity reopened, recorded two scheduling requests and delivered zero messages. Existing authentication regressions **6/6** passed against login fixtures in the isolated test DB and local Redis. Tools **27/27**, engine **37/37**, agent **5/5**, LLM **8/8 offline with 1 live-cloud skip**, voice loop **8/8**, barge-in **20/20**, listening/dictation **24/24**. Strict clinic-test and engine/tool-test typechecks, backend typecheck/build and frontend typecheck pass. The original WhatsApp project typecheck passes and all **174** inventoried source/reference hashes still match. Local database/socket checks required sandbox loopback permission; no external/paid calls occurred.
+- **Documentation:** Added the integration architecture, service mapping, adaptation reasons, contracts, code layout, source inventory, testing commands and limits to `CLINIC_SERVICE_ADOPTION.md`. Updated Backend, Data Model/API and Voice/AI sections to describe the actual adopted domain and why it supersedes the earlier provisional clinic schema. Documented this scoped milestone in `PHASES.md` without weakening the full phase's API/rescheduling acceptance. No endpoints changed, so Bruno changes were unnecessary. No dependency additions/upgrades, frontend source changes, voice behavior fixes or Git commands.
+- **Limits / next work:** Overall Phase 16 remains **IN PROGRESS** for HTTP/API acceptance and rescheduling; no existing source rescheduling service was found. Phase 17 remains **NOT STARTED**. Live frontend conversation is not connected to clinic services, and the existing voice backlog remains open. Original WhatsApp transport was not exercised live; unchanged-source/typecheck checks and local source-derived business characterization are not a Meta/Exotel end-to-end test. Durable booking request idempotency, staff/patient channel authorization and durable scheduling/delivery/outbox recovery remain future integration requirements. The recorder does not persist/deliver jobs or update `reminder_sent`; future workers must recheck appointment status and current settings. Repeated distinct booking requests can create distinct appointments up to capacity, matching source behavior; no automatic handler retry is introduced.
+
+- **Simple explanation guide follow-up:** Added `docs/PHASE_16_EXPLAINED.md` with examples, diagrams, expandable quizzes, checklists, phase-by-phase remaining work, test instructions and an important-code map. Checked the engine, registry, executor, SDK adapter and live worker against the explanation. The guide distinguishes the existing reusable engine/explicit allowlist from unfinished clinic voice tools, saved organization feature selection and general business loading. It explains that a hotel still needs its own services/tools/configuration; the current live worker remains a clinic demo. Documentation-only follow-up; no runtime changes or additional phase implementation. Phase 16 remains IN PROGRESS and Phase 17 remains NOT STARTED.
 
 **Phase 15 — Typed Tool System (2026-10-13)**
 - Extended `backend/src/components/agent/tools/` with generic typed definitions/results, strict Zod object input validation, successful output/JSON validation, immutable registry, duplicate-definition rejection, explicit enabled-tool allowlists and server-bound execution. Reuses existing errors and Winston; no dependency upgrades or second agent framework.
@@ -461,7 +474,7 @@ Phase 15 (Tool System) completed. Next: Phase 16 (Clinic Data & Appointment MVP)
 
 ## Known Blockers
 
-No confirmed blocker to implementing the Phase 15 typed tool system or Phase 16 API/database services using deterministic inputs. Live clinic voice acceptance remains incomplete.
+The Phase 15 tool system and Phase 16 local clinic service-adoption milestone are verified. Remaining Phase 16 API and rescheduling work is not completed. Live clinic voice acceptance remains incomplete.
 
 ### Live clinic voice issues reported on 2026-10-13
 
@@ -470,7 +483,7 @@ No confirmed blocker to implementing the Phase 15 typed tool system or Phase 16 
 - **Assamese response quality:** The model's initial greeting sometimes uses Bengali phrasing. Assamese wording and spoken-language consistency need a dedicated clinic voice evaluation before pilot acceptance.
 - **STT entity accuracy:** The supplied feed contains an incomplete number on one attempt and the complete number on the next, plus name/date recognition errors. Validate exact captured values using a focused Assamese/English clinic voice benchmark and clear correction/fallback flows. Do not repair missing digits or names by guessing.
 
-Recommended sequencing: Phase 15 tools are now complete; build Phase 16 clinic services with deterministic text/API tests, carry this backlog into Phase 17, and resolve state loss before connecting live conversation data to business actions. Later phases do not automatically fix speech recognition. Phase 16 remains NOT STARTED.
+Recommended sequencing: complete the remaining Phase 16 API/rescheduling acceptance, carry this backlog into Phase 17, and resolve state loss before connecting live conversation data to business actions. Later phases do not automatically fix speech recognition. Phase 16 remains IN PROGRESS; Phase 17 is NOT STARTED.
 
 ## Important Decisions
 
@@ -493,7 +506,7 @@ Clinic appointment booking is the first production workflow.
 The complete development environment should work locally at ₹0.
 
 ### Decision 7 — Clinic Domain Integration Strategy
-The WhatsApp appointment platform is kept completely separate with its own DB. In Phase 16, clinic schemas and services (`createAppointmentFromBooking`, `generateSlots`, etc.) will be copied directly into `backend/src/components/clinic/` with `tenantId` adapted to `organizationId` and `source`/`call_id` columns added.
+The WhatsApp appointment platform stays separate with its own database and records. Phase 16's selected milestone adopted its clinic models and domain services (`createAppointmentFromBooking`, `generateSlots`, etc.) into `backend/src/components/clinic/`, adapting `tenantId` to `organizationId`, prefixing clinic tables and adding server-owned `source`/`call_id`. The voice platform owns independent clinic data; there is no shared database, synchronization or runtime dependency on the original repository/backend. This is local code reuse rather than integration with existing live WhatsApp appointments. See `CLINIC_SERVICE_ADOPTION.md` for the mapping and deliberate trust/atomicity/timezone fixes.
 
 ### Decision 8 — Repository Layout
 Repository structured into:

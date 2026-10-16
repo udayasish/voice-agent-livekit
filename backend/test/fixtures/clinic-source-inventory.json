@@ -1,0 +1,2700 @@
+{
+  "source": "whatsapp-appointment-platform",
+  "capturedAt": "2026-10-13",
+  "files": [
+    {
+      "path": "src/app.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "3d75a8df2d6c0c87a8cba41f6f15296c945033502b1c1bc23eb2be6df6255528",
+      "imports": [
+        "express",
+        "cors",
+        "cookie-parser",
+        "./middlewares/index.js",
+        "./components/whatsapp/routes.js",
+        "./components/admin/index.js",
+        "./components/appointments/index.js",
+        "./components/doctors/index.js",
+        "./components/qr/index.js",
+        "./components/ivr/index.js"
+      ],
+      "exports": [
+        "app"
+      ]
+    },
+    {
+      "path": "src/common/day-of-week.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "ad8382908852343f116f6a48264fcf65647a91b31aec5a14658e0570445b05ef",
+      "imports": [
+        "../lib/db/models/enums.js"
+      ],
+      "exports": [
+        "parseWeekdays"
+      ]
+    },
+    {
+      "path": "src/common/format.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "eee916d1662894ee542f36f708a3e3c29a294504ea8beefe8e14ac2f6f72def7",
+      "imports": [],
+      "exports": [
+        "formatDateLong",
+        "formatTime12h"
+      ]
+    },
+    {
+      "path": "src/common/timezone.ts",
+      "classification": "adapted",
+      "target": "timezone.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "641c488d9185384c0a6997e391672d95c7989affd8dfeaf342f5653c4c6092c5",
+      "imports": [],
+      "exports": [
+        "zonedTimeToUtc"
+      ]
+    },
+    {
+      "path": "src/common/wa-link.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "fdb5ab7b2d098d711e0ab258b875660e8de704088b0b616bb02e30f3975b7495",
+      "imports": [],
+      "exports": [
+        "sanitizePhoneNumber",
+        "WaMeLinkOptions",
+        "generateWaMeLink"
+      ]
+    },
+    {
+      "path": "src/components/admin/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "4c8e9484e3bf329d8abed266b4992bb9a200f1d289c6f64aef51ac5de37139f7",
+      "imports": [
+        "./routes.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/admin/login-rate-limit.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "b8b39d912aa411c3030d2f9ae5e47894761ff16637a54c2b659351e9f7bc5999",
+      "imports": [
+        "express",
+        "../../lib/bull/index.js"
+      ],
+      "exports": [
+        "loginRateLimit"
+      ]
+    },
+    {
+      "path": "src/components/admin/middleware.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "b42b1d72f44b95562a6ec5bc10e44b2dc7e4d0cd03317faed6d2a52e1ac0bde8",
+      "imports": [
+        "../../middlewares/auth.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/admin/routes.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "8e0e87c4128543758d0b852dc76ed65ba0a148d8e6690419a3996b6182e570e2",
+      "imports": [
+        "express",
+        "bcryptjs",
+        "drizzle-orm",
+        "../../lib/db/index.js",
+        "../../lib/jwt.js",
+        "../../middlewares/index.js",
+        "./login-rate-limit.js",
+        "./services/login.js",
+        "../../common/wa-link.js",
+        "./schemas/index.js"
+      ],
+      "exports": [
+        "adminRouter"
+      ]
+    },
+    {
+      "path": "src/components/admin/schemas/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "8eda15f55ae12ef78b60ea0dd8ef42bb20ef32e605c60ff084b9faeddd50deb7",
+      "imports": [
+        "./login.schema.js",
+        "./tenant.schema.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/admin/schemas/login.schema.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "dbf739c672eba456b6dbf63afdc320749e24bf2e4b31336c69624e8cb0a25bfa",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "loginSchema",
+        "LoginInput"
+      ]
+    },
+    {
+      "path": "src/components/admin/schemas/tenant.schema.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "bf0580b4fdb2e90d0ad7372cf4328be5ff6e3546ed7c6637e69f113726552bb0",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "createTenantSchema",
+        "CreateTenantInput",
+        "tenantStatusSchema",
+        "TenantStatusInput",
+        "tenantSettingsSchema",
+        "TenantSettingsInput"
+      ]
+    },
+    {
+      "path": "src/components/admin/services/get-admin-by-id.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "46278e5ffa57916e69a9a8521e40d461f96df49bd95e0a493113365584a88e76",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/admin-users.js"
+      ],
+      "exports": [
+        "getAdminById"
+      ]
+    },
+    {
+      "path": "src/components/admin/services/login.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "7c664338e8f747b7aba99bf4704c36e9b7163887a9e8d6161918726c29200a8f",
+      "imports": [
+        "bcryptjs",
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "loginAdmin"
+      ]
+    },
+    {
+      "path": "src/components/admin/session-store.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "25a6b8f70a0cb1da222d0c2b97448aee9c8a3e132a4b5f31dbc41dbf4e0908d6",
+      "imports": [
+        "redis",
+        "connect-redis",
+        "../../lib/env.js",
+        "../../lib/logger.js"
+      ],
+      "exports": [
+        "ensureSessionRedisConnected",
+        "sessionStore"
+      ]
+    },
+    {
+      "path": "src/components/admin/session-types.d.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "28e22d27d46c8c16a878d35d7c84832f683c1f719e1ce82f10f4d7d4894b1570",
+      "imports": [
+        "express-session"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/appointments/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "8a92d130c25b4b41850328db25de21cfa214902d56785f36a7366e8f020c74f1",
+      "imports": [
+        "./routes.js",
+        "./services/index.js",
+        "./schemas/index.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/appointments/queue/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "a89bb21ce5ca93df1bb17a2d49866969ca119f107f8e49c4f9bcd515d4b8b52f",
+      "imports": [
+        "./schedule-reminder.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/appointments/queue/reminder-worker.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "8b4a58922eaa4b7b0033b268f8f39ef9b5edcd443a7322335403c5d4f6b9377d",
+      "imports": [
+        "bullmq",
+        "drizzle-orm",
+        "../../../lib/bull/index.js",
+        "../../../lib/bull/queues.js",
+        "../../../lib/db/index.js",
+        "../../../common/format.js",
+        "../../../lib/logger.js",
+        "../../whatsapp/services/index.js",
+        "../../whatsapp/templates.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/appointments/queue/schedule-reminder.ts",
+      "classification": "adapted",
+      "target": "notifications/schedule-reminder.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "1e4af4515dffcc14aed58babd1db4506e933076b4e6be4b28c402535b7a760f5",
+      "imports": [
+        "../../../common/timezone.js",
+        "../../../lib/bull/queues.js",
+        "../../../lib/logger.js",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "scheduleReminder"
+      ]
+    },
+    {
+      "path": "src/components/appointments/routes.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "aa80451ab9e1a53c846c5020162d2eb70da18ac21ba49ddd1be70290f42d20ad",
+      "imports": [
+        "express",
+        "drizzle-orm",
+        "../../lib/db/index.js",
+        "../../middlewares/index.js",
+        "./schemas/index.js",
+        "./services/index.js"
+      ],
+      "exports": [
+        "appointmentsRouter"
+      ]
+    },
+    {
+      "path": "src/components/appointments/schemas/appointment.schema.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "3bc6c83afe4616ce56c370b896485b6c00255a09d05c18055446bafbaa8ad0a6",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "updateAppointmentStatusSchema",
+        "UpdateAppointmentStatusInput",
+        "createAppointmentSchema",
+        "CreateAppointmentInput"
+      ]
+    },
+    {
+      "path": "src/components/appointments/schemas/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "f28aa71a8c41a6d2386b75611e903f4823f38c4c3fe2b72ce086324aa035773a",
+      "imports": [
+        "./appointment.schema.js",
+        "./search.schema.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/appointments/schemas/search.schema.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "589efa85a159dd711d86a6acfcaf0ae092b544fb599437425be58b5328a4fa67",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "searchAppointmentsSchema",
+        "SearchAppointmentsInput"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/create-appointment.ts",
+      "classification": "adapted",
+      "target": "services/create-appointment.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "decd845f0df625c30d3fa147bd204dcb21a0029971dc53cf09e6bcafd34df958",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "CreateAppointmentParams",
+        "createAppointmentFromBooking"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/find-todays-appointment-by-token.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "29f6ced92c41c42768e9a147d883664f85db096fb43680f94e7e2a52823d7123",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "TokenLookupResult",
+        "findTodaysAppointmentByToken"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/get-clinic-dashboard.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "039e0d5f888c60d8ac15161e04545d129246ed6fb129d9c905f3dbdc2057b5a4",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../../common/format.js"
+      ],
+      "exports": [
+        "DashboardAppointmentItem",
+        "DashboardRecentBookingItem",
+        "ClinicDashboardSummary",
+        "getClinicDashboard"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "594b1a8abd8e40ac2b841c60ce977140fb95463f048665d8763578265ef62ce6",
+      "imports": [
+        "./create-appointment.js",
+        "./list-upcoming-for-patient.js",
+        "./find-todays-appointment-by-token.js",
+        "./list-todays-appointments.js",
+        "./mark-appointment-status.js",
+        "./get-clinic-dashboard.js",
+        "./search-appointments.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/appointments/services/list-todays-appointments.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "7984b31ea2d34b7ca226bdf6d4f484d42ed20da572b808decbc455d787295c9a",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "TodaysAppointmentSummary",
+        "listTodaysAppointments"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/list-upcoming-for-patient.ts",
+      "classification": "adapted",
+      "target": "services/list-upcoming-for-patient.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "b8bb8b1d1e5a9c0dcc57c23d8c82a616e20101dd6ac9e86cee2344b2fe5890c5",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "UpcomingAppointmentSummary",
+        "listUpcomingAppointmentsForPatient"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/mark-appointment-status.ts",
+      "classification": "adapted",
+      "target": "services/cancel-appointment.ts (cancellation only)",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "72caf425e74ff1b5ff45fbcfabc6d955b1c9bf82cfee04b775cc9e2e647a548f",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "markAppointmentDone",
+        "markAppointmentNoShow",
+        "cancelAppointment"
+      ]
+    },
+    {
+      "path": "src/components/appointments/services/search-appointments.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "07be99f25a8e4ae1e15d5e476cefa7a51c79eb1d8550845db75cedd77d0f94d9",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../schemas/search.schema.js"
+      ],
+      "exports": [
+        "PaginationMeta",
+        "AppointmentItem",
+        "SearchAppointmentsResult",
+        "searchAppointments"
+      ]
+    },
+    {
+      "path": "src/components/booking/handle-booking-message.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "c37c3ab267a569b6dc7852a8c3308def3562e02b6a4aec4e602835cdd6bc7c74",
+      "imports": [
+        "../whatsapp/services/message-router.js",
+        "../whatsapp/services/index.js",
+        "../../lib/index.js",
+        "../../lib/db/index.js",
+        "./services/index.js",
+        "./steps/index.js",
+        "./messages.js",
+        "./types.js"
+      ],
+      "exports": [
+        "handleBookingMessage"
+      ]
+    },
+    {
+      "path": "src/components/booking/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "0be46ff97823ebbf5a186d447ab157840b61f61b46b4fb9f6ce42f6c4e761ccf",
+      "imports": [
+        "../whatsapp/services/message-router.js",
+        "./handle-booking-message.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/booking/messages.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "cdaa55829954cb934aa87c2f20280ba2de5ebbcba7de4ea31a8b8198754432de",
+      "imports": [
+        "./types.js"
+      ],
+      "exports": [
+        "t"
+      ]
+    },
+    {
+      "path": "src/components/booking/services/conversation-state.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "f7b07bdcdf52378a0ae59b9c0a8d496c1db5f0627d591d1c5815801d00e2101f",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "getOrCreateConversationState",
+        "updateConversationState",
+        "resetConversationState"
+      ]
+    },
+    {
+      "path": "src/components/booking/services/get-or-create-patient.ts",
+      "classification": "adapted",
+      "target": "services/get-or-create-patient.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "b18eaef2e4eba08fa099a32f4c74f719d3e304baaab3471daade3ff8063d6465",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "getOrCreatePatient"
+      ]
+    },
+    {
+      "path": "src/components/booking/services/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "c10209a3ffb2c207db2968d37bd928a2ff46b7640966ccc60bc2b9f30739a37d",
+      "imports": [
+        "./conversation-state.js",
+        "./get-or-create-patient.js",
+        "./session-manager.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/booking/services/session-manager.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "c37d36446a3caec82512579c82d1ccdc576d461d8d76884c986d46a7847ad28e",
+      "imports": [
+        "../../../lib/index.js",
+        "../../../lib/db/index.js",
+        "./conversation-state.js"
+      ],
+      "exports": [
+        "isSessionExpired",
+        "ActiveConversationResult",
+        "getActiveConversationState"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/back.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "3239360e5d5153ecd7ab53fe9697a4cb5098f838b160aa177e1bf731bceda368",
+      "imports": [
+        "../../../lib/db/index.js",
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleGoBack"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/confirm-booking.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "262c3220425e6fbfa0055dec0c5c27912dfcb82864accbd7663ed95f91568d2d",
+      "imports": [
+        "../../../common/format.js",
+        "../../appointments/services/index.js",
+        "../../appointments/queue/index.js",
+        "../../notifications/queue/index.js",
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleConfirmBooking"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/enter-age.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "bcc7a11ec9c5a9e41bbde30c3281ee7002344d0ed03a41f2636d532d33c8a896",
+      "imports": [
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleEnterAge"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/enter-complaint.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "4bf141fa7222e92f07f0f3a117bcb7890ec3ef448db6c63f316675dffca2fdb9",
+      "imports": [
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleEnterComplaint"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/enter-name.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "317c2a47258c0bc755c29d414998fac039d64be137aefe56c8a0fc5ce6a6d97b",
+      "imports": [
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleEnterName"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/idle.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "a8bb5f46e51dd2fe30817f3c7b43603f09838fd50214a9f00494b192c2ec5c4c",
+      "imports": [
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleIdle"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "c60a571599312138efe9ad26a8d5f953d1a2cfb00115b9c55be500bd4c4abb0f",
+      "imports": [
+        "./idle.js",
+        "./select-language.js",
+        "./select-action.js",
+        "./select-doctor.js",
+        "./select-date.js",
+        "./select-slot.js",
+        "./enter-name.js",
+        "./enter-age.js",
+        "./enter-complaint.js",
+        "./confirm-booking.js",
+        "./back.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/booking/steps/select-action.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "bc28b01c95ec9aba9c178501f28ef2a3cb5bfc875bfa2c2799d631b7dd7e2b63",
+      "imports": [
+        "../../appointments/services/index.js",
+        "../../../common/format.js",
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleSelectAction"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/select-date.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "7492f49d477644c97f7f5c7c7198cb38b3d55bf15d9eee21ce90c6929595ce63",
+      "imports": [
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleSelectDate"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/select-doctor.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "6e1806cb298db97a44d32bbefc29721dd4ce3efafea1a3363dc7576c7155aad8",
+      "imports": [
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleSelectDoctor"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/select-language.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "9a48ff35ecd4dd05650f22fbc791d3b625b8ed34463a284109f1bc884d7db385",
+      "imports": [
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleSelectLanguage"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/select-slot.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "13fc26b248337f57a0f933a07cc40c353087581b686bb1d4245ebc21bfd46d64",
+      "imports": [
+        "../messages.js",
+        "../types.js",
+        "./shared.js"
+      ],
+      "exports": [
+        "handleSelectSlot"
+      ]
+    },
+    {
+      "path": "src/components/booking/steps/shared.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "7c460ceb129df2811bbb61e13b560f572e43f3498d62fd5bba6864953e124484",
+      "imports": [
+        "../../../common/format.js",
+        "../../doctors/services/index.js",
+        "../../slots/services/index.js",
+        "../messages.js",
+        "../types.js"
+      ],
+      "exports": [
+        "DoctorListPrompt",
+        "buildDoctorListPrompt",
+        "DateListPrompt",
+        "buildDateListPrompt",
+        "SlotListPrompt",
+        "buildSlotListPrompt",
+        "doctorRowsFromTempData",
+        "dateRowsFromTempData",
+        "slotRowsFromTempData",
+        "buildConfirmSummary",
+        "invalidReply",
+        "languageButtons",
+        "actionButtons",
+        "confirmButtons"
+      ]
+    },
+    {
+      "path": "src/components/booking/types.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp conversation ladder and wording remain in the source product; domain call sequence is characterized in tests.",
+      "sha256": "f70eaa1377addb5d00c706e7c90da7742379d19de5954f231c6105f8732a04a0",
+      "imports": [
+        "../../lib/db/index.js"
+      ],
+      "exports": [
+        "Lang",
+        "BookingTempData",
+        "StepContext",
+        "StepResult"
+      ]
+    },
+    {
+      "path": "src/components/doctors/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "f1460b4657dd5710e4c95a41cdc70c729ad19c8ad6b3cf25aa04c485812d0bbc",
+      "imports": [
+        "./routes.js",
+        "./services/index.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/doctors/routes.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "56454e4c6ff67ae74fb67457916c85a0d8e4bf1b50a1f1d4af634a211f1099d7",
+      "imports": [
+        "express",
+        "drizzle-orm",
+        "zod",
+        "../../lib/db/index.js",
+        "../../lib/db/models/enums.js",
+        "../../middlewares/index.js",
+        "./services/index.js"
+      ],
+      "exports": [
+        "doctorsRouter"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/block-date.ts",
+      "classification": "adapted",
+      "target": "services/block-date.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "12860ab537471bfff08eb04aa5b367a9c5b002aa056710ba707b1853c591a247",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/enums.js",
+        "../../whatsapp/services/index.js"
+      ],
+      "exports": [
+        "BlockDateParams",
+        "BlockDateResult",
+        "blockDoctorDate",
+        "unblockDoctorDate"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/copy-doctor-slots.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "f28c5d09d2f3a8d27295fbc82195d8e2b44b01a2b41526d81a292616f3e7f445",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/enums.js"
+      ],
+      "exports": [
+        "copyDoctorSlots"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/create-doctor-slot.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "6f86d04907dcfc3095007c0f8821abd90f3b4686f7ceff19d943125eb35f24d5",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/enums.js",
+        "./list-doctor-date-slots.js"
+      ],
+      "exports": [
+        "CreateDoctorSlotInput",
+        "createDoctorSlot"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/delete-doctor-slot.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "bd661aea632efaeaaadf0848a84117c16df963d9329dc64244ea514140df1c2e",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "deleteDoctorSlot"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/find-doctor-by-name.ts",
+      "classification": "adapted",
+      "target": "services/find-doctor-by-name.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "2c76c33701fd95827a8b4de7386ef4535157733c17781de4954d7374258511b1",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "DoctorMatch",
+        "findDoctorsByName"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/get-doctor-by-user-id.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "9379cb827f06f9ae776783e105e9129cca5127cf6c9da5e62ed485f5f5aeede2",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "getDoctorByUserId"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/get-doctor-schedule.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "917c682772ef666bb92d0d061759c7a8059bb376522ebcbfc67b1795f87ae903",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/enums.js"
+      ],
+      "exports": [
+        "DayScheduleData",
+        "BlockedDateData",
+        "DoctorScheduleResponse",
+        "getDoctorSchedule"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "13ee241b37a742e0e39dce046aa4617309b097bec271580657db154436420c55",
+      "imports": [
+        "./list-active-doctors.js",
+        "./find-doctor-by-name.js",
+        "./get-doctor-by-user-id.js",
+        "./list-clinic-doctors.js",
+        "./get-doctor-schedule.js",
+        "./upsert-doctor-schedule.js",
+        "./block-date.js",
+        "./list-doctor-date-slots.js",
+        "./create-doctor-slot.js",
+        "./delete-doctor-slot.js",
+        "./update-doctor-slot.js",
+        "./copy-doctor-slots.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/doctors/services/list-active-doctors.ts",
+      "classification": "adapted",
+      "target": "services/list-active-doctors.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "7d7cd5b979c3f3d55bebdebf125b388f4ea06080d76f053a5fb475311366ef96",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "ActiveDoctorSummary",
+        "listActiveDoctors"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/list-clinic-doctors.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "8bd85e1711c1ce7d8f43fb0d44eae7300a73e1053da15932630b7813f41861de",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "ClinicDoctorItem",
+        "listClinicDoctors"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/list-doctor-date-slots.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "d93e604a53022e2ff4254ec876ca9dcb47dc2c310f68a9d8a1aa1fba88d88f12",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "DoctorDateSlotAppointmentItem",
+        "DoctorDateSlotItem",
+        "listDoctorDateSlots"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/update-doctor-slot.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "60d4ae8a6080b1cd6df61d3db5ae962e898738f09e6588db996d8d817d4ac9e7",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js",
+        "./list-doctor-date-slots.js"
+      ],
+      "exports": [
+        "UpdateDoctorSlotInput",
+        "updateDoctorSlot"
+      ]
+    },
+    {
+      "path": "src/components/doctors/services/upsert-doctor-schedule.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Dashboard/read models, routes and additional CRUD/status operations are outside the selected service subset.",
+      "sha256": "dc75f0f82b8d8dcdfd38a74899f105fdc1ba5458bb1411ca88c0b8565b833110",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/enums.js",
+        "../../../lib/env.js",
+        "../../slots/services/generate-slots.js"
+      ],
+      "exports": [
+        "UpdateDayScheduleItem",
+        "UpdateDoctorScheduleParams",
+        "upsertDoctorSchedule"
+      ]
+    },
+    {
+      "path": "src/components/ivr/controllers/ivr.controller.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "ea49f5b6f7f7892579582f8154b327337e89bfb43bf70f9c848b2efb1f1740af",
+      "imports": [
+        "express",
+        "../services/ivr-flow.service.js",
+        "../services/xml.service.js",
+        "../schemas/ivr.schema.js",
+        "../../../lib/index.js"
+      ],
+      "exports": [
+        "handleIncomingCall",
+        "handleStep",
+        "handlePrompt",
+        "handlePromptFallback",
+        "handleHangup",
+        "handleFallback",
+        "handleHealth"
+      ]
+    },
+    {
+      "path": "src/components/ivr/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "178b9d4a9ecc60ebe7e65fdeaf035273adaa142b9be532fed58caaad456bd920",
+      "imports": [
+        "./routes/ivr.routes.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/ivr/middlewares/ip-allowlist.middleware.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "1d383d9f1f331eb95d51182911da4f380bc034f126267a5bd388b4e835bda64f",
+      "imports": [
+        "express",
+        "../../../lib/index.js"
+      ],
+      "exports": [
+        "exotelIpAllowlistMiddleware"
+      ]
+    },
+    {
+      "path": "src/components/ivr/routes/ivr.routes.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "fbaa42e46cbc1773afdeb8b162fec2406e503246c1f6903792c37c23d7f95477",
+      "imports": [
+        "express",
+        "../controllers/ivr.controller.js",
+        "../middlewares/ip-allowlist.middleware.js",
+        "../../../lib/index.js"
+      ],
+      "exports": [
+        "ivrRouter"
+      ]
+    },
+    {
+      "path": "src/components/ivr/schemas/ivr.schema.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "bcfc43f0cb32ec7b08c02d0b89c2f4759019af975973f5ac82b69a52a093142b",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "incomingCallSchema",
+        "dtmfStepSchema",
+        "hangupSchema",
+        "IncomingCallBody",
+        "DtmfStepBody",
+        "HangupBody"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/booking.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "8a0ec145ed8b88c504a7fb322edc842e27d8f9adadeae06c3b8581c93652d4cb",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../booking/services/get-or-create-patient.js",
+        "../../appointments/services/create-appointment.js",
+        "../../slots/services/list-available-slots.js",
+        "../../appointments/queue/index.js",
+        "../../notifications/queue/index.js",
+        "./sms.service.js",
+        "../../../lib/index.js",
+        "./session.service.js"
+      ],
+      "exports": [
+        "BookingResultSuccess",
+        "BookingResultSlotTaken",
+        "IvrBookingResult",
+        "executeIvrBooking"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/ivr-flow.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "cbca275175415d971dbf35e6ba5b71a3ea91e2f923b7eb3f4d3547ed37fc929e",
+      "imports": [
+        "./xml.service.js",
+        "../../../lib/bull/index.js",
+        "./session.service.js",
+        "./resolve-tenant.service.js",
+        "../../doctors/services/list-active-doctors.js",
+        "../../slots/services/list-available-dates.js",
+        "../../slots/services/list-available-slots.js",
+        "./booking.service.js",
+        "./prompts.service.js",
+        "../../../lib/index.js"
+      ],
+      "exports": [
+        "precomputeIvrData",
+        "handleIncomingCallFlow",
+        "handleDtmfStepFlow",
+        "handleHangupFlow",
+        "getFallbackXml",
+        "getHealthStatus",
+        "getPrecomputedPromptText",
+        "getDynamicPromptText"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/prompts.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "d9c03ca35bdf2a337b1c203a04d3d81111521f9ab5e8844d1526b1a3c713b91e",
+      "imports": [],
+      "exports": [
+        "formatIvrTime",
+        "formatIvrDate",
+        "buildWelcomePrompt",
+        "buildDoctorMenuPrompt",
+        "buildDateMenuPrompt",
+        "buildSlotMenuPrompt",
+        "buildConfirmPrompt",
+        "buildConfirmedPrompt"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/resolve-tenant.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "a654fb941d82611f22edac6767b5c1a220851ac7e27aeba1300574326e3a22aa",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "resolveTenantByIvrPhone"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/session.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "7ad34a382f9901609729803cfa47522c3ab66bfe2302a19ebc431cddd35be9d5",
+      "imports": [
+        "../../../lib/bull/index.js"
+      ],
+      "exports": [
+        "IVR_TTL",
+        "IvrSession",
+        "IvrPrefetchedData",
+        "createSession",
+        "getSession",
+        "updateSession",
+        "deleteSession",
+        "savePrecomputedPrompt",
+        "getPrecomputedPrompt",
+        "savePrefetchedData",
+        "getPrefetchedData",
+        "saveIvrCallDataPipeline",
+        "cleanupAllCallKeys"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/sms.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "dbeddde345a7c4fd04d1337a413c1b0ccc6f28b10179a1a5ead13396457cde26",
+      "imports": [
+        "axios",
+        "../../../lib/index.js"
+      ],
+      "exports": [
+        "sendBookingConfirmationSms"
+      ]
+    },
+    {
+      "path": "src/components/ivr/services/xml.service.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Exotel transport, DTMF state and SMS are excluded; shared booking dependencies were traced.",
+      "sha256": "a68700f07c73731acfaf7d3c3465815c2b04ae340a91486bd0848008c065a600",
+      "imports": [],
+      "exports": [
+        "buildGather",
+        "buildHangup",
+        "buildSay"
+      ]
+    },
+    {
+      "path": "src/components/notifications/queue/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "a27a162a1c5710c90baa9da9fe916044beeae2806cda8cf9710cbe3eec10ea8b",
+      "imports": [
+        "./schedule-booking-alert.js",
+        "./sync-morning-summary-schedulers.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/notifications/queue/notification-worker.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "6d20f129257ceda33ae033ae2e13b861308bb6e70b91c9ca5ccd7bc7b969667e",
+      "imports": [
+        "bullmq",
+        "drizzle-orm",
+        "../../../lib/bull/index.js",
+        "../../../lib/bull/queues.js",
+        "../../../lib/db/index.js",
+        "../../../common/format.js",
+        "../../doctors/services/index.js",
+        "../../whatsapp/services/index.js",
+        "../../whatsapp/templates.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/notifications/queue/schedule-booking-alert.ts",
+      "classification": "adapted",
+      "target": "notifications/schedule-booking-alert.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "e519c6d972650c23590c1bffd4458f047065b23e1ece0328600bfa331a325ddc",
+      "imports": [
+        "../../../lib/bull/queues.js"
+      ],
+      "exports": [
+        "scheduleBookingAlert"
+      ]
+    },
+    {
+      "path": "src/components/notifications/queue/sync-morning-summary-schedulers.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "77fc75b5d0d07d25057a62e186eefa9c40ad82e2f3b7f810bcce313a5d4a4a23",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/bull/queues.js",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "syncMorningSummarySchedulers"
+      ]
+    },
+    {
+      "path": "src/components/qr/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "606e71b301375ee764cd3b1b45162c31c8d7ed20d0ae8946908fd03b8ca052e7",
+      "imports": [
+        "./types.js",
+        "./services/generate-qr.js",
+        "./services/get-clinic-qr.js",
+        "./templates/poster-template.js",
+        "./routes.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/qr/routes.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "f461162ff2180f8cf35331436be47682a75bd2f2ef4fb96619d9758fe6f8a066",
+      "imports": [
+        "express",
+        "./services/get-clinic-qr.js",
+        "./services/generate-qr.js",
+        "./templates/poster-template.js"
+      ],
+      "exports": [
+        "qrRouter"
+      ]
+    },
+    {
+      "path": "src/components/qr/services/generate-qr.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "975a482e69a40f16effc8076c3b301d1a9706ccf6045a77496011f7e69874cda",
+      "imports": [
+        "qrcode",
+        "../types.js"
+      ],
+      "exports": [
+        "generateQrDataUrl",
+        "generateQrPngBuffer",
+        "generateQrSvg"
+      ]
+    },
+    {
+      "path": "src/components/qr/services/get-clinic-qr.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "4efa3542d43ef4de7a7c4fef12b4367151c984554bb0e9c3298821dae6e74b6e",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../../common/wa-link.js",
+        "./generate-qr.js",
+        "../types.js"
+      ],
+      "exports": [
+        "getClinicQrInfo"
+      ]
+    },
+    {
+      "path": "src/components/qr/templates/poster-template.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "0950eaf4b3b20355e78c22171ae723eb06419ae78b56eb8ac7628a27b737d4f1",
+      "imports": [
+        "../types.js"
+      ],
+      "exports": [
+        "renderStandeePosterHtml"
+      ]
+    },
+    {
+      "path": "src/components/qr/types.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "833a31c7aa36df06ab1dfa1fd67d5b924b025ad954465cbbad656facd710543e",
+      "imports": [
+        "qrcode"
+      ],
+      "exports": [
+        "QrRenderOptions",
+        "ClinicQrInfo"
+      ]
+    },
+    {
+      "path": "src/components/reports/queue/enqueue-report-delivery.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "64fe772069d9fbce5686105ef3b53b32cd9d661f966fec0fdf4e893fa3dd0cdc",
+      "imports": [
+        "../../../lib/bull/queues.js"
+      ],
+      "exports": [
+        "enqueueReportDelivery"
+      ]
+    },
+    {
+      "path": "src/components/reports/queue/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "9fea3eac8b303b9ef6ea0b9c89fe1032fa305ce78b7efc913459e46a6f120861",
+      "imports": [
+        "./enqueue-report-delivery.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/reports/queue/report-worker.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Report delivery and QR presentation are unrelated to this adoption.",
+      "sha256": "3c05c2639a59c26d3bbff5a0b5bb3986dba8e1ea1f8e785aff25cd4be27d22e7",
+      "imports": [
+        "bullmq",
+        "drizzle-orm",
+        "../../../lib/bull/index.js",
+        "../../../lib/bull/queues.js",
+        "../../../lib/db/index.js",
+        "../../../lib/logger.js",
+        "../../whatsapp/services/index.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/slots/services/generate-slots.ts",
+      "classification": "adapted",
+      "target": "services/generate-slots.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "19d6fe787a8577ff8f7c5bd45f4fba4126c9f2a3b9f1b345013322e6cf7c20e0",
+      "imports": [
+        "../../../lib/db/index.js",
+        "../../../lib/db/models/enums.js"
+      ],
+      "exports": [
+        "GenerateSlotsParams",
+        "generateSlots"
+      ]
+    },
+    {
+      "path": "src/components/slots/services/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "f2fbe630da500919df8fd33a360dd350fba8eb016d3403a6c90df510a984a58e",
+      "imports": [
+        "./generate-slots.js",
+        "./list-available-dates.js",
+        "./list-available-slots.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/slots/services/list-available-dates.ts",
+      "classification": "adapted",
+      "target": "services/list-available-dates.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "08e09393db1af82c72261b0e2b83eee3015766fcc51f25b6d8522ace437bda38",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "listAvailableDates"
+      ]
+    },
+    {
+      "path": "src/components/slots/services/list-available-slots.ts",
+      "classification": "adapted",
+      "target": "services/list-available-slots.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "0d12af7544d9de97060107847539b2b3c05d5df4a08c5b8cef37fd2ba82c46ae",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "listAvailableSlots"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/block.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "33154964e5f1ff635799cb2163f60da83fb5a05240e26633c83dc46ff71dfa4a",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js",
+        "../../doctors/services/index.js",
+        "../../whatsapp/services/index.js",
+        "../../whatsapp/services/message-router.js"
+      ],
+      "exports": [
+        "handleBlockCommand"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/cancel.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "f1ca4b20b0df2f67000f6c9d52ff7668cd7fbfee7253da4ae83e1cd8bfb36480",
+      "imports": [
+        "drizzle-orm",
+        "../../../common/format.js",
+        "../../../lib/db/index.js",
+        "../../appointments/services/index.js",
+        "../../whatsapp/services/index.js",
+        "../../whatsapp/services/message-router.js",
+        "../resolve-doctor-scope.js"
+      ],
+      "exports": [
+        "handleCancelCommand"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/done.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "5ede9954d06bf8563e117e144f5f31418f5d08901e6eec8e1882ba167ec74c0a",
+      "imports": [
+        "../../appointments/services/index.js",
+        "../../whatsapp/services/message-router.js",
+        "../resolve-doctor-scope.js"
+      ],
+      "exports": [
+        "handleDoneCommand"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "e9aee88a8fb10a733ded478fd36987f3e7ea0010df92de4938756ff012437d05",
+      "imports": [
+        "./today.js",
+        "./done.js",
+        "./noshow.js",
+        "./cancel.js",
+        "./block.js",
+        "./slot.js",
+        "./report.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/staff/commands/noshow.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "293bbf5bf8df94f8d1b4be86f91eff81767687ec0f42392280ca9460585b6b63",
+      "imports": [
+        "../../appointments/services/index.js",
+        "../../whatsapp/services/message-router.js",
+        "../resolve-doctor-scope.js"
+      ],
+      "exports": [
+        "handleNoshowCommand"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/report.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "cc79774660eacfa91ed3f6dab34d4e9eec9f716e7282312264b107a082989c82",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "../../reports/queue/index.js",
+        "../../whatsapp/services/message-router.js"
+      ],
+      "exports": [
+        "handleReportUpload"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/slot.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "087272d9c01882d591d45422186788259984dd26edfe053309482d1fb7bf1a93",
+      "imports": [
+        "../../../common/day-of-week.js",
+        "../../../lib/index.js",
+        "../../doctors/services/index.js",
+        "../../slots/services/index.js",
+        "../../whatsapp/services/message-router.js"
+      ],
+      "exports": [
+        "handleSlotCommand"
+      ]
+    },
+    {
+      "path": "src/components/staff/commands/today.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "5d6930d8ec711e8267f3cb8a0aee825bbbd7159a5a8c631763f6b3c50bf5c0ee",
+      "imports": [
+        "../../../common/format.js",
+        "../../appointments/services/index.js",
+        "../../whatsapp/services/message-router.js",
+        "../resolve-doctor-scope.js"
+      ],
+      "exports": [
+        "handleTodayCommand"
+      ]
+    },
+    {
+      "path": "src/components/staff/handle-staff-message.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "03b626c83153b32a7ffed4b1671ef27bd7fd5042b1bd29be89a08da001cf7ec1",
+      "imports": [
+        "../whatsapp/services/index.js",
+        "../whatsapp/services/message-router.js",
+        "./commands/index.js"
+      ],
+      "exports": [
+        "handleStaffMessage"
+      ]
+    },
+    {
+      "path": "src/components/staff/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "86a88b27cc769aa8d93d10352933eea61e4501232179ec394924234da51a2323",
+      "imports": [
+        "../whatsapp/services/message-router.js",
+        "./handle-staff-message.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/staff/resolve-doctor-scope.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "WhatsApp command routing remains separate; underlying clinic domain is adopted where needed.",
+      "sha256": "140582db59318c90cf5b4cb38cd016c63820f2c97a560b09fa67537dd131ba22",
+      "imports": [
+        "../doctors/services/index.js",
+        "../whatsapp/services/message-router.js"
+      ],
+      "exports": [
+        "DoctorScopeResult",
+        "resolveDoctorScope"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/controller.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "afeb4776f60a6eeb893fdef96176dbebe1ac68b6c786eaf3585f2cc27286d937",
+      "imports": [
+        "express",
+        "../../lib/index.js",
+        "./schema.js",
+        "./services/index.js"
+      ],
+      "exports": [
+        "verifyWebhookHandler",
+        "receiveWebhookHandler"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/routes.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "ed419fffba6299eb3385a0b38899c33156f5d16d0071992a7c13624649bfc4f8",
+      "imports": [
+        "express",
+        "./controller.js",
+        "./verify-signature.js"
+      ],
+      "exports": [
+        "whatsappRouter"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/schema.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "e50a9274fbacb9d1ef73aa13aab1a9299278beb610a422edc9b3c18a5f47c422",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "webhookVerifyQuerySchema"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/apply-status-update.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "c77792453bfe8ea028b6e77a0b27f9eddd30bf70f2e96af3fe051e7792956b41",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js",
+        "./parse-inbound.js"
+      ],
+      "exports": [
+        "applyStatusUpdate"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/handle-inbound-message.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "a270dd26b040fdbf960965730c66e8d49d6e68c3f9b268e449ad7146e4a8bb06",
+      "imports": [
+        "../../../lib/index.js",
+        "./resolve-tenant.js",
+        "./resolve-role.js",
+        "./log-message.js",
+        "./message-router.js",
+        "./parse-inbound.js"
+      ],
+      "exports": [
+        "handleInboundMessage"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "951d2326712e1e0418f7076f0a0eb333c709cbac34cc4f597c9c4889d85767c0",
+      "imports": [
+        "./resolve-tenant.js",
+        "./resolve-role.js",
+        "./log-message.js",
+        "./parse-inbound.js",
+        "./apply-status-update.js",
+        "./message-router.js",
+        "./handle-inbound-message.js",
+        "./send-message.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/components/whatsapp/services/log-message.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "215b337c62c139d5c8795c588e7eca6f3dccc7e2d5ed050639efa60138010dbd",
+      "imports": [
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "LogMessageParams",
+        "logMessage"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/message-router.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "d738e5bbf75b39b3557a60ffa74f49997873504b44520dbf14e5d8179b24f197",
+      "imports": [
+        "../../../lib/db/index.js",
+        "../../../lib/logger.js"
+      ],
+      "exports": [
+        "InboundMessageContext",
+        "registerPatientMessageHandler",
+        "registerStaffMessageHandler",
+        "routeInboundMessage"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/parse-inbound.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "d38eee7f52a9aabbde8e93cfc5edee12be2cc8f3377363f408b9d21c574895b3",
+      "imports": [
+        "zod"
+      ],
+      "exports": [
+        "ParsedInboundMessage",
+        "ParsedStatusUpdate",
+        "parseWebhookPayload"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/resolve-role.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "db014ef29cbde216875b9782fa8a5589c491045b22853a38af9c499722880fd9",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "ResolvedSender",
+        "resolveSenderRole"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/resolve-tenant.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "519bd921b6e87ba35ef9e04e068192850d64105eb6014de72764dd19df4d06a6",
+      "imports": [
+        "drizzle-orm",
+        "../../../lib/db/index.js"
+      ],
+      "exports": [
+        "resolveTenantByPhoneNumberId"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/services/send-message.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "dd9d76b86f7288cfe8e856cddf8010eb953dbebf2035ab9093dc084176b68fa2",
+      "imports": [
+        "axios",
+        "../../../lib/index.js",
+        "../../../lib/logger.js",
+        "./log-message.js"
+      ],
+      "exports": [
+        "SendWhatsAppMessageParams",
+        "sendWhatsAppMessage",
+        "sendTextMessage",
+        "sendInteractiveButtonsMessage",
+        "sendInteractiveListMessage",
+        "sendTemplateMessage"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/templates.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "10acd08ada7931e53ffa4ca3be6283b4c806bc1060a586bb052a6f22f5c05575",
+      "imports": [],
+      "exports": [
+        "TemplateName",
+        "TEMPLATE_LANGUAGE",
+        "TemplateDefinition",
+        "TEMPLATE_DEFINITIONS",
+        "buildAppointmentReminderComponents",
+        "buildDoctorNewBookingAlertComponents",
+        "buildDoctorDailySummaryComponents"
+      ]
+    },
+    {
+      "path": "src/components/whatsapp/verify-signature.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Meta webhook, role routing, payload logging and delivery transport are outside local service adoption.",
+      "sha256": "a45ba84ddae2aaef7d7071723d78ba6b664d2c61a9bc9ce97fad73d2bd354276",
+      "imports": [
+        "node:crypto",
+        "express",
+        "../../lib/index.js"
+      ],
+      "exports": [
+        "verifyWhatsappSignature"
+      ]
+    },
+    {
+      "path": "src/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "95a8460187b42a6abf49d87875b4a8a1c24604e54980149cb2e6e2803f7c7800",
+      "imports": [
+        "./lib/index.js",
+        "./lib/bull/index.js",
+        "./lib/db/index.js",
+        "./app.js",
+        "./components/booking/index.js",
+        "./components/staff/index.js",
+        "./components/appointments/queue/reminder-worker.js",
+        "./components/reports/queue/report-worker.js",
+        "./components/notifications/queue/notification-worker.js",
+        "./components/notifications/queue/index.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/lib/async-handler.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "fba9be582361eec028ca87efad8b5c008085c8d1254e6649387774c5f76f0517",
+      "imports": [
+        "express"
+      ],
+      "exports": [
+        "asyncHandler"
+      ]
+    },
+    {
+      "path": "src/lib/bull/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "52367102566ce15dce6e3d8fff60408f854cf6f7cfca46be35d08d0e2e71ca39",
+      "imports": [
+        "bullmq",
+        "ioredis",
+        "../env.js",
+        "../logger.js"
+      ],
+      "exports": [
+        "bullConnection",
+        "defaultJobOptions",
+        "createQueue",
+        "registerWorker",
+        "closeWorkers"
+      ]
+    },
+    {
+      "path": "src/lib/bull/queues.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Real queue/delivery workers and morning summaries are deferred; only reminder/booking-alert scheduling ports are adopted.",
+      "sha256": "f6b9c18575bce6e44a68a2c13ef0ab1c22fd11cb94c88548d28cbde4b5fff178",
+      "imports": [
+        "./index.js"
+      ],
+      "exports": [
+        "ReminderJobData",
+        "ReportJobData",
+        "MorningSummaryJobData",
+        "BookingAlertJobData",
+        "NotificationJobData",
+        "reminderQueue",
+        "reportQueue",
+        "notificationQueue"
+      ]
+    },
+    {
+      "path": "src/lib/db/db.ts",
+      "classification": "reused",
+      "target": "existing lib/db/db.ts + transaction hooks",
+      "reason": "Reuse equivalent infrastructure already in the voice repository; do not duplicate source infrastructure.",
+      "sha256": "c9002e811e7ec0ddb74041ea0e2a0771d33b625b5b30d6ba91a9982c9121caa4",
+      "imports": [
+        "pg",
+        "drizzle-orm/node-postgres",
+        "../env.js",
+        "../logger.js",
+        "./models/index.js"
+      ],
+      "exports": [
+        "pool",
+        "db"
+      ]
+    },
+    {
+      "path": "src/lib/db/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "d900b5639dd360ae4cb32089e0ba5672481228d6f21ed45906779d6fea3293ac",
+      "imports": [
+        "./db.js",
+        "./models/index.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/0000_colossal_patriot.sql",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "fd8321bcaefa0535a7be46cb307f1495d3c6d27e4b585eb9e24a1f9ce377afdf",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/0001_acoustic_senator_kelly.sql",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "acf2edf994539d8a367e34ef709f546be86340bc30e7309b5e3196fd15de26d0",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/0002_useful_cassandra_nova.sql",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "764c32037f20d461bc18c327f81bb4fc8408ac69fa0c17dfc2d525bcc9052434",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/0003_superb_tyrannus.sql",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "4bbf549c2f55cf86b08c6485984d908e6e15bb3c8bc0e896aaba091ee05cf181",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/0005_closed_silver_surfer.sql",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "55d47207812178de4d1a63bdba2e57c708fbabcfd706dce0dff0cb3abb75147a",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/meta/_journal.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "6f83e19c7242f6814fc8cb996b368ac563a4a3c3a51d67555f933e8131bb1252",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/meta/0000_snapshot.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "e32de9b49e8fbcd0603051c690733d196ce3b4b857f9681cadd334e8f20acf6a",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/meta/0001_snapshot.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "d699ccf8a6eeaa61baba6891904d67a513beaef93b7f9ba6381f3d021276c4c2",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/meta/0002_snapshot.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "4150565b847bc9ec567ff3f860577889d54205a3d07491510f2fe1ac7b95c512",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/meta/0003_snapshot.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "d1a438bd08272562b3f731030d2d774e07a190e559b7ea2d368d730024f7e673",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/migrations/meta/0005_snapshot.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Historical source schema evidence; generate an additive voice migration, not a second migration journal.",
+      "sha256": "ddb1a08563ee40f771c01f613c89b3584d6bc75f668dfa572bdb7b87324d949f",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/models/admin-users.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "242d1c6360bf2b8f09f19c97b8d2f8df46353931dbb0a97da8e33d047dcea497",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js"
+      ],
+      "exports": [
+        "adminUsers",
+        "adminUsersRelations",
+        "AdminUser",
+        "NewAdminUser"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/appointments.ts",
+      "classification": "adapted",
+      "target": "models/appointments.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "a7e6fab28361a0897fda21556b28251202f99eb433f017ef40f5398a4617368a",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js",
+        "./doctors.js",
+        "./users.js",
+        "./slots.js"
+      ],
+      "exports": [
+        "appointments",
+        "appointmentsRelations",
+        "Appointment"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/blocked-dates.ts",
+      "classification": "adapted",
+      "target": "models/blocked-dates.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "b72d93dda6b90570a9e6e3b0cfcd04d7324877b6b275cf3f58e2f15b129e5d68",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js",
+        "./doctors.js"
+      ],
+      "exports": [
+        "blockedDates",
+        "blockedDatesRelations",
+        "BlockedDate"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/common.ts",
+      "classification": "reused",
+      "target": "existing lib/db/models/common.ts",
+      "reason": "Reuse equivalent infrastructure already in the voice repository; do not duplicate source infrastructure.",
+      "sha256": "8c623425fd89010dcbe3939b2e4344611dd44096ec74fb98b99842783f80cf34",
+      "imports": [
+        "drizzle-orm/pg-core"
+      ],
+      "exports": [
+        "commonFields"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/conversation-state.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "f4f1167ba7c4aa7e5d2e16141ab5fea37af286daf414ccc14f4a48b23e452707",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js"
+      ],
+      "exports": [
+        "conversationState",
+        "conversationStateRelations",
+        "ConversationState"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/doctors.ts",
+      "classification": "adapted",
+      "target": "models/doctors.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "9c2408a96a0e8826e8ff040eaf2b8de201a59904f85d3649c514b7d565eadb67",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./tenants.js",
+        "./users.js"
+      ],
+      "exports": [
+        "doctors",
+        "doctorsRelations",
+        "Doctor"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/enums.ts",
+      "classification": "adapted",
+      "target": "models/enums.ts (clinic subset)",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "9d1efce8362a07dabf3ddb01afc02a546ea0b4cdb7dcd7bf3d19e9776e1bdcde",
+      "imports": [
+        "drizzle-orm/pg-core"
+      ],
+      "exports": [
+        "userRoleEnum",
+        "dayOfWeekEnum",
+        "appointmentStatusEnum",
+        "messageDirectionEnum",
+        "conversationStepEnum",
+        "reportStatusEnum",
+        "slotStatusEnum",
+        "tenantStatusEnum",
+        "blockedDateReasonEnum",
+        "adminRoleEnum",
+        "UserRole",
+        "DayOfWeek",
+        "AppointmentStatus",
+        "MessageDirection",
+        "ConversationStep",
+        "ReportStatus",
+        "SlotStatus",
+        "TenantStatus",
+        "BlockedDateReason",
+        "AdminRole"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "4f11d5de52c603ea863064792a0d7085381e2a4d9b501535786c921245cda269",
+      "imports": [
+        "./enums.js",
+        "./tenants.js",
+        "./users.js",
+        "./doctors.js",
+        "./slots.js",
+        "./blocked-dates.js",
+        "./appointments.js",
+        "./reports.js",
+        "./messages.js",
+        "./conversation-state.js",
+        "./admin-users.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/lib/db/models/messages.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "65d8f95288bdb2b66e029ad8466a40a17441bff09d75518cbbed226d54b3c0c4",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js"
+      ],
+      "exports": [
+        "messages",
+        "messagesRelations",
+        "Message"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/reports.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "d9c0664f5200ef32959d4251a7c9a7e85c24ed6140a77e5764b1f384c69755d2",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js",
+        "./users.js",
+        "./appointments.js"
+      ],
+      "exports": [
+        "reports",
+        "reportsRelations",
+        "Report"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/slots.ts",
+      "classification": "adapted",
+      "target": "models/slots.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "40279fbc48191cbbfbd1fc1762a3eafad24796234cab3e620e0bf0f1b9b27a51",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js",
+        "./doctors.js"
+      ],
+      "exports": [
+        "slots",
+        "slotsRelations",
+        "Slot"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/tenants.ts",
+      "classification": "adapted",
+      "target": "models/settings.ts + existing organizations",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "849edbc1c94148fa2a315b997fad5e7adac0aa37cd6feb75ccc24bec238b64c8",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./users.js",
+        "./doctors.js",
+        "./appointments.js"
+      ],
+      "exports": [
+        "tenants",
+        "tenantsRelations",
+        "Tenant"
+      ]
+    },
+    {
+      "path": "src/lib/db/models/users.ts",
+      "classification": "adapted",
+      "target": "models/people.ts",
+      "reason": "Adopt domain behavior; bind organization scope, existing infrastructure and channel-neutral contracts.",
+      "sha256": "34a53f9aeb281cac756673fdac05ee0301b974634cf098a03815e38af3f697a1",
+      "imports": [
+        "drizzle-orm",
+        "drizzle-orm/pg-core",
+        "./common.js",
+        "./enums.js",
+        "./tenants.js"
+      ],
+      "exports": [
+        "users",
+        "usersRelations",
+        "User"
+      ]
+    },
+    {
+      "path": "src/lib/db/seed.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "5ec6402f8fd59e7cae4b5302d5b87367d6f96885e43c08e5cfb23798ab76456a",
+      "imports": [
+        "dotenv/config",
+        "drizzle-orm",
+        "./index.js",
+        "../../components/slots/services/index.js",
+        "../env.js",
+        "../logger.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/lib/env.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "4f3e38a222886c0eb6e19a13fa3eeab8db2062ed685d2cea9e5925f17cd368f5",
+      "imports": [
+        "dotenv/config",
+        "zod"
+      ],
+      "exports": [
+        "env"
+      ]
+    },
+    {
+      "path": "src/lib/errors.ts",
+      "classification": "reused",
+      "target": "existing lib/errors.ts",
+      "reason": "Reuse equivalent infrastructure already in the voice repository; do not duplicate source infrastructure.",
+      "sha256": "6cf4bb6f7f21f81b314999b0412892558747bbdb8b3984f4885cdc40f001cf0a",
+      "imports": [],
+      "exports": [
+        "AppError",
+        "BadRequestError",
+        "UnauthorizedError",
+        "NotFoundError",
+        "ConflictError",
+        "BadGatewayError"
+      ]
+    },
+    {
+      "path": "src/lib/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "c0d136dc950b08fac32f5b6f43f34a799dde2bde857883052ccb091e72f45c4b",
+      "imports": [
+        "./env.js",
+        "./logger.js",
+        "./errors.js",
+        "./async-handler.js",
+        "./retry.js",
+        "./mutex.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/lib/jwt.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "9f55b506bfc4283ef8b2691bceac293eb4f72f01654abf37776c43196ef2ee8e",
+      "imports": [
+        "dotenv/config",
+        "jose",
+        "./db/models/admin-users.js"
+      ],
+      "exports": [
+        "JwtPayload",
+        "generateAccessToken",
+        "verifyAccessToken"
+      ]
+    },
+    {
+      "path": "src/lib/logger.ts",
+      "classification": "reused",
+      "target": "existing lib/logger.ts",
+      "reason": "Reuse equivalent infrastructure already in the voice repository; do not duplicate source infrastructure.",
+      "sha256": "7bf65725f1ed9c7d66f55ac4880f26598a2d46c833be0f8c7e56b44af5bfab88",
+      "imports": [
+        "winston"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/lib/mutex.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "3f5c24ecd025b471e73cc03c422907f9c971671c3b60dc70864ed908a9328973",
+      "imports": [],
+      "exports": [
+        "withKeyLock"
+      ]
+    },
+    {
+      "path": "src/lib/retry.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Existing voice runtime/utilities are retained; this source module is not needed by the selected domain subset.",
+      "sha256": "471c398e3d2b2319a3e414ef72cb31b58c6a31913b65620ad9116a5fea8070e5",
+      "imports": [],
+      "exports": [
+        "withRetry"
+      ]
+    },
+    {
+      "path": "src/middlewares/auth.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "05eeb7f06064996beac12ecf6c8f13fa4d4ae658ee48b2958a16914cf8514f52",
+      "imports": [
+        "express",
+        "../lib/jwt.js",
+        "../components/admin/services/get-admin-by-id.js"
+      ],
+      "exports": [
+        "requireAdminAuth",
+        "requireSuperAdmin"
+      ]
+    },
+    {
+      "path": "src/middlewares/index.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Retain existing voice authentication/membership; do not import source admin sessions or routes.",
+      "sha256": "f8ae6a83014c8f4a0f499247c6762382216e031f50ede14280af03a6eab8cff2",
+      "imports": [
+        "express",
+        "zod",
+        "../lib/index.js",
+        "./auth.js"
+      ],
+      "exports": [
+        "notFoundHandler",
+        "errorHandler"
+      ]
+    },
+    {
+      "path": "src/scripts/generate-audio.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "5b46cbdf61d82c7b99e8f10e0f8be4b37cdcdd88871a69ebd340f96b8f44643d",
+      "imports": [
+        "fs",
+        "path",
+        "axios"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/scripts/refresh-slots.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "5a35a25a7367a3598723d99c6c5fb5a98a76fa8111d29428a9186ab1059ec220",
+      "imports": [
+        "./reset-slots.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/scripts/register-templates.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "40958fc82979610f35b586f045067877922e9794ececffeb562029fc63718d1b",
+      "imports": [
+        "axios",
+        "../lib/env.js",
+        "../components/whatsapp/templates.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/scripts/reset-slots.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "2cd33b029d1d6521b4edb11f9db0225902232e91cc889add77785d57043de9ad",
+      "imports": [
+        "dotenv/config",
+        "drizzle-orm",
+        "../lib/db/index.js",
+        "../lib/logger.js",
+        "../lib/db/models/enums.js"
+      ],
+      "exports": [
+        "resetSlots"
+      ]
+    },
+    {
+      "path": "src/scripts/seed-admin-users.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "8e001234ca13639ff83813d6302721fca873a3b1310f8f9afa49b146adc5278b",
+      "imports": [
+        "dotenv/config",
+        "bcryptjs",
+        "drizzle-orm",
+        "../lib/db/index.js",
+        "../lib/logger.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/scripts/test-dynamic-prompt.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "d7f9cd8a5b645ea1b302c2cea1b4441dbc167a2260130f529d28adb311a94116",
+      "imports": [
+        "../app.js",
+        "axios",
+        "../lib/bull/index.js",
+        "../lib/db/index.js",
+        "net"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/scripts/test-exotel-api-reassign.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "9cd72a9eeea4cd2d8313c71839d311a638a1e128485f8aca706364a46916330b",
+      "imports": [
+        "../lib/env.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "src/scripts/test-ivr-load.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Operational scripts/audio/seed values are not copied; local synthetic test fixtures exercise adopted services.",
+      "sha256": "15d577367c20a36cbd6d225e11acdb92a0e2fdb47611909a81927267df6aac3e",
+      "imports": [
+        "axios",
+        "../lib/index.js"
+      ],
+      "exports": []
+    },
+    {
+      "path": "HOW_IT_WORKS.md",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Reference documentation/build configuration inspected; no runtime dependency.",
+      "sha256": "0a2eae1aeb16462acf51affe1fa3d56299b501061b077e37cd37c7dce7f2b3af",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "package.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Reference documentation/build configuration inspected; no runtime dependency.",
+      "sha256": "4d98424ae7af1002c16a3319cfe8f2feb88bd126070c20130ebb872f17255fce",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "tsconfig.json",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Reference documentation/build configuration inspected; no runtime dependency.",
+      "sha256": "8c0df705ef706da2f4f9889c6220298fb4cb0b02f00478d1538a96204a997c4b",
+      "imports": [],
+      "exports": []
+    },
+    {
+      "path": "drizzle.config.ts",
+      "classification": "excluded",
+      "target": null,
+      "reason": "Reference documentation/build configuration inspected; no runtime dependency.",
+      "sha256": "e65ab14a3fe05538fd5a330a0753111bd019aba03960235a70b29f4c25675c77",
+      "imports": [],
+      "exports": []
+    }
+  ]
+}

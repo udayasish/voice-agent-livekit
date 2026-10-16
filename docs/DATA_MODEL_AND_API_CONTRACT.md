@@ -85,41 +85,26 @@ Messages / ToolEvents
 - created_at
 - updated_at
 
-### doctors
-- id
-- organization_id
-- name
-- specialization
-- phone
-- status
+### Implemented clinic tables — Phase 16 service adoption
 
-### doctor_schedules
-- id
-- doctor_id
-- day_of_week
-- start_time
-- end_time
-- slot_duration_minutes
+These replace the earlier provisional doctors/schedules/patients/appointments outline. They are adapted from the existing WhatsApp appointment platform's actual Drizzle models and capacity-based booking services. The voice repository owns an independent database; it does not share or synchronize the original product's records. Provenance, complete module classification and original hashes are in `CLINIC_SERVICE_ADOPTION.md`.
 
-### patients
-- id
-- organization_id
-- name
-- phone
-- metadata_json
+| Table | Important fields and constraints |
+|---|---|
+| `clinic_people` | `id`, `organization_id`, `phone_number`, `role` (`patient`, `doctor`, `receptionist`), nullable `name`, `language_preference`; unique organization/phone. These are contacts, separate from login `users`. |
+| `clinic_doctors` | `id`, `organization_id`, `person_id`, `specialization`, `consultation_duration_minutes` (default 15), `is_active`; one profile per clinic person. |
+| `clinic_slots` | `id`, `organization_id`, `doctor_id`, `slot_date`, `day_of_week`, `start_time`, `end_time`, `status`, `max_patients` (default 30); unique doctor/date/start time. Concrete rows, not a second recurring-schedules table. |
+| `clinic_blocked_dates` | `id`, `organization_id`, `doctor_id`, `blocked_date`, `reason`, `notes`; unique doctor/date. |
+| `clinic_appointments` | `id`, `organization_id`, `doctor_id`, `patient_id` (clinic person), `slot_id`, `token_number`, `appointment_date`, `appointment_time`, `patient_name`, required `patient_age`, optional `complaint`, `status`, `cancel_reason`, `reminder_sent`, `source`, nullable `call_id`; unique doctor/date/token. |
+| `clinic_settings` | `organization_id` primary key, `reminders_enabled`, `notifications_enabled` (both default true). Organization name, status and IANA timezone stay in `organizations`. |
 
-### appointments
-- id
-- organization_id
-- doctor_id
-- patient_id
-- scheduled_start
-- scheduled_end
-- status
-- source
-- call_id
-- created_at
-- updated_at
+Organization-scoped composite foreign keys prevent cross-clinic doctor/person, slot/doctor and appointment/patient/doctor/slot relationships. Capacity, consultation duration and tokens must be positive; age is 0–120 and a slot end must follow its start. The adopted source role model intentionally allows one phone contact per organization, not separate duplicate patient and staff identities.
+
+Appointment statuses retain the source values: `booked`, `completed`, `cancelled`, `noshow`. Slot statuses are `available`, `booked` (capacity reached), `blocked`, `cancelled`. Multiple appointments may share a slot up to its capacity; a unique slot/appointment constraint would break the source behavior.
+
+Source is server-owned `voice`, `whatsapp` or `manual` metadata. Supporting a source value does not enable its transport. `call_id` is an optional UUID correlation, with no calls table or foreign key yet. Patient names/ages are appointment snapshots; collecting them never invents a patient age or completes a booking by itself. Clinic tables reuse existing common ID/timestamp fields. Appointment date/time are clinic-local wall-clock values; responses include the clinic timezone and notification jobs use ISO UTC instants.
+
+An absent clinic-settings row uses the source defaults until configured. Real reminder workers must recheck appointment status, `reminder_sent` and current settings at delivery time. This milestone contains scheduling contracts and a test recorder, not delivery workers.
 
 ### calls
 - id
@@ -169,9 +154,9 @@ Never expose sequential internal database IDs when they create unnecessary enume
 The booking operation must validate:
 1. organization owns doctor
 2. doctor is active
-3. slot belongs to doctor's schedule
+3. slot belongs to the organization and selected doctor
 4. slot is in the future
-5. slot is not already booked
+5. slot is available, its date is not blocked, and booked appointment count is below `max_patients`
 6. patient belongs to organization or is created
 7. transaction completes successfully
 
@@ -179,7 +164,10 @@ Concurrency rules:
 - PostgreSQL is the authoritative integrity boundary
 - use a DB uniqueness/exclusion constraint where the schema permits it
 - execute booking in a transaction
-- use row-level locking when required
+- preserve the source doctor/day `pg_advisory_xact_lock(hashtext(...))`, followed by slot `FOR UPDATE`
+- allocate the next doctor/date token while holding that lock, including cancelled/completed records in the maximum
+- derive date/time from the locked slot; model/caller arguments cannot override them
+- booking, cancellation, generation and date blocking use the same doctor/day lock; blocking and unblocking are transactional
 - Redis may coordinate distributed work but must not be the sole protection against double booking
 
 Only then return:
@@ -189,10 +177,44 @@ Only then return:
   "success": true,
   "data": {
     "appointmentId": "...",
-    "status": "confirmed"
+    "status": "booked",
+    "notifications": {
+      "reminder": "unconfigured",
+      "doctorAlert": "unconfigured"
+    }
   }
 }
 ```
+
+### Internal clinic service contracts
+
+`createClinicServices(identity, dependencies)` binds an immutable copy of trusted server context to injected Drizzle access, transaction hooks, Winston-compatible logging, clock and optional notification scheduler. `identity` contains organization ID, source, optional UUID call correlation and optional verified patient ID. This internal factory is not an authentication endpoint: future HTTP/voice adapters must authorize organization and patient access before binding it. A phone lookup alone does not prove ownership.
+
+Every operation validates a strict Zod object and returns the standard success/error envelope. Successful data is validated against JSON-only output schemas. Inputs cannot supply organization, source, call context, an existing ORM user, or booking date/time.
+
+| Operation | Operation input | Successful data |
+|---|---|---|
+| `listActiveDoctors` | `{}` | Doctor IDs, stored names and nullable specializations |
+| `findDoctorsByName` | `{ namePart }` | All literal partial-name matches, including active flags; ambiguity is retained |
+| `listAvailableDates` | `{ doctorId, maxDates? }` | Distinct clinic-local dates with future bookable capacity; default 7 dates |
+| `listAvailableSlots` | `{ doctorId, date }` | Slot IDs/date/start/end/capacity/remaining capacity |
+| `getOrCreatePatient` | `{ phoneNumber }` | Scoped patient ID, supplied digits and patient role |
+| `createAppointmentFromBooking` | `{ doctorId, patientId, slotId, patientName, patientAge, complaint? }` | Appointment/doctor/patient/slot IDs, token, stored date/time, timezone, `booked` status and scheduling outcomes |
+| `listUpcomingAppointmentsForPatient` | `{ patientId }` | Appointment/doctor IDs, stored doctor name, token, date/time/timezone |
+| `cancelAppointment` | `{ appointmentId, reason }` | Appointment ID, `cancelled` status and `alreadyCancelled`; requires a bound verified patient ID |
+| `generateSlots` | `{ doctorId, weekdays, startTime, endTime, durationMinutes, horizonDays, maxPatients? }` | Count of newly generated concrete rows; operator context only |
+| `blockDoctorDate` | `{ doctorId, date, reason?, notes? }` | Blocked-date ID and affected slot/cancelled appointment counts; operator context only |
+| `unblockDoctorDate` | `{ doctorId, blockedDateId }` | Date and reopened slot count; operator context only |
+
+When a patient ID is bound, lookup/booking/list operations cannot select a different patient. Cancellation derives its slot from the appointment and never reopens blocked or cancelled slots. Unbound identities represent trusted internal operator/service callers; a future adapter must enforce staff permissions before using that access.
+
+Phone input accepts 10–15 explicitly supplied digits with an optional leading `+`, which is removed to match the source storage convention. It never adds a country code or repairs digits; future channel adapters must establish a consistent canonical phone format. Dates must be real calendar dates. Generation uses clinic-local days, a 1–90 day horizon, positive duration/capacity and no trailing partial interval. Ambiguous/nonexistent DST appointment times require clarification instead of guessing.
+
+Scheduling outcomes are `scheduled`, `disabled`, `skipped_window`, `unconfigured` or `failed`. A booking remains successful if scheduling fails after commit. There is no automatic booking retry, durable request idempotency, outbox or actual notification delivery in this milestone. Cross-turn retries must be addressed before live tools can perform business actions.
+
+Safe clinic failures include `INVALID_CLINIC_INPUT`, `CLINIC_NOT_FOUND`, `CLINIC_UNAVAILABLE`, `INVALID_CLINIC_TIMEZONE`, `INVALID_CLINIC_TIME`, `DOCTOR_NOT_FOUND`, `DOCTOR_INACTIVE`, `PATIENT_NOT_FOUND`, `PATIENT_ROLE_CONFLICT`, `PATIENT_SCOPE_REQUIRED`, `CLINIC_ACCESS_DENIED`, `SLOT_UNAVAILABLE`, `APPOINTMENT_NOT_FOUND`, `APPOINTMENT_NOT_CANCELLABLE`, `DATE_ALREADY_BLOCKED`, `BLOCKED_DATE_NOT_FOUND` and `CLINIC_OPERATION_FAILED`. Unexpected exceptions expose no original message, stack or query parameters.
+
+No clinic HTTP endpoints or tools are implemented here. Overall Phase 16's API and rescheduling acceptance remains outstanding.
 
 ## 5. Tool Contract
 

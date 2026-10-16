@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "rootDir": ".", "noEmit": true },
+  "include": ["test/clinic.test.ts", "test/clinic-db.test.ts", "test/clinic-test-db.ts", "test/clinic-smoke.ts"]
+}

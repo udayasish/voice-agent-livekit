@@ -89,40 +89,32 @@ LiveKit owns realtime media.
 ## 2. Folder Structure
 
 ```text
-apps/api/
+backend/
 
 ├── src/
-│   ├── common/
-│   │   ├── middleware/
-│   │   │   ├── auth.middleware.ts
-│   │   │   ├── organization.middleware.ts
-│   │   │   └── validate.middleware.ts
-│   │   ├── types/
-│   │   └── constants/
-│   │
+│   ├── agent/              # LiveKit worker and provider/transport adapters
 │   ├── components/
+│   │   ├── agent/          # engine, tools, interruption, isolated demo
 │   │   ├── auth/
 │   │   ├── organizations/
-│   │   ├── agents/
-│   │   ├── calls/
-│   │   ├── conversations/
-│   │   ├── doctors/
-│   │   ├── appointments/
-│   │   ├── tools/
-│   │   ├── analytics/
+│   │   ├── clinic/         # adopted domain; internal services only
+│   │   ├── health/
 │   │   └── livekit/
+│   ├── middlewares/       # auth.ts, organization.ts, index.ts
 │   │
 │   ├── lib/
-│   │   ├── db/
-│   │   ├── redis/
+│   │   ├── db/            # shared Drizzle models/client/transaction hooks
+│   │   ├── redis.ts
 │   │   ├── env.ts
 │   │   ├── logger.ts
 │   │   ├── errors.ts
 │   │   └── async-handler.ts
 │   │
 │   ├── app.ts
-│   └── server.ts
+│   ├── index.ts
+│   └── types.ts
 │
+├── test/
 ├── drizzle/
 │   └── migrations/
 │
@@ -132,7 +124,37 @@ apps/api/
 └── bruno-collection/
 ```
 
+This is the implemented layout. Persistent agents, calls, conversations, analytics and clinic HTTP controllers remain later work; the initial API groups below are a roadmap, not an assertion that all routes exist.
+
 ## 3. Service Pattern
+
+### Phase 16 — Local clinic service adoption
+
+`backend/src/components/clinic/` owns the adapted appointment domain. It is copied/adapted from the existing WhatsApp appointment platform and uses this repository's independent PostgreSQL database. There are no cross-repository imports, shared clinic records or internal API calls to the original application. Full source mapping, dependency classifications and SHA-256 provenance are in `CLINIC_SERVICE_ADOPTION.md`.
+
+```text
+backend/src/components/clinic/
+├── index.ts                    # typed, validated server service facade
+├── contracts/                  # trusted identity, Zod inputs/results, safe errors
+├── models/                     # adopted contacts, doctors, slots, blocked dates,
+│                               # appointments, clinic settings and enum subset
+├── services/                   # one operation per source-derived service
+│   └── runtime.ts              # injected dependencies and scope/clock/lock helpers
+├── notifications/              # reminder/alert scheduling ports and test recorder
+└── timezone.ts                 # adopted Intl conversion and civil-day helpers
+```
+
+Clinic models are exported through `src/lib/db/models/index.ts`; Drizzle generates migrations in the existing `backend/drizzle/migrations/` history. Auth `users` and `organizations` are retained. Source clinic `users` become `clinic_people`, avoiding a second patient/login identity implementation. Concrete capacity-based slots replace the earlier provisional recurring-schedule outline.
+
+The facade binds readonly, server-owned organization/source/call/patient context separately from strict operation arguments. It checks organization status/type/timezone from the database, tenant ownership and related-record relationships. The factory itself does not authenticate a browser or caller; future adapters must verify organization/staff permissions and patient ownership before binding context. It exposes no HTTP route or model tool.
+
+Booking preserves the original PostgreSQL transaction, doctor/day advisory lock, slot row lock, capacity count and doctor/day token allocation. Appointment date/time come from the selected slot. The same doctor/day lock protects cancellation, date blocking/unblocking and generation. Blocking/cancellation repairs are limited to atomicity, tenant scope and retaining blocked/cancelled slot states; the original WhatsApp conversation ladder is untouched.
+
+`src/lib/db/transaction-with-hooks.ts` extracts the existing `transactionWithHooks` implementation for injection into isolated database tests; `db.ts` retains its existing exported helper. Post-commit notification scheduling uses injected adapters. Missing delivery configuration is explicit, and a scheduler failure cannot report a committed booking as failed. No queue library or delivery worker is introduced. Actual durable scheduling, delivery-time status/settings checks and business request idempotency remain future work.
+
+Winston events contain operation/organization identifiers, notification appointment identifiers, duration and stable error codes. Clinic services omit names, phone numbers, ages, complaints, query/provider payloads and exception stacks from logs.
+
+Why the architecture docs changed: the earlier clinic schema was a provisional design. Inspection established a proven, different model with clinic contact roles, concrete capacity-based slots and per-doctor/day tokens. These sections now describe the approved implementation and its independent data ownership, rather than implying another booking system should be created.
 
 One service = one business operation.
 

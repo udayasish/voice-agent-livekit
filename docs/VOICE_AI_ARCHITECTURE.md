@@ -280,6 +280,14 @@ LLM
 
 Critical booking operations must be transactional and protected against double booking.
 
+### Phase 16 clinic service boundary (internal adoption only)
+
+The clinic implementation now lives in `backend/src/components/clinic/`, adapted from the existing WhatsApp appointment platform and backed by the voice repository's independent PostgreSQL database. It exposes strict, scoped service contracts for doctor/slot lookup, patient creation, booking and cancellation, plus operator scheduling/date-blocking operations. Source provenance and contracts are documented in `CLINIC_SERVICE_ADOPTION.md` and `DATA_MODEL_AND_API_CONTRACT.md`.
+
+No clinic tools or worker integration are enabled in this milestone. The browser conversation continues using the isolated intake demo and cannot prove database booking. Future Phase 17 tools must bind trusted organization context and verified patient scope, then call these services through the Phase 15 executor. The LLM, model providers and reusable engine continue to have no PostgreSQL access.
+
+Services preserve concrete slot capacity (default 30), doctor/day tokens and transaction/advisory/row locks. They derive appointment date/time from the database, validate caller-supplied patient details, and expose successful booking separately from reminder/alert scheduling outcomes. Missing/failed notification delivery configuration never means an appointment failed or a message was sent. Durable business idempotency and patient-ownership verification must be settled before live callers can trigger actions. Existing speech/intake inconsistencies remain in the live voice backlog.
+
 ## 10. Human Handoff
 
 The agent must be able to call:

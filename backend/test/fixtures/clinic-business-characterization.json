@@ -1,0 +1,16 @@
+{
+  "basis": "Source-derived business outcomes, not live WhatsApp transport tests",
+  "sourceModules": [
+    "src/components/booking/steps/enter-age.ts",
+    "src/components/booking/steps/confirm-booking.ts",
+    "src/components/appointments/services/create-appointment.ts",
+    "src/components/appointments/services/mark-appointment-status.ts"
+  ],
+  "slotCapacity": 2,
+  "acceptedTokens": [1, 2],
+  "tokenAfterCancellation": 3,
+  "defaultCapacity": 30,
+  "patientAge": 0,
+  "complaint": null,
+  "confirmationAfterAge": true
+}
