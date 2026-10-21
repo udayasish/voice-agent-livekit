@@ -5,3 +5,4 @@ export * from "./slots.js";
 export * from "./blocked-dates.js";
 export * from "./appointments.js";
 export * from "./settings.js";
+export * from "./mutations.js";

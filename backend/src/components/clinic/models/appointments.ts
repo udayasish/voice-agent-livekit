@@ -25,6 +25,7 @@ export const clinicAppointments = pgTable(
   "clinic_appointments",
   {
     ...commonFields,
+    version: integer("version").notNull().default(1),
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organizations.id),
@@ -55,6 +56,8 @@ export const clinicAppointments = pgTable(
   },
   (t) => [
     unique("clinic_appointments_request_unique").on(t.organizationId, t.requestKey),
+    unique("clinic_appointments_scoped_id_unique").on(t.organizationId, t.id),
+    check("clinic_appointments_positive_version", sql`${t.version} > 0`),
     foreignKey({ columns: [t.organizationId, t.patientId], foreignColumns: [clinicPeople.organizationId, clinicPeople.id], name: "clinic_appointments_scoped_patient_fk" }),
     foreignKey({ columns: [t.organizationId, t.doctorId], foreignColumns: [clinicDoctors.organizationId, clinicDoctors.id], name: "clinic_appointments_scoped_doctor_fk" }),
     foreignKey({ columns: [t.organizationId, t.doctorId, t.slotId], foreignColumns: [clinicSlots.organizationId, clinicSlots.doctorId, clinicSlots.id], name: "clinic_appointments_scoped_slot_fk" }),

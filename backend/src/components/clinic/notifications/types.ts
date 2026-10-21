@@ -2,6 +2,7 @@ export interface ClinicNotificationJob {
   readonly kind: "appointment-reminder" | "doctor-booking-alert";
   readonly organizationId: string;
   readonly appointmentId: string;
+  readonly appointmentVersion?: number;
   readonly jobId: string;
   readonly runAt: string;
 }
@@ -24,6 +25,7 @@ export interface NotificationDependencies {
 }
 
 export interface NotificationAppointment {
+  readonly version?: number;
   readonly id: string;
   readonly organizationId: string;
   readonly appointmentDate: string;

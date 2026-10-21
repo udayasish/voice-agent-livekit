@@ -1,5 +1,7 @@
 # Project Status, Voice Quality and Next Steps
 
+> **Later update on 21 October:** Phase 16's staff backend, same-doctor rescheduling and Bruno acceptance have since been implemented and verified. See [Phase 16 backend completion](PHASE_16_BACKEND_ACCEPTANCE.md) for results and the required application migration. This report preserves the earlier review snapshot; its Phase 16 remaining-work statements describe the state before that implementation. Phase 17 voice acceptance remains pending.
+
 **Project:** Assamese AI Voice Agent Platform  
 **Review date:** 21 October 2026  
 **Purpose:** Explain what is built, what is unfinished, how well the voice system is proven to work, and what to improve next.

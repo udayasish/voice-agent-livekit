@@ -22,6 +22,7 @@ export const appointmentSummarySchema = z.object({
   timezone: z.string(), status: z.literal("booked"), notifications: notificationOutcomesSchema,
 }).strict();
 export const upcomingSummarySchema = z.object({
+  version: z.number().int().positive().optional(),
   appointmentId: z.uuid(), doctorId: z.uuid(), tokenNumber: z.number().int().positive(),
   doctorName: z.string(), appointmentDate: dateSchema, appointmentTime: z.string(), timezone: z.string(),
 }).strict();

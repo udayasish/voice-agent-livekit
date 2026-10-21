@@ -1,5 +1,7 @@
 # Phase 16: One voice agent, different business toolboxes 🧩
 
+> **21 October update:** the remaining Phase 16 staff APIs, safe rescheduling and Bruno acceptance are complete locally. Read [the backend completion and rollout guide](PHASE_16_BACKEND_ACCEPTANCE.md). The explanations below record the earlier service-adoption milestone; statements that APIs or clinic voice-tool connections are missing are historical. Phase 17 real microphone/provider acceptance and saved dashboard configuration remain unfinished.
+
 > This guide records the Phase 16 milestone. Phase 17 now adds clinic voice tools, server-owned tool profiles and worker integration; see [the current voice-tools guide](CLINIC_VOICE_TOOLS.md). Saved dashboard configuration and live microphone acceptance remain unfinished.
 
 ## First: have we built what you described?

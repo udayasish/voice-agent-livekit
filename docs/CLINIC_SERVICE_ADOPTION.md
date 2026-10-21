@@ -1,5 +1,9 @@
 # Clinic Service Adoption — Phase 16
 
+## Staff backend completion (2026-10-21)
+
+The remaining staff HTTP API and same-doctor rescheduling are now locally accepted; see [PHASE_16_BACKEND_ACCEPTANCE.md](PHASE_16_BACKEND_ACCEPTANCE.md). This extends, rather than replaces, the adopted clinic component. The approved safety policy intentionally changes source behavior: blocking refuses booked appointments instead of cancelling them. Persistent counters replace token allocation from current-row maximum so moved tokens are never reused; versions protect staff operations and voice cancellation readbacks. Source provenance/hashes below remain historical records of adoption. Main application migration is a separate rollout step.
+
 ## Phase 17 bilingual reference-data follow-up (2026-10-16)
 
 The local adopted doctor profile now carries reviewed English/Assamese names and aliases through additive migration `0003_chief_purple_man.sql`. The existing `listActiveDoctors` / `findDoctorsByName` services expose the additional metadata and the latter remains the only lookup query implementation. Names are normalized consistently in the organization-scoped catalog, with no fuzzy selection or guessed transliteration. Original contact names, doctor identities, source capacity/transaction/token rules and patient data remain intact. This is a deliberate local adaptation: the original WhatsApp implementation remains separate and unchanged, and its captured hashes continue to describe the source version rather than these local additions. Internal metadata import/readiness is operator-only; dates/times/weekdays already use canonical structured fields, so no duplicate English date columns were added. Full contracts, limitations and retesting instructions are in `CLINIC_VOICE_TOOLS.md`.

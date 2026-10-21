@@ -1,0 +1,33 @@
+meta {
+  name: Verify Old And New Capacity
+  type: http
+  seq: 31
+}
+
+get {
+  url: {{host}}/api/v1/doctors/{{doctorId}}/slots?from={{clinicDate}}&to={{clinicDate}}&pageSize=20
+  body: none
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) {  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Business result", function () { const rows = res.body.data.items; expect(rows.find(s => s.id === bru.getVar("slotId")).remainingCapacity).to.equal(1); expect(rows.find(s => s.id === bru.getVar("targetSlotId")).remainingCapacity).to.equal(0); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

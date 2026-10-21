@@ -1,6 +1,17 @@
 import { AppError } from "../../../lib/errors.js";
 
 const messages = {
+  APPOINTMENT_VERSION_CONFLICT: "The appointment changed. Reload it before trying again.",
+  MUTATION_REQUEST_CONFLICT: "This request was already used or its result has changed.",
+  APPOINTMENT_NOT_RESCHEDULABLE: "This appointment cannot be rescheduled.",
+  RESCHEDULE_NO_CHANGE: "Choose a different slot.",
+  SAME_DOCTOR_REQUIRED: "Rescheduling must keep the same doctor.",
+  DOCTOR_HAS_BOOKINGS: "Clear future bookings before deactivating this doctor.",
+  DATE_HAS_BOOKINGS: "Clear booked appointments before blocking this date.",
+  SLOT_HAS_BOOKINGS: "This slot still has booked appointments.",
+  SLOT_CONFLICT: "The slot definition conflicts with an existing slot.",
+  SLOT_NOT_FOUND: "The slot was not found.",
+  DOCTOR_PHONE_CONFLICT: "This clinic phone contact is already in use.",
   INVALID_CLINIC_INPUT: "The clinic request is invalid.",
   BOOKING_REQUEST_CONFLICT: "This booking request was already used for different details.",
   CLINIC_NOT_FOUND: "The clinic was not found.",

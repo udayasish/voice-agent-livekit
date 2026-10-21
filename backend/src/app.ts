@@ -10,6 +10,7 @@ import { healthRoutes } from "./components/health/index.js";
 import { authRoutes } from "./components/auth/index.js";
 import { organizationRoutes } from "./components/organizations/index.js";
 import { livekitRoutes } from "./components/livekit/index.js";
+import { clinicRoutes } from "./components/clinic/http.js";
 
 export class App {
   public app: express.Application;
@@ -50,6 +51,7 @@ export class App {
       ...authRoutes,
       ...organizationRoutes,
       ...livekitRoutes,
+      ...clinicRoutes,
       // Future phases register components here:
       // ...agentRoutes,
       // ...callRoutes,

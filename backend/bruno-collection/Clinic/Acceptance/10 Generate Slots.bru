@@ -1,0 +1,51 @@
+meta {
+  name: Generate Slots
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{host}}/api/v1/doctors/{{doctorId}}/slots/generate
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "weekdays": [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday"
+    ],
+    "startTime": "09:00",
+    "endTime": "10:00",
+    "durationMinutes": 15,
+    "horizonDays": 4,
+    "maxPatients": 1
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) {  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

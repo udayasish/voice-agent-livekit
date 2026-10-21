@@ -4,6 +4,8 @@ Read `AGENTS.md` before making changes.
 
 ## Plain-Language Project Review
 
+- [Phase 16 backend completion and acceptance](PHASE_16_BACKEND_ACCEPTANCE.md) — staff API contracts, safe rescheduling, test results, Bruno usage and migration rollout.
+
 - [Project status, voice quality and next steps](PROJECT_STATUS_AND_NEXT_STEPS.md) — reviewed 21 October 2026; explains completed work, remaining phases, benchmark evidence gaps and priorities in simple language.
 
 ## Core Product

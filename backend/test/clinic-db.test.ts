@@ -201,15 +201,17 @@ test("completed appointments cannot cancel, and cancellation never reopens block
   }
 });
 
-test("date blocking atomically cancels bookings; repeated cancellation keeps blocked slots blocked", async () => {
+test("date blocking rejects bookings until explicitly cancelled; cancellation keeps blocked slots blocked", async () => {
   const f = await fixture();
   const p = await patient(f);
   const slot = await insertFixtureSlot(database.db, f);
   const terminal = await insertFixtureSlot(database.db, f, { startTime: "10:00", endTime: "10:15", status: "cancelled" });
   const booked = data(await booking(f, slot, p.id));
+  failure(await f.services().blockDoctorDate({ doctorId: f.doctor.id, date: slot.slotDate }), "DATE_HAS_BOOKINGS");
+  data(await f.services({ patientId: p.id }).cancelAppointment({ appointmentId: booked.appointmentId, reason: "Changed plans" }));
   const blocked = data(await f.services().blockDoctorDate({ doctorId: f.doctor.id, date: slot.slotDate }));
   assert.equal(blocked.affectedSlots, 1);
-  assert.equal(blocked.cancelledAppointments, 1);
+  assert.equal(blocked.cancelledAppointments, 0);
   failure(await f.services().blockDoctorDate({ doctorId: f.doctor.id, date: slot.slotDate }), "DATE_ALREADY_BLOCKED");
   assert.deepEqual(data(await f.services().listAvailableSlots({ doctorId: f.doctor.id, date: slot.slotDate })), []);
   assert.equal(data(await f.services({ patientId: p.id }).cancelAppointment({ appointmentId: booked.appointmentId, reason: "Changed plans" })).alreadyCancelled, true);
@@ -224,10 +226,14 @@ test("simultaneous booking and date blocking leave no active appointment on a bl
   const p = await patient(f);
   const slot = await insertFixtureSlot(database.db, f);
   const [booked, blocked] = await Promise.all([booking(f, slot, p.id), f.services().blockDoctorDate({ doctorId: f.doctor.id, date: slot.slotDate })]);
-  data(blocked);
-  if (!booked.success) failure(booked, "SLOT_UNAVAILABLE");
-  assert.equal((await appointmentsFor(f)).filter((appointment) => appointment.status === "booked").length, 0);
-  assert.equal((await database.db.select().from(schema.clinicSlots).where(eq(schema.clinicSlots.id, slot.id)))[0]?.status, "blocked");
+  assert.notEqual(booked.success, blocked.success);
+  if (blocked.success) {
+    failure(booked, "SLOT_UNAVAILABLE");
+    assert.equal((await appointmentsFor(f)).filter(a => a.status === "booked").length, 0);
+  } else {
+    failure(blocked, "DATE_HAS_BOOKINGS"); data(booked);
+    assert.equal((await appointmentsFor(f)).filter(a => a.status === "booked").length, 1);
+  }
 });
 
 test("booking/cancellation race preserves capacity without deadlock or automatic handler retries", async () => {
@@ -271,14 +277,13 @@ test("insert failure rolls back appointment, capacity update, token and post-com
   assert.equal(data(await booking(f, slot, p.id)).tokenNumber, 1);
 });
 
-test("blocking failure rolls back the blocked date, slot changes and appointment cancellation", async () => {
+test("blocking failure rolls back the blocked date and slot changes", async () => {
   const f = await fixture();
   const p = await patient(f);
   const slot = await insertFixtureSlot(database.db, f);
-  data(await booking(f, slot, p.id));
   await database.pool.query(`CREATE OR REPLACE FUNCTION clinic_test_reject_block() RETURNS trigger LANGUAGE plpgsql AS $$
     BEGIN IF current_setting('clinic.test.reject_block', true) = 'true' THEN RAISE EXCEPTION 'private synthetic failure'; END IF; RETURN NEW; END $$`);
-  await database.pool.query("CREATE TRIGGER clinic_test_reject_block BEFORE UPDATE ON clinic_appointments FOR EACH ROW EXECUTE FUNCTION clinic_test_reject_block()");
+  await database.pool.query("CREATE TRIGGER clinic_test_reject_block BEFORE UPDATE ON clinic_slots FOR EACH ROW EXECUTE FUNCTION clinic_test_reject_block()");
   try {
     const transaction = createTransactionWithHooks(database.db, testLogger);
     const services = f.services({}, { transaction: (fn) => transaction(async (tx) => {
@@ -288,9 +293,9 @@ test("blocking failure rolls back the blocked date, slot changes and appointment
     failure(await services.blockDoctorDate({ doctorId: f.doctor.id, date: slot.slotDate }), "CLINIC_OPERATION_FAILED");
     assert.equal((await database.db.select().from(schema.clinicBlockedDates).where(eq(schema.clinicBlockedDates.organizationId, f.organization.id))).length, 0);
     assert.equal((await database.db.select().from(schema.clinicSlots).where(eq(schema.clinicSlots.id, slot.id)))[0]?.status, "available");
-    assert.equal((await appointmentsFor(f))[0]?.status, "booked");
+    assert.equal((await appointmentsFor(f)).length, 0);
   } finally {
-    await database.pool.query("DROP TRIGGER clinic_test_reject_block ON clinic_appointments");
+    await database.pool.query("DROP TRIGGER clinic_test_reject_block ON clinic_slots");
     await database.pool.query("DROP FUNCTION clinic_test_reject_block()");
   }
 });
@@ -310,7 +315,7 @@ test("reminder and doctor alert scheduling observe a committed appointment and c
   assert.equal(jobs.length, 2);
   assert.equal(jobs.find((job) => job.kind === "appointment-reminder")?.runAt, "2026-10-14T03:30:00.000Z");
   assert.equal(jobs.find((job) => job.kind === "doctor-booking-alert")?.runAt, f.now().toISOString());
-  for (const job of jobs) assert.deepEqual(Object.keys(job).sort(), ["appointmentId", "jobId", "kind", "organizationId", "runAt"]);
+  for (const job of jobs) assert.deepEqual(Object.keys(job).sort(), ["appointmentId", "appointmentVersion", "jobId", "kind", "organizationId", "runAt"]);
 });
 
 test("scheduler failure keeps the booking successful, reports failure and never books twice", async () => {

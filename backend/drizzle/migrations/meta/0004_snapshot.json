@@ -1,0 +1,1821 @@
+{
+  "id": "87340cb3-c0ec-4867-9c40-8bfacc78b936",
+  "prevId": "b25b2fb4-a5cc-4068-a2e0-22f5fe9d35f0",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "user_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organization_members": {
+      "name": "organization_members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "member_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'member'"
+        }
+      },
+      "indexes": {
+        "org_members_user_id_idx": {
+          "name": "org_members_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "org_members_org_id_idx": {
+          "name": "org_members_org_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_members_organization_id_organizations_id_fk": {
+          "name": "organization_members_organization_id_organizations_id_fk",
+          "tableFrom": "organization_members",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "organization_members_user_id_users_id_fk": {
+          "name": "organization_members_user_id_users_id_fk",
+          "tableFrom": "organization_members",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "unique_user_per_org": {
+          "name": "unique_user_per_org",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "user_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organizations": {
+      "name": "organizations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_type": {
+          "name": "business_type",
+          "type": "business_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'clinic'"
+        },
+        "status": {
+          "name": "status",
+          "type": "organization_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Asia/Kolkata'"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clinic_people": {
+      "name": "clinic_people",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone_number": {
+          "name": "phone_number",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "clinic_person_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "language_preference": {
+          "name": "language_preference",
+          "type": "varchar(10)",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "'en'"
+        }
+      },
+      "indexes": {
+        "clinic_people_organization_id_idx": {
+          "name": "clinic_people_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "clinic_people_phone_number_idx": {
+          "name": "clinic_people_phone_number_idx",
+          "columns": [
+            {
+              "expression": "phone_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clinic_people_organization_id_organizations_id_fk": {
+          "name": "clinic_people_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_people",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_people_organization_id_unique": {
+          "name": "clinic_people_organization_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "id"
+          ]
+        },
+        "clinic_people_organization_phone_unique": {
+          "name": "clinic_people_organization_phone_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "phone_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clinic_doctors": {
+      "name": "clinic_doctors",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person_id": {
+          "name": "person_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "specialization": {
+          "name": "specialization",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name_as": {
+          "name": "name_as",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "search_aliases": {
+          "name": "search_aliases",
+          "type": "varchar(255)[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY[]::varchar[]"
+        },
+        "consultation_duration_minutes": {
+          "name": "consultation_duration_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 15
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "clinic_doctors_organization_id_idx": {
+          "name": "clinic_doctors_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clinic_doctors_organization_id_organizations_id_fk": {
+          "name": "clinic_doctors_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_doctors",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_doctors_person_id_clinic_people_id_fk": {
+          "name": "clinic_doctors_person_id_clinic_people_id_fk",
+          "tableFrom": "clinic_doctors",
+          "tableTo": "clinic_people",
+          "columnsFrom": [
+            "person_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_doctors_scoped_person_fk": {
+          "name": "clinic_doctors_scoped_person_fk",
+          "tableFrom": "clinic_doctors",
+          "tableTo": "clinic_people",
+          "columnsFrom": [
+            "organization_id",
+            "person_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_doctors_person_id_unique": {
+          "name": "clinic_doctors_person_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "person_id"
+          ]
+        },
+        "clinic_doctors_organization_id_unique": {
+          "name": "clinic_doctors_organization_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "clinic_doctors_positive_duration": {
+          "name": "clinic_doctors_positive_duration",
+          "value": "\"clinic_doctors\".\"consultation_duration_minutes\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.clinic_slots": {
+      "name": "clinic_slots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot_date": {
+          "name": "slot_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day_of_week": {
+          "name": "day_of_week",
+          "type": "clinic_day_of_week",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "end_time": {
+          "name": "end_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "clinic_slot_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'available'"
+        },
+        "max_patients": {
+          "name": "max_patients",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 30
+        }
+      },
+      "indexes": {
+        "clinic_slots_organization_id_idx": {
+          "name": "clinic_slots_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "clinic_slots_status_idx": {
+          "name": "clinic_slots_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "clinic_slots_slot_date_idx": {
+          "name": "clinic_slots_slot_date_idx",
+          "columns": [
+            {
+              "expression": "slot_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clinic_slots_organization_id_organizations_id_fk": {
+          "name": "clinic_slots_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_slots",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_slots_doctor_id_clinic_doctors_id_fk": {
+          "name": "clinic_slots_doctor_id_clinic_doctors_id_fk",
+          "tableFrom": "clinic_slots",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_slots_scoped_doctor_fk": {
+          "name": "clinic_slots_scoped_doctor_fk",
+          "tableFrom": "clinic_slots",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_slots_scoped_doctor_id_unique": {
+          "name": "clinic_slots_scoped_doctor_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "doctor_id",
+            "id"
+          ]
+        },
+        "clinic_slots_doctor_date_start_unique": {
+          "name": "clinic_slots_doctor_date_start_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "doctor_id",
+            "slot_date",
+            "start_time"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "clinic_slots_positive_capacity": {
+          "name": "clinic_slots_positive_capacity",
+          "value": "\"clinic_slots\".\"max_patients\" > 0"
+        },
+        "clinic_slots_valid_interval": {
+          "name": "clinic_slots_valid_interval",
+          "value": "\"clinic_slots\".\"start_time\" < \"clinic_slots\".\"end_time\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.clinic_blocked_dates": {
+      "name": "clinic_blocked_dates",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blocked_date": {
+          "name": "blocked_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "clinic_blocked_date_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'other'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "clinic_blocked_dates_organization_id_idx": {
+          "name": "clinic_blocked_dates_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clinic_blocked_dates_organization_id_organizations_id_fk": {
+          "name": "clinic_blocked_dates_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_blocked_dates",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_blocked_dates_doctor_id_clinic_doctors_id_fk": {
+          "name": "clinic_blocked_dates_doctor_id_clinic_doctors_id_fk",
+          "tableFrom": "clinic_blocked_dates",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_blocked_dates_scoped_doctor_fk": {
+          "name": "clinic_blocked_dates_scoped_doctor_fk",
+          "tableFrom": "clinic_blocked_dates",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_blocked_dates_doctor_date_unique": {
+          "name": "clinic_blocked_dates_doctor_date_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "doctor_id",
+            "blocked_date"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clinic_appointments": {
+      "name": "clinic_appointments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot_id": {
+          "name": "slot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_number": {
+          "name": "token_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "appointment_date": {
+          "name": "appointment_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "appointment_time": {
+          "name": "appointment_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_name": {
+          "name": "patient_name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_age": {
+          "name": "patient_age",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "complaint": {
+          "name": "complaint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "clinic_appointment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'booked'"
+        },
+        "cancel_reason": {
+          "name": "cancel_reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reminder_sent": {
+          "name": "reminder_sent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "source": {
+          "name": "source",
+          "type": "clinic_appointment_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "call_id": {
+          "name": "call_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_key": {
+          "name": "request_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_fingerprint": {
+          "name": "request_fingerprint",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "clinic_appointments_organization_id_idx": {
+          "name": "clinic_appointments_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "clinic_appointments_appointment_date_idx": {
+          "name": "clinic_appointments_appointment_date_idx",
+          "columns": [
+            {
+              "expression": "appointment_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "clinic_appointments_status_idx": {
+          "name": "clinic_appointments_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "clinic_appointments_slot_id_status_idx": {
+          "name": "clinic_appointments_slot_id_status_idx",
+          "columns": [
+            {
+              "expression": "slot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clinic_appointments_organization_id_organizations_id_fk": {
+          "name": "clinic_appointments_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_appointments_doctor_id_clinic_doctors_id_fk": {
+          "name": "clinic_appointments_doctor_id_clinic_doctors_id_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_appointments_patient_id_clinic_people_id_fk": {
+          "name": "clinic_appointments_patient_id_clinic_people_id_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "clinic_people",
+          "columnsFrom": [
+            "patient_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_appointments_slot_id_clinic_slots_id_fk": {
+          "name": "clinic_appointments_slot_id_clinic_slots_id_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "clinic_slots",
+          "columnsFrom": [
+            "slot_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_appointments_scoped_patient_fk": {
+          "name": "clinic_appointments_scoped_patient_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "clinic_people",
+          "columnsFrom": [
+            "organization_id",
+            "patient_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_appointments_scoped_doctor_fk": {
+          "name": "clinic_appointments_scoped_doctor_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_appointments_scoped_slot_fk": {
+          "name": "clinic_appointments_scoped_slot_fk",
+          "tableFrom": "clinic_appointments",
+          "tableTo": "clinic_slots",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id",
+            "slot_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "doctor_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_appointments_request_unique": {
+          "name": "clinic_appointments_request_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "request_key"
+          ]
+        },
+        "clinic_appointments_scoped_id_unique": {
+          "name": "clinic_appointments_scoped_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "id"
+          ]
+        },
+        "clinic_appointments_doctor_date_token_unique": {
+          "name": "clinic_appointments_doctor_date_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "doctor_id",
+            "appointment_date",
+            "token_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "clinic_appointments_positive_version": {
+          "name": "clinic_appointments_positive_version",
+          "value": "\"clinic_appointments\".\"version\" > 0"
+        },
+        "clinic_appointments_valid_age": {
+          "name": "clinic_appointments_valid_age",
+          "value": "\"clinic_appointments\".\"patient_age\" between 0 and 120"
+        },
+        "clinic_appointments_positive_token": {
+          "name": "clinic_appointments_positive_token",
+          "value": "\"clinic_appointments\".\"token_number\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.clinic_settings": {
+      "name": "clinic_settings",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "reminders_enabled": {
+          "name": "reminders_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "notifications_enabled": {
+          "name": "notifications_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "clinic_settings_organization_id_organizations_id_fk": {
+          "name": "clinic_settings_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_settings",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clinic_mutation_receipts": {
+      "name": "clinic_mutation_receipts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "appointment_id": {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation": {
+          "name": "operation",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_key": {
+          "name": "request_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resulting_version": {
+          "name": "resulting_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "clinic_mutation_receipts_organization_id_organizations_id_fk": {
+          "name": "clinic_mutation_receipts_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_mutation_receipts",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_mutation_receipts_actor_id_users_id_fk": {
+          "name": "clinic_mutation_receipts_actor_id_users_id_fk",
+          "tableFrom": "clinic_mutation_receipts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_mutation_receipts_organization_id_appointment_id_clinic_appointments_organization_id_id_fk": {
+          "name": "clinic_mutation_receipts_organization_id_appointment_id_clinic_appointments_organization_id_id_fk",
+          "tableFrom": "clinic_mutation_receipts",
+          "tableTo": "clinic_appointments",
+          "columnsFrom": [
+            "organization_id",
+            "appointment_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_mutation_request_unique": {
+          "name": "clinic_mutation_request_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "request_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "clinic_mutation_operation": {
+          "name": "clinic_mutation_operation",
+          "value": "\"clinic_mutation_receipts\".\"operation\" in ('cancel', 'reschedule')"
+        },
+        "clinic_mutation_version": {
+          "name": "clinic_mutation_version",
+          "value": "\"clinic_mutation_receipts\".\"resulting_version\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.clinic_reschedule_history": {
+      "name": "clinic_reschedule_history",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "appointment_id": {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_slot_id": {
+          "name": "previous_slot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "new_slot_id": {
+          "name": "new_slot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_date": {
+          "name": "previous_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "new_date": {
+          "name": "new_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_time": {
+          "name": "previous_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "new_time": {
+          "name": "new_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_token": {
+          "name": "previous_token",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "new_token": {
+          "name": "new_token",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "varchar(500)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "clinic_reschedule_history_organization_id_organizations_id_fk": {
+          "name": "clinic_reschedule_history_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_reschedule_history",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_reschedule_history_actor_id_users_id_fk": {
+          "name": "clinic_reschedule_history_actor_id_users_id_fk",
+          "tableFrom": "clinic_reschedule_history",
+          "tableTo": "users",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_reschedule_history_organization_id_appointment_id_clinic_appointments_organization_id_id_fk": {
+          "name": "clinic_reschedule_history_organization_id_appointment_id_clinic_appointments_organization_id_id_fk",
+          "tableFrom": "clinic_reschedule_history",
+          "tableTo": "clinic_appointments",
+          "columnsFrom": [
+            "organization_id",
+            "appointment_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_reschedule_history_organization_id_doctor_id_previous_slot_id_clinic_slots_organization_id_doctor_id_id_fk": {
+          "name": "clinic_reschedule_history_organization_id_doctor_id_previous_slot_id_clinic_slots_organization_id_doctor_id_id_fk",
+          "tableFrom": "clinic_reschedule_history",
+          "tableTo": "clinic_slots",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id",
+            "previous_slot_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "doctor_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_reschedule_history_organization_id_doctor_id_new_slot_id_clinic_slots_organization_id_doctor_id_id_fk": {
+          "name": "clinic_reschedule_history_organization_id_doctor_id_new_slot_id_clinic_slots_organization_id_doctor_id_id_fk",
+          "tableFrom": "clinic_reschedule_history",
+          "tableTo": "clinic_slots",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id",
+            "new_slot_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "doctor_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "clinic_reschedule_version_unique": {
+          "name": "clinic_reschedule_version_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "organization_id",
+            "appointment_id",
+            "version"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "clinic_history_positive": {
+          "name": "clinic_history_positive",
+          "value": "\"clinic_reschedule_history\".\"previous_token\" > 0 and \"clinic_reschedule_history\".\"new_token\" > 0 and \"clinic_reschedule_history\".\"version\" > 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.clinic_token_counters": {
+      "name": "clinic_token_counters",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "last_token": {
+          "name": "last_token",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "clinic_token_counters_organization_id_organizations_id_fk": {
+          "name": "clinic_token_counters_organization_id_organizations_id_fk",
+          "tableFrom": "clinic_token_counters",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "clinic_token_counters_organization_id_doctor_id_clinic_doctors_organization_id_id_fk": {
+          "name": "clinic_token_counters_organization_id_doctor_id_clinic_doctors_organization_id_id_fk",
+          "tableFrom": "clinic_token_counters",
+          "tableTo": "clinic_doctors",
+          "columnsFrom": [
+            "organization_id",
+            "doctor_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "clinic_token_counters_organization_id_doctor_id_date_pk": {
+          "name": "clinic_token_counters_organization_id_doctor_id_date_pk",
+          "columns": [
+            "organization_id",
+            "doctor_id",
+            "date"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "clinic_counter_positive": {
+          "name": "clinic_counter_positive",
+          "value": "\"clinic_token_counters\".\"last_token\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.user_status": {
+      "name": "user_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "suspended"
+      ]
+    },
+    "public.business_type": {
+      "name": "business_type",
+      "schema": "public",
+      "values": [
+        "clinic",
+        "hotel",
+        "restaurant",
+        "salon",
+        "generic"
+      ]
+    },
+    "public.member_role": {
+      "name": "member_role",
+      "schema": "public",
+      "values": [
+        "owner",
+        "admin",
+        "member"
+      ]
+    },
+    "public.organization_status": {
+      "name": "organization_status",
+      "schema": "public",
+      "values": [
+        "active",
+        "suspended"
+      ]
+    },
+    "public.clinic_appointment_source": {
+      "name": "clinic_appointment_source",
+      "schema": "public",
+      "values": [
+        "voice",
+        "whatsapp",
+        "manual"
+      ]
+    },
+    "public.clinic_appointment_status": {
+      "name": "clinic_appointment_status",
+      "schema": "public",
+      "values": [
+        "booked",
+        "completed",
+        "cancelled",
+        "noshow"
+      ]
+    },
+    "public.clinic_blocked_date_reason": {
+      "name": "clinic_blocked_date_reason",
+      "schema": "public",
+      "values": [
+        "leave",
+        "holiday",
+        "emergency",
+        "other"
+      ]
+    },
+    "public.clinic_day_of_week": {
+      "name": "clinic_day_of_week",
+      "schema": "public",
+      "values": [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday"
+      ]
+    },
+    "public.clinic_person_role": {
+      "name": "clinic_person_role",
+      "schema": "public",
+      "values": [
+        "patient",
+        "doctor",
+        "receptionist"
+      ]
+    },
+    "public.clinic_slot_status": {
+      "name": "clinic_slot_status",
+      "schema": "public",
+      "values": [
+        "available",
+        "booked",
+        "blocked",
+        "cancelled"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

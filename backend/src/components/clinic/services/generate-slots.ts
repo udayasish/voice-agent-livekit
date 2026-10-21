@@ -5,6 +5,7 @@ import { clinicBlockedDates, clinicSlots } from "../models/index.js";
 import type { ClinicDayOfWeek } from "../models/enums.js";
 import { addCalendarDays, clinicLocalDate } from "../timezone.js";
 import type { ClinicRuntime } from "./runtime.js";
+import { clinicError } from "../contracts/errors.js";
 
 const weekdays: ClinicDayOfWeek[] = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const minutes = (time: string) => Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5));
@@ -26,11 +27,19 @@ export async function generateSlots(runtime: ClinicRuntime, input: GenerateSlots
       const [blocked] = await tx.select({ id: clinicBlockedDates.id }).from(clinicBlockedDates)
         .where(and(eq(clinicBlockedDates.organizationId, runtime.identity.organizationId), eq(clinicBlockedDates.doctorId, input.doctorId), eq(clinicBlockedDates.blockedDate, slotDate)));
       const rows: (typeof clinicSlots.$inferInsert)[] = [];
+      const existing = await tx.select().from(clinicSlots).where(and(eq(clinicSlots.organizationId, runtime.identity.organizationId),
+        eq(clinicSlots.doctorId, input.doctorId), eq(clinicSlots.slotDate, slotDate)));
       for (let cursor = minutes(input.startTime); cursor + input.durationMinutes <= minutes(input.endTime); cursor += input.durationMinutes) {
         const startTime = format(cursor);
         const endTime = format(cursor + input.durationMinutes);
         runtime.appointmentInstant(slotDate, startTime, clinic.timezone);
         runtime.appointmentInstant(slotDate, endTime, clinic.timezone);
+        const same = existing.find(slot => slot.startTime.slice(0, 5) === startTime);
+        if (same) {
+          if (same.endTime.slice(0, 5) !== endTime || same.maxPatients !== input.maxPatients) clinicError("SLOT_CONFLICT");
+          continue;
+        }
+        if (existing.some(slot => slot.status !== "cancelled" && slot.startTime.slice(0, 5) < endTime && slot.endTime.slice(0, 5) > startTime)) clinicError("SLOT_CONFLICT");
         rows.push({ organizationId: runtime.identity.organizationId, doctorId: input.doctorId, slotDate, dayOfWeek,
           startTime, endTime, maxPatients: input.maxPatients, status: blocked ? "blocked" : "available" });
       }

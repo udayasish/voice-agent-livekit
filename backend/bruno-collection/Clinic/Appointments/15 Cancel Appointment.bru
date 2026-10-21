@@ -1,0 +1,45 @@
+meta {
+  name: Cancel Appointment
+  type: http
+  seq: 15
+}
+
+patch {
+  url: {{host}}/api/v1/appointments/{{appointmentId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+  Idempotency-Key: {{requestKey}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "action": "cancel",
+    "expectedVersion": {{appointmentVersion}},
+    "reason": "Synthetic cancellation"
+  }
+}
+
+script:pre-request {
+  bru.setVar("requestKey", require("uuid").v4());
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("appointmentVersion", res.body.data.version); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

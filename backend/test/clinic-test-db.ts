@@ -12,7 +12,7 @@ import { clinicDayOfWeekEnum } from "../src/components/clinic/models/enums.js";
 
 export const testLogger: ClinicLogger = { info: () => undefined, warn: () => undefined, error: () => undefined };
 
-export async function openClinicTestDatabase() {
+export async function openClinicTestDatabase(options: { migrationsFolder?: string } = {}) {
   const configured = process.env["CLINIC_TEST_DATABASE_URL"];
   const url = new URL(configured ?? process.env["DATABASE_URL"] ?? "postgresql://postgres:postgres@127.0.0.1:5433/voice_agent");
   if (!configured) url.pathname = "/voice_agent_clinic_test";
@@ -30,7 +30,7 @@ export async function openClinicTestDatabase() {
   } finally { await admin.end(); }
   const pool = new pg.Pool({ connectionString: url.toString(), max: 16, connectionTimeoutMillis: 5000 });
   const db = drizzle(pool, { schema });
-  try { await migrate(db, { migrationsFolder: fileURLToPath(new URL("../drizzle/migrations", import.meta.url)) }); }
+  try { await migrate(db, { migrationsFolder: options.migrationsFolder ?? fileURLToPath(new URL("../drizzle/migrations", import.meta.url)) }); }
   catch (error) { await pool.end(); throw error; }
   return { pool, db, url: url.toString(), name };
 }
@@ -64,6 +64,9 @@ export async function insertFixtureSlot(db: Database, fixture: ClinicFixture, op
 export async function removeClinicFixtures(db: Database, organizationIds: string[]) {
   if (!organizationIds.length) return;
   await db.transaction(async (tx) => {
+    await tx.delete(schema.clinicRescheduleHistory).where(inArray(schema.clinicRescheduleHistory.organizationId, organizationIds));
+    await tx.delete(schema.clinicMutationReceipts).where(inArray(schema.clinicMutationReceipts.organizationId, organizationIds));
+    await tx.delete(schema.clinicTokenCounters).where(inArray(schema.clinicTokenCounters.organizationId, organizationIds));
     await tx.delete(schema.clinicAppointments).where(inArray(schema.clinicAppointments.organizationId, organizationIds));
     await tx.delete(schema.clinicBlockedDates).where(inArray(schema.clinicBlockedDates.organizationId, organizationIds));
     await tx.delete(schema.clinicSlots).where(inArray(schema.clinicSlots.organizationId, organizationIds));

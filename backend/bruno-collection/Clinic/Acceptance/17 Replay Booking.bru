@@ -1,0 +1,44 @@
+meta {
+  name: Replay Booking
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{host}}/api/v1/appointments
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+  Idempotency-Key: {{bookingKey}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "doctorId": "{{doctorId}}",
+    "patientId": "{{patientId}}",
+    "slotId": "{{slotId}}",
+    "patientName": "Synthetic Bruno Patient",
+    "patientAge": 27
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) {  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Business result", function () { expect(res.body.data.replayed).to.equal(true); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

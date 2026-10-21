@@ -1,0 +1,32 @@
+meta {
+  name: List Other Doctor Slots
+  type: http
+  seq: 24
+}
+
+get {
+  url: {{host}}/api/v1/doctors/{{otherDoctorId}}/slots?from={{clinicDate}}&to={{clinicDate}}
+  body: none
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("otherDoctorSlotId", res.body.data.items[0].id); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

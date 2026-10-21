@@ -1,0 +1,38 @@
+meta {
+  name: Resolve Patient
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{host}}/api/v1/patients/resolve
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "phoneNumber": "{{patientPhone}}"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("patientId", res.body.data.id); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

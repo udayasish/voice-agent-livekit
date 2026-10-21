@@ -9,5 +9,6 @@ export async function scheduleReminder(appointment: NotificationAppointment, tim
   const fireAt = zonedTimeToUtc(appointment.appointmentDate, appointment.appointmentTime, timezone).getTime() - 24 * 60 * 60 * 1000;
   if (fireAt <= deps.now().getTime()) return "skipped_window";
   return enqueueNotification({ kind: "appointment-reminder", organizationId: appointment.organizationId, appointmentId: appointment.id,
-    jobId: `clinic-${appointment.organizationId}-${appointment.id}-reminder`, runAt: new Date(fireAt).toISOString() }, deps);
+    appointmentVersion: appointment.version ?? 1,
+    jobId: `clinic-${appointment.organizationId}-${appointment.id}-v${appointment.version ?? 1}-reminder`, runAt: new Date(fireAt).toISOString() }, deps);
 }

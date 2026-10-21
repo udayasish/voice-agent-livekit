@@ -389,6 +389,10 @@ The real SDK completes a deterministic tool request → validated execution → 
 
 # Phase 16 — Clinic Data & Appointment MVP
 
+### Staff backend completion (2026-10-21)
+
+The user-approved remaining milestone is implemented and locally accepted: staff HTTP APIs, role/tenant checks, same-doctor rescheduling, non-reused tokens, version/idempotency guards, non-destructive blocking/deactivation, migration backfill and actual Bruno acceptance. Contracts, checks and application-database migration instructions are in `PHASE_16_BACKEND_ACCEPTANCE.md`. Phase 16 is DONE in PROGRESS.md; Phase 17 microphone/provider acceptance remains IN PROGRESS. The service-adoption paragraphs below record the earlier narrower milestone and its then-open work.
+
 ### Read
 - DATA_MODEL_AND_API_CONTRACT.md
 - BACKEND_ARCHITECTURE.md

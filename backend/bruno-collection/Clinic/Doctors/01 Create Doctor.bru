@@ -1,0 +1,48 @@
+meta {
+  name: Create Doctor
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}/api/v1/doctors
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "name": "Synthetic Bruno Doctor",
+    "phoneNumber": "{{doctorPhone}}",
+    "nameEn": "Synthetic Bruno Doctor",
+    "specialization": "General Medicine",
+    "searchAliases": [
+      "Bruno Doctor"
+    ]
+  }
+}
+
+script:pre-request {
+  const suffix = String(Date.now()).slice(-9); bru.setVar("doctorPhone", "9" + suffix); bru.setVar("patientPhone", "7" + suffix);const day = new Date(Date.now() + 86400000); const tomorrow = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(day); bru.setVar("clinicDate", tomorrow);
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.success) { bru.setVar("doctorId", res.body.data.id); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(201); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

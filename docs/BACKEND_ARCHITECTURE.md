@@ -1,5 +1,13 @@
 # Assamese AI Voice Agent Platform — Backend Architecture
 
+## Phase 16 staff backend completion (2026-10-21)
+
+The authenticated clinic HTTP adapter uses the existing Route[] pipeline. Header UUID validation precedes organization membership verification; owner/admin manage doctor/schedule data while all member roles manage appointments. Thin handlers parse context/input/results; injected clinic services own queries and transactions. Final endpoints and local acceptance evidence: [PHASE_16_BACKEND_ACCEPTANCE.md](PHASE_16_BACKEND_ACCEPTANCE.md).
+
+Migration 0004 adds appointment versions, persistent doctor/date token counters, scoped mutation receipts and move history. Same-doctor moves preserve appointment/patient/source identity and same-day tokens, allocating new tokens on date change. Relevant writers coordinate doctor locks and sorted date/slot locks. Blocking refuses booked appointments; deactivation refuses future bookings. Staff logs contain actor IDs without patient input.
+
+Voice uses the shared allocator and trusted readback version/date/time guards, preventing stale cancellation after staff movement without new voice tool inputs. Notification jobs have versioned identities; delivery remains unconfigured. Pause API/worker writes to migrate an application database before deploying new writers. Implementation migrated only isolated test databases.
+
 ## Phase 17 confirmed-caller resolution (2026-10-17)
 
 `resolve_clinic_and_caller` now takes only `{}`. The clinic runtime binds an already captured and playback-confirmed phone through the same enabled tool/executor and existing `getOrCreatePatient` service immediately after validated confirmation. No phone, patient ID or tenant identity is reconstructed by the model. Missing/unclear/interrupted confirmations cannot bind the caller; later explicit complete corrections invalidate the binding and require a fresh readback. Appointment authorization and knowledge checks remain separate.

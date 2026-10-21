@@ -9,14 +9,17 @@ import { ClinicVoiceRuntime } from "../src/components/clinic/voice/runtime.js";
 import { clinicToolNames } from "../src/components/clinic/voice/names.js";
 import { RecordingClinicScheduler } from "../src/components/clinic/notifications/recording-scheduler.js";
 import { createTransactionWithHooks } from "../src/lib/db/transaction-with-hooks.js";
+import { createStaffClinicServices } from "../src/components/clinic/services/staff.js";
+import { inArray } from "drizzle-orm";
 import { ScriptedProvider } from "./helpers/scripted-provider.js";
 import type { LLMMessage } from "../src/components/agent/providers/llm/types.js";
 import { createClinicFixture, insertFixtureSlot, openClinicTestDatabase, removeClinicFixtures, schema, eq, type ClinicFixture } from "./clinic-test-db.js";
 
 let database: Awaited<ReturnType<typeof openClinicTestDatabase>>;
 const organizations: string[] = [];
+const staffActors: string[] = [];
 before(async () => { database = await openClinicTestDatabase(); });
-after(async () => { if (database) { try { await removeClinicFixtures(database.db, organizations); } finally { await database.pool.end(); } } });
+after(async () => { if (database) { try { await removeClinicFixtures(database.db, organizations); if (staffActors.length) await database.db.delete(schema.users).where(inArray(schema.users.id, staffActors)); } finally { await database.pool.end(); } } });
 async function fixture() { const f = await createClinicFixture(database.db); organizations.push(f.organization.id); return f; }
 type Step = { name: string; input: object | (() => object) };
 class Driver {
@@ -330,5 +333,29 @@ test("restoring even the same phone revokes patient grants and a pending cancell
     assert.equal(d.runtime.snapshot().pendingDraftId, null); assert.equal(d.runtime.snapshot().completedActions.length, 1);
     await d.call("resolve_clinic_and_caller", {}, "হয় শুদ্ধ।");
     assert.deepEqual(unwrap(await d.call("check_my_appointments", {})), []);
+  } finally { await d.session.close(); }
+});
+
+test("staff rescheduling invalidates an earlier voice cancellation readback", async () => {
+  const f = await fixture();
+  const slot = await insertFixtureSlot(database.db, f);
+  const target = await insertFixtureSlot(database.db, f, { startTime: "10:00", endTime: "10:15" });
+  const [actor] = await database.db.insert(schema.users).values({ name: "Synthetic Staff", email: `${randomUUID()}@test.invalid` }).returning();
+  assert.ok(actor); staffActors.push(actor.id);
+  const d = new Driver(f);
+  try {
+    await d.caller();
+    const bookingDraft = await d.prepare(f.doctor.id, slot.id);
+    const booked = bookingData.parse(unwrap(await d.call("book_appointment", { mode: "confirm", draftId: bookingDraft }, "হয় শুদ্ধ।")));
+    await d.call("cancel_appointment", { mode: "prepare", appointmentId: booked.appointment.appointmentId, reason: "Caller cancellation" });
+    const cancellationDraft = d.runtime.snapshot().pendingDraftId!;
+    const staff = createStaffClinicServices({ organizationId: f.organization.id, actorId: actor.id, role: "owner" }, f.deps);
+    const moved = await staff.mutate(booked.appointment.appointmentId, randomUUID(), { action: "reschedule", expectedVersion: 1, targetSlotId: target.id, reason: "Staff move" });
+    assert.equal(moved.success, true);
+    const cancellation = await d.call("cancel_appointment", { mode: "confirm", draftId: cancellationDraft }, "হয়।");
+    assert.equal(cancellation.success, false);
+    if (!cancellation.success) assert.equal(cancellation.error.code, "APPOINTMENT_VERSION_CONFLICT");
+    const [row] = await database.db.select().from(schema.clinicAppointments).where(eq(schema.clinicAppointments.id, booked.appointment.appointmentId));
+    assert.equal(row?.status, "booked"); assert.equal(row?.slotId, target.id); assert.equal(row?.version, 2);
   } finally { await d.session.close(); }
 });

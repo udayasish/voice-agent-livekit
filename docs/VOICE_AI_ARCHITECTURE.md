@@ -1,5 +1,9 @@
 # Assamese AI Voice Agent Platform — Voice & AI Architecture
 
+## Phase 16 staff rescheduling compatibility (2026-10-21)
+
+The clinic backend supports authenticated staff rescheduling, not a new voice tool. Voice bookings use persistent doctor/date token counters. Actual upcoming reads include a version; new voice bookings retain version 1. Cancellation binds the spoken appointment version/date/time in trusted service context and rechecks after locking. A database-backed SDK test verifies that an old confirmation cannot cancel an appointment staff have moved. Tool inputs, playback eligibility and patient knowledge checks remain authoritative. Phase 17 microphone/provider acceptance remains pending. See PHASE_16_BACKEND_ACCEPTANCE.md for migration/rollout requirements.
+
 ## Phase 17 confirmed-phone and reasoning-output recovery (2026-10-17)
 
 The 20:17 experiment's logs show valid phone confirmation followed by resolver input rejection and a 384-token `length` reply. The resolver is now a strict empty-input tool over retained server phone state. A newly validated phone confirmation plans that enabled resolver through the existing SDK/executor; it does not ask the model to reproduce the digits. Already bound callers do not advertise the redundant resolver on later ordinary turns. Confirmed phone status and the next missing field are supplied as verified facts, and a bounded inconsistent-phone-question guard prevents re-entry into collection. Clear complete number corrections retain fresh playback/confirmation requirements. This does not authorize a booking.

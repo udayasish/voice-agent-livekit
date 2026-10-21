@@ -1,0 +1,39 @@
+meta {
+  name: Update Doctor
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{host}}/api/v1/doctors/{{doctorId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "specialization": "General Medicine",
+    "consultationDurationMinutes": 15
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) {  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

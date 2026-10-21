@@ -33,7 +33,7 @@
 | 13 Barge-In | DONE | Realtime interruption & barge-in architecture implemented. InterruptionManager state machine with strict AbortController ownership, AudioSource.clearQueue() native buffer purge (< 5ms cutoff), two-stage qualification (150ms 'ৰব' supported, sub-100ms noise rejected), thinking/speaking cancellation, WebRTC DataChannel signaling, and frontend AEC enforcement. 20/20 tests passing across 4 suites. |
 | 14 Agent Engine | DONE | Configurable SDK-backed engine, typed business behavior, Redis session snapshots, unified response policy and lifecycle; clinic demo isolated; 37 engine tests, 24 listening/dictation tests, 5 STT language-switch tests and local Redis integration pass |
 | 15 Tool System | DONE | Typed registry/executor, trusted context, SDK tool loop, Groq/HF protocol adapters and harmless offline clock tool; 27 tool tests and required regressions/checks pass |
-| 16 Clinic Data & Appointment MVP | IN PROGRESS | Local clinic service adoption complete; HTTP/API and rescheduling acceptance remain outstanding |
+| 16 Clinic Data & Appointment MVP | DONE | Staff clinic APIs and same-doctor rescheduling accepted locally; role/tenant/version/idempotency/capacity/token checks and actual Bruno acceptance pass. Apply migration 0004 with writers paused before application rollout. |
 | 17 Voice Appointment Agent | IN PROGRESS | Eight clinic tools and live worker integration implemented; automated local checks pass; real frontend microphone/hosted-model acceptance pending; rescheduling/transfer deferred |
 | 18 Agent Configuration | NOT STARTED | |
 | 19 Calls & Conversations Dashboard | NOT STARTED | |
@@ -45,11 +45,22 @@
 
 ## Current Work
 
+**Phase 16 backend is now complete and locally accepted (21 October).** Staff APIs, safe rescheduling and the Bruno Clinic collection are implemented; full results and migration rollout steps are in `PHASE_16_BACKEND_ACCEPTANCE.md`. No main-database migration or runtime restart was performed. Phase 17 remains the active phase, with real microphone/hosted-provider acceptance pending. The voice investigation paragraphs below predate this Phase 16 completion; their references to remaining Phase 16 work are historical.
+
 The local comparison still selects **Groq GPT-OSS-120B + Deepgram Nova-3 `multi`** in `backend/.env`. The 20:17 call's confirmed-phone regression is now addressed: server-planned empty resolver input, retained confirmed identity, fresh post-tool context and GPT-OSS completion headroom. Phone digits use `en-IN`; pending phone/action confirmations use the trusted reply language (`as` by default), then restore `multi`. Restart the worker and use a fresh frontend call. Normal `multi` recognition still lacks documented Assamese support, and hosted microphone acceptance remains unverified. Test/rollback steps are at the top of `CLINIC_VOICE_TOOLS.md`. Phase 17 remains IN PROGRESS; the remaining date/ambiguous-correction issues are not claimed complete.
 
 The multilingual-number follow-up fixes whole-expression age validation for `টুৱেণ্টি8` and contextual English/Hindi/Assamese clock answers, including `nine thirty`, `नौ तीस`, `ন ত্ৰিশ` and repeated `ন বজা`. Shared clinic number parsing reuses existing single-digit normalization, while the same SDK interpreter gets focused age/time tasks and server-derived current-number hints. Captured names survive, reply language stays selected independently of input language, and only returned slot IDs can be chosen. Restart the worker and follow the multilingual age/time script in `CLINIC_VOICE_TOOLS.md`; corrupted STT still requires clarification. Phase 17 remains **IN PROGRESS** pending hosted microphone acceptance, Phase 16 remains **IN PROGRESS** for HTTP/API acceptance and rescheduling, and Phase 18 remains **NOT STARTED**. Notification delivery is unconfigured.
 
 ## Last Completed Work
+
+**Phase 16 staff backend and safe rescheduling completion (2026-10-21)**
+
+- Added 17 authenticated clinic route/method combinations for staff doctor/schedule/patient/appointment operations using existing Route[], authentication, validated organization membership, response helpers, Winston, Drizzle and transaction hooks. Owner/admin manage doctors/schedules; members can read/book/cancel/reschedule. Inputs/paths/queries/UUID headers are validated, mutations are strict, list ranges/pagination bounded, staff DTOs exclude request identities, and source is server-owned manual.
+- Additive migration `0004_clinic_staff_rescheduling` adds appointment version, scoped mutation receipts/history and persistent doctor/date token counters. Backfill includes cancelled tokens and preserves existing records. Same-doctor moves preserve appointment/patient/source/call identity, retain same-date tokens, allocate a new destination-date token, update capacity/version/history atomically and reset reminders. Booking and staff mutations share request-key exclusion, fail on stale/conflicting retries and never automatically rerun business actions. Date blocking now refuses booked appointments instead of bulk cancellation; deactivation refuses future booked appointments. Generation rejects overlaps/conflicting definitions and slot edits cannot erase occupied capacity or reopen terminal slots.
+- Voice bookings use the same allocator. Trusted version/date/time cancellation guards reject a confirmed older readback after a staff move; a real-SDK/database test proves the moved booking remains intact. Internal upcoming output adds optional version for compatibility; no new voice tool/input, frontend flow or generic engine/provider change. Versioned notification jobs retain honest scheduling outcomes; real delivery remains unconfigured. Staff logs include actor IDs without patient values.
+- Added **63 .bru files** under `backend/bruno-collection/Clinic/` (18 resource examples, 10 failures, 35 ordered acceptance steps), plus a fixture-owning runner. Actual Bruno CLI **4.2.1** passed **35/35 requests, 73/73 assertions**. Root collection host no longer overrides the selected environment. Bruno CLI was used from temporary npm cache; no application dependency/test framework was installed.
+- **Verification:** offline core/clinic/engine/tools/context/confirmation/Raya/listening/voice-loop/barge-in **255/255**; clinic DB **24/24**, staff DB **20/20**, dialogue DB **18/18**, voice DB **15/15**; populated migration/backfill **1/1**; real authenticated HTTP acceptance **7/7**; auth **6/6**, LiveKit token **8/8**, frontend diagnostics **6/6**. Backend build/typecheck, strict engine/clinic test typechecks and frontend typecheck pass. Tests used guarded local databases and Redis database 15 in disposable containers because the ordinary 5433 forward timed out. No main database migration, runtime restart, paid provider call, real message, dashboard wiring or Git command.
+- Updated backend/voice/data contracts, phase documentation and the Bruno runbook. **Phase 16 DONE** on local API/database acceptance; application rollout still requires writer pause, backup, migration 0004 and updated API/worker startup as documented. **Phase 17 remains IN PROGRESS** for real microphone/provider acceptance; **Phase 18 NOT STARTED**. Human transfer, voice rescheduling, notification delivery and production telephony remain separate scope.
 
 **Project status and voice-evidence review (2026-10-21; documentation only)**
 
@@ -621,7 +632,7 @@ The multilingual-number follow-up fixes whole-expression age validation for `ট
 
 ## Known Blockers
 
-The Phase 15 tool system and Phase 16 local clinic service-adoption milestone are verified. Remaining Phase 16 API and rescheduling work is not completed. Live clinic voice acceptance remains incomplete.
+The Phase 15 tool system and complete Phase 16 staff API/rescheduling backend are locally verified. Application rollout requires migration 0004 with API/worker writes paused. Live Phase 17 clinic voice acceptance remains incomplete; it is independent of backend acceptance.
 
 ### Live clinic voice issues reported on 2026-10-13
 

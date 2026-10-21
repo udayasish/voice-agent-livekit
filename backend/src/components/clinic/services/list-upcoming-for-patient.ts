@@ -9,7 +9,7 @@ export async function listUpcomingAppointmentsForPatient(runtime: ClinicRuntime,
   await runtime.requirePatient(patientId);
   const now = runtime.now();
   const rows = await runtime.deps.db.select({ appointmentId: clinicAppointments.id, doctorId: clinicDoctors.id, doctorName: clinicPeople.name,
-    tokenNumber: clinicAppointments.tokenNumber, appointmentDate: clinicAppointments.appointmentDate, appointmentTime: clinicAppointments.appointmentTime })
+    version: clinicAppointments.version, tokenNumber: clinicAppointments.tokenNumber, appointmentDate: clinicAppointments.appointmentDate, appointmentTime: clinicAppointments.appointmentTime })
     .from(clinicAppointments)
     .innerJoin(clinicDoctors, and(eq(clinicAppointments.doctorId, clinicDoctors.id), eq(clinicDoctors.organizationId, runtime.identity.organizationId)))
     .innerJoin(clinicPeople, and(eq(clinicDoctors.personId, clinicPeople.id), eq(clinicPeople.organizationId, runtime.identity.organizationId)))

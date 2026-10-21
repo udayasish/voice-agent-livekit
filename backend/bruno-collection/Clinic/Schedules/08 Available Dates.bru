@@ -1,0 +1,32 @@
+meta {
+  name: Available Dates
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{host}}/api/v1/doctors/{{doctorId}}/available-dates?maxDates=7
+  body: none
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) {  }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+}
+
+docs {
+  Synthetic local clinic data only. See Clinic/README.md for prerequisites and ordered acceptance.
+}

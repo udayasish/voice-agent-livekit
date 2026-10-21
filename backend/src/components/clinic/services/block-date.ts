@@ -11,6 +11,10 @@ export async function blockDoctorDate(runtime: ClinicRuntime, input: BlockDateIn
     await runtime.requireClinic(tx, true);
     await runtime.requireDoctor(input.doctorId, tx, false);
     await runtime.lockDoctorDate(tx, input.doctorId, input.date);
+    const [booked] = await tx.select({ id: clinicAppointments.id }).from(clinicAppointments).where(and(
+      eq(clinicAppointments.organizationId, runtime.identity.organizationId), eq(clinicAppointments.doctorId, input.doctorId),
+      eq(clinicAppointments.appointmentDate, input.date), eq(clinicAppointments.status, "booked"))).limit(1);
+    if (booked) clinicError("DATE_HAS_BOOKINGS");
     const [blocked] = await tx.insert(clinicBlockedDates).values({ organizationId: runtime.identity.organizationId,
       doctorId: input.doctorId, blockedDate: input.date, reason: input.reason, notes: input.notes ?? null })
       .onConflictDoNothing({ target: [clinicBlockedDates.doctorId, clinicBlockedDates.blockedDate] }).returning();
@@ -18,10 +22,7 @@ export async function blockDoctorDate(runtime: ClinicRuntime, input: BlockDateIn
     const slotScope = and(eq(clinicSlots.organizationId, runtime.identity.organizationId), eq(clinicSlots.doctorId, input.doctorId), eq(clinicSlots.slotDate, input.date), ne(clinicSlots.status, "cancelled"));
     await tx.select({ id: clinicSlots.id }).from(clinicSlots).where(slotScope).orderBy(clinicSlots.id).for("update");
     const affectedSlots = await tx.update(clinicSlots).set({ status: "blocked", updatedAt: runtime.now() }).where(slotScope).returning({ id: clinicSlots.id });
-    const cancelled = await tx.update(clinicAppointments).set({ status: "cancelled", cancelReason: "Doctor unavailable on this date", updatedAt: runtime.now() })
-      .where(and(eq(clinicAppointments.organizationId, runtime.identity.organizationId), eq(clinicAppointments.doctorId, input.doctorId), eq(clinicAppointments.appointmentDate, input.date), eq(clinicAppointments.status, "booked")))
-      .returning({ id: clinicAppointments.id });
-    return { blockedDateId: blocked.id, affectedSlots: affectedSlots.length, cancelledAppointments: cancelled.length };
+    return { blockedDateId: blocked.id, affectedSlots: affectedSlots.length, cancelledAppointments: 0 };
   });
 }
 

@@ -4,10 +4,11 @@ import { createHash } from "node:crypto";
 import { clinicError } from "../contracts/errors.js";
 import type { BookingInput } from "../contracts/inputs.js";
 import type { AppointmentSummary, NotificationOutcomes } from "../contracts/results.js";
-import { clinicAppointments, clinicBlockedDates, clinicSlots } from "../models/index.js";
+import { clinicAppointments, clinicBlockedDates, clinicSlots, clinicMutationReceipts } from "../models/index.js";
 import { scheduleReminder } from "../notifications/schedule-reminder.js";
 import { scheduleBookingAlert } from "../notifications/schedule-booking-alert.js";
 import type { ClinicRuntime } from "./runtime.js";
+import { allocateToken } from "./token-counter.js";
 
 export async function createAppointmentFromBooking(runtime: ClinicRuntime, input: BookingInput): Promise<AppointmentSummary> {
   return runtime.deps.transaction(async (tx) => {
@@ -18,12 +19,15 @@ export async function createAppointmentFromBooking(runtime: ClinicRuntime, input
     if (requestKey) {
       // Request lock precedes the existing doctor/day lock, including conflicting retries for other slots.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`${runtime.identity.organizationId}:${requestKey}`}))`);
+      const [mutation] = await tx.select({ id: clinicMutationReceipts.id }).from(clinicMutationReceipts).where(and(
+        eq(clinicMutationReceipts.organizationId, runtime.identity.organizationId), eq(clinicMutationReceipts.requestKey, requestKey)));
+      if (mutation) clinicError("BOOKING_REQUEST_CONFLICT");
       const [existing] = await tx.select().from(clinicAppointments).where(and(
         eq(clinicAppointments.organizationId, runtime.identity.organizationId), eq(clinicAppointments.requestKey, requestKey)));
       if (existing) {
         if (existing.requestFingerprint !== fingerprint) clinicError("BOOKING_REQUEST_CONFLICT");
         await runtime.requirePatient(existing.patientId, tx);
-        if (existing.status !== "booked") clinicError("BOOKING_REQUEST_CONFLICT");
+        if (existing.status !== "booked" || existing.slotId !== input.slotId || existing.version !== 1) clinicError("BOOKING_REQUEST_CONFLICT");
         return { appointmentId: existing.id, doctorId: existing.doctorId, patientId: existing.patientId, slotId: existing.slotId,
           tokenNumber: existing.tokenNumber, appointmentDate: existing.appointmentDate, appointmentTime: existing.appointmentTime,
           timezone: clinic.timezone, status: "booked" as const, notifications: { reminder: "not_repeated" as const, doctorAlert: "not_repeated" as const } };
@@ -49,9 +53,7 @@ export async function createAppointmentFromBooking(runtime: ClinicRuntime, input
     const currentBooked = Number(count?.activeCount ?? 0);
     if (currentBooked >= slot.maxPatients) clinicError("SLOT_UNAVAILABLE");
 
-    const [maximum] = await tx.select({ maxToken: sql<number>`coalesce(max(${clinicAppointments.tokenNumber}), 0)` }).from(clinicAppointments)
-      .where(and(eq(clinicAppointments.organizationId, runtime.identity.organizationId), eq(clinicAppointments.doctorId, input.doctorId), eq(clinicAppointments.appointmentDate, slot.slotDate)));
-    const tokenNumber = Number(maximum?.maxToken ?? 0) + 1;
+    const tokenNumber = await allocateToken(tx, runtime.identity.organizationId, input.doctorId, slot.slotDate);
     if (currentBooked + 1 >= slot.maxPatients) await tx.update(clinicSlots).set({ status: "booked", updatedAt: runtime.now() }).where(scope);
     const [appointment] = await tx.insert(clinicAppointments).values({
       organizationId: runtime.identity.organizationId, doctorId: input.doctorId, patientId: input.patientId, slotId: slot.id,

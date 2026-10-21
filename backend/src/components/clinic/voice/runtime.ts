@@ -415,10 +415,12 @@ export class ClinicVoiceRuntime {
     }
     if (selected) this.slots.doctor = doctorName(selected, this.language); else delete this.slots.doctor;
   }
-  private services(requestKey?: string, draft?: Extract<Draft, { kind: "booking" }>) {
+  private services(requestKey?: string, draft?: Extract<Draft, { kind: "booking" }>, cancellation?: Upcoming) {
     return createClinicServices({ organizationId: this.context.organizationId, source: "voice", callId: this.callId,
       ...(this.patientId ? { patientId: this.patientId } : {}), ...(requestKey ? { requestKey } : {}),
-      ...(draft ? { slotExpectation: { date: draft.slot.slotDate, startTime: draft.slot.startTime.slice(0, 5), timezone: draft.timezone } } : {}) }, this.deps);
+      ...(draft ? { slotExpectation: { date: draft.slot.slotDate, startTime: draft.slot.startTime.slice(0, 5), timezone: draft.timezone } } : {}),
+      ...(cancellation ? { slotExpectation: { date: cancellation.appointmentDate, startTime: cancellation.appointmentTime.slice(0, 5), timezone: cancellation.timezone },
+        ...(cancellation.version !== undefined ? { appointmentExpectation: { version: cancellation.version } } : {}) } : {}) }, this.deps);
   }
   private async bindConfirmedPatient(ctx: ToolContext): Promise<ToolResult<{ id: string }>> {
     if (!this.phoneConfirmed) return failure("CALLER_REQUIRED", "Confirm the caller phone first.");
@@ -671,7 +673,7 @@ export class ClinicVoiceRuntime {
             draft.result = result.data; draft.completed = true;
             this.completedActions.push({ id: draft.id, turnId: ctx.turnId, kind: draft.kind, result: result.data });
             const appointment = { appointmentId: result.data.appointmentId, doctorId: result.data.doctorId, doctorName: draft.doctorName,
-              tokenNumber: result.data.tokenNumber, appointmentDate: result.data.appointmentDate, appointmentTime: result.data.appointmentTime, timezone: result.data.timezone };
+              version: 1, tokenNumber: result.data.tokenNumber, appointmentDate: result.data.appointmentDate, appointmentTime: result.data.appointmentTime, timezone: result.data.timezone };
             if (this.patientId === draft.input.patientId) this.grants.set(appointment.appointmentId, appointment);
             if (!ctx.signal.aborted && ctx.turnId === this.turn) this.booked(result.data);
             return ok({ outcome: "booked" as const, appointment: result.data });
@@ -714,7 +716,7 @@ export class ClinicVoiceRuntime {
           if (!draft || draft.kind !== "cancellation" || draft.id !== input.draftId) return failure("DRAFT_NOT_FOUND", "Prepare cancellation again.");
           if (draft.result) { this.cancelled(); return ok({ outcome: "cancelled" as const, cancellation: draft.result }); }
           if (draft.authorizedTurn !== ctx.turnId) { this.readback(draft); return failure("CONFIRMATION_REQUIRED", "Wait for the caller to confirm cancellation on a later turn."); }
-          const result = await this.services().cancelAppointment({ appointmentId: draft.appointment.appointmentId, reason: draft.reason });
+          const result = await this.services(undefined, undefined, draft.appointment).cancelAppointment({ appointmentId: draft.appointment.appointmentId, reason: draft.reason });
           if (!result.success) return result;
           draft.result = result.data; draft.completed = true;
             this.completedActions.push({ id: draft.id, turnId: ctx.turnId, kind: draft.kind, result: result.data }); this.grants.delete(result.data.appointmentId);

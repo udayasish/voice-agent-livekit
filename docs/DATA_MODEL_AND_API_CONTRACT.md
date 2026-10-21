@@ -1,5 +1,9 @@
 # Assamese AI Voice Agent Platform — Data Model & API Contract
 
+## Phase 16 staff HTTP completion
+
+The approved staff endpoints, role matrix, request/version/idempotency rules, token counters, migration and acceptance requirements are specified in [PHASE_16_BACKEND_ACCEPTANCE.md](PHASE_16_BACKEND_ACCEPTANCE.md). This supersedes historical statements below that no clinic HTTP API or rescheduling exists. Voice tool contracts remain compatible; date blocking now refuses booked appointments.
+
 ## Phase 17 server-retained phone resolution (2026-10-17)
 
 The internal `resolve_clinic_and_caller` tool input is now a strict empty object `{}`, superseding its optional model-visible `phoneNumber`. Numbers are captured deterministically from caller speech, retained in session state and confirmed after completed readback; the resolver uses that state exclusively. Extra/null phone arguments remain rejected, not coerced. A server-planned enabled call performs caller binding after a valid confirmation. The output remains clinic details plus `callerResolved` and `phoneNeedsConfirmation`; no model-selectable patient identity is returned. Existing HTTP/service inputs are unchanged.
