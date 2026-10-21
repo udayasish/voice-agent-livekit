@@ -13,6 +13,7 @@ import { doctorName } from "../doctor-names.js";
 import { clinicLocalDate } from "../timezone.js";
 import { calendarDate, spokenDate, spokenTime, hasUnverifiedNumericDate } from "./calendar.js";
 import { conciseClinicSpeech } from "./speech-style.js";
+import { asciiNumberText } from "./spoken-numbers.js";
 import type { TurnOptions } from "../../agent/engine/index.js";
 import { applyIntakeDecision, emptyIntake, intakeStateSchema, nextIntakeField, retainIntakeEvidence, validateIntakeDecision, type IntakeInterpreter, type IntakeInput } from "./intake.js";
 import { clinicReadModelSchema, projectClinicRead, readOffset } from "./model-results.js";
@@ -106,7 +107,8 @@ export class ClinicVoiceRuntime {
         // A missing phone does not prevent the caller correcting another field.
         if (this.collectingPhone && !this.phone && explicitIntake) this.collectingPhone = false;
         const confirmationTurn = this.collectingPhone || Boolean(this.phone && !this.phoneConfirmed) || Boolean(this.draft && !this.draft.completed);
-        let planned = this.enabledTools ? this.planTurn(text, this.enabledTools) : undefined;
+        let planned = this.enabledTools ? this.planTurn(text, this.enabledTools,
+          explicitIntake || ["name", "age"].includes(this.intake.lastQuestion?.field ?? "")) : undefined;
         const phoneWasConfirmed = this.phoneConfirmed;
         await this.accept(text, turnId, preparation);
         preparation.signal.throwIfAborted();
@@ -226,12 +228,17 @@ export class ClinicVoiceRuntime {
         selectedSlot: this.dialogue.state.offeredSlots.find(s => s.id === this.dialogue.state.selectedSlotId) ? {
           id: this.dialogue.state.selectedSlotId, time: this.dialogue.state.offeredSlots.find(s => s.id === this.dialogue.state.selectedSlotId)!.startTime.slice(0, 5) } : null,
         offeredDates: this.dialogue.state.offeredDates, lastReadFailure: this.lastReadFailure,
-        phoneCaptured: Boolean(this.phone), phoneConfirmed: this.phoneConfirmed, callerResolved: Boolean(this.patientId), nextField: this.conversationGoal(),
+        phoneCaptured: Boolean(this.phone), phoneConfirmed: this.phoneConfirmed, callerResolved: Boolean(this.patientId),
+        ...(this.completedSummary() && (!this.draft || this.draft.completed) ? {
+          conversationPhase: "completed",
+          completionGuidance: "Action finished. Answer naturally from latestCompletedAction; no intake or reconfirmation. Caller may end the call; never auto-disconnect.",
+        } : {}),
+        nextField: this.completedSummary() && (!this.draft || this.draft.completed) ? "none" : this.conversationGoal(),
         bookingState: this.callerActions().at(-1)?.kind === "booking" ? "booked_in_session" : this.callerActions().at(-1)?.kind === "cancellation"
           ? "cancelled_in_session" : this.draft?.completed ? "reconcile_required" : "not_booked_for_current_caller",
         latestCompletedAction: this.completedSummary(),
         timezone: this.dialogue.timezone,
-        localDate: clinicLocalDate(this.deps.now?.() ?? new Date(), this.dialogue.timezone), pendingAction: this.draft ? {
+        localDate: clinicLocalDate(this.deps.now?.() ?? new Date(), this.dialogue.timezone), pendingAction: this.draft && !this.draft.completed ? {
           id: this.draft.id, kind: this.draft.kind, completed: Boolean(this.draft.completed),
           readbackCompleted: this.draft.heard, authorizedForCurrentTurn: this.draft.authorizedTurn === this.turn,
           readback: this.actionReadback,
@@ -244,6 +251,10 @@ export class ClinicVoiceRuntime {
           return this.ordinarySpeech(text, input.language, this.replyGoal ?? this.conversationGoal());
         }
         const read = this.dialogue.state.latest;
+        if (read?.turnId !== this.turn) {
+          const completed = this.completedSpeech(input.text, input.language, input.isFallback ? "recovery" : "model");
+          if (completed) return completed;
+        }
         if (this.lastReadFailure && (input.isFallback || /নতুন.*(?:পুৰণি|বাতিল)|new.*(?:or.*cancel|old appointment)|which.*doctor|কোনজন.*(?:চিকিৎসক|ডাক্তৰ|ডক্টৰ)/iu.test(input.text))) {
           return { text: this.readFailureReply(input.language), source: "verified_tool" };
         }
@@ -295,6 +306,8 @@ export class ClinicVoiceRuntime {
     };
   }
   private ordinarySpeech(text: string, language: AgentLanguage, goal: string, source: "model" | "recovery" = "model"): { text: string; source: "model" | "recovery" | "verified_tool" } {
+    const completed = this.completedSpeech(text, language, source);
+    if (completed) return completed;
     const asksKnownPhone = this.phoneConfirmed && text.split(/(?<=[.!?।])\s*/u).some(sentence =>
       /ফোন|মোবাইল|নম্বৰ|phone|mobile|number|फ़ोन|फोन|मोबाइल|नंबर/iu.test(sentence)
       && /[?？]|কওক|ক'ব|ক’ব|কবনে|ক'বনে|দিব|শুদ্ধনে|কিমান|\b(?:give|tell|provide|say|dictate)\b|बताएं|बताइए|दीजिए/iu.test(sentence));
@@ -321,6 +334,8 @@ export class ClinicVoiceRuntime {
     return nextIntakeField(this.intake, this.phoneConfirmed);
   }
   private intakeClarification(language: AgentLanguage, field: string): string {
+    const completed = this.completedReply(language);
+    if (completed && (!this.draft || this.draft.completed)) return completed;
     if (field === "name" && this.intake.nonProgress >= 2) return ({ as: "নামটো ধীৰে কওক; প্ৰয়োজন হ'লে বানান কৰি কওক।", hi: "नाम धीरे बोलें; ज़रूरत हो तो उसकी स्पेलिंग बताएं।", en: "Please say the name slowly, or spell it out." })[language];
     if (field === "name") return ({ as: "অনুগ্ৰহ কৰি কেৱল ৰোগীৰ সম্পূৰ্ণ নামটো কওক।", hi: "कृपया सिर्फ मरीज का पूरा नाम बताएं।", en: "Please say just the patient's full name." })[language];
     if (field === "age") return ({ as: "অনুগ্ৰহ কৰি শুদ্ধ বয়সটো এটা এটাকৈ অংকত কওক।", hi: "कृपया सही उम्र के अंक एक-एक करके बताएं।", en: "Please say the correct age using individual digits." })[language];
@@ -347,7 +362,7 @@ export class ClinicVoiceRuntime {
         authorizedTurn: this.draft.authorizedTurn ?? null } : null, completedActions: this.completedActions,
       authorizedAppointments: [...this.grants.keys()] });
   }
-  planTurn(text: string, enabled: readonly string[]): TurnOptions["initialToolCall"] {
+  planTurn(text: string, enabled: readonly string[], patientAnswer = false): TurnOptions["initialToolCall"] {
     // Specialized phone listening must not reinterpret digit fragments as calendar/doctor requests.
     if (this.collectingPhone || (this.phone && !this.phoneConfirmed) || (this.draft && !this.draft.completed)) return undefined;
     const slot = this.dialogue.state.offeredSlots.find(s => s.id === this.dialogue.state.selectedSlotId);
@@ -359,7 +374,7 @@ export class ClinicVoiceRuntime {
       return { name: "book_appointment", arguments: { mode: "prepare", doctorId: this.dialogue.state.selectedDoctor.id, slotId: slot.id,
         patientName: this.intake.name!.value, patientAge: this.intake.age!.value } };
     }
-    const plan = this.dialogue.plan(text, clinicLocalDate(this.deps.now?.() ?? new Date(), this.dialogue.timezone));
+    const plan = this.dialogue.plan(text, clinicLocalDate(this.deps.now?.() ?? new Date(), this.dialogue.timezone), patientAnswer);
     this.plannedProblem = plan.guidance;
     if (plan.call && !enabled.includes(plan.call.name)) { this.plannedProblem = "disabled"; return undefined; }
     return plan.call;
@@ -371,9 +386,38 @@ export class ClinicVoiceRuntime {
   private callerActions() { return this.completedActions.filter(action => action.turnId >= this.boundary); }
   private completedSummary() {
     const action = this.callerActions().at(-1); if (!action) return null;
-    if (action.kind === "booking" && "tokenNumber" in action.result) return { outcome: "booked", appointmentId: action.result.appointmentId,
+    if (action.kind === "booking" && "tokenNumber" in action.result) return { outcome: "booked" as const, appointmentId: action.result.appointmentId,
       doctorId: action.result.doctorId, date: action.result.appointmentDate, time: action.result.appointmentTime, token: action.result.tokenNumber };
-    return { outcome: "cancelled", appointmentId: action.result.appointmentId };
+    return { outcome: "cancelled" as const, appointmentId: action.result.appointmentId };
+  }
+  private completedReply(language: AgentLanguage): string | undefined {
+    const completed = this.completedSummary();
+    if (!completed) return undefined;
+    return completed.outcome === "booked" ? ({
+      as: `আপোনাৰ এপইণ্টমেণ্ট বুক হ'ল। টোকেন নম্বৰ ${completed.token}। আৰু প্ৰশ্ন নাথাকিলে ফোনটো ৰাখিব পাৰে।`,
+      hi: `आपकी अपॉइंटमेंट बुक है। टोकन ${completed.token}। कोई और सवाल न हो तो कॉल समाप्त कर सकते हैं।`,
+      en: `Your appointment is booked. Token ${completed.token}. You can end the call if you have no more questions.`,
+    })[language] : ({ as: "আপোনাৰ এপইণ্টমেণ্ট বাতিল কৰা হ'ল। আৰু প্ৰশ্ন নাথাকিলে ফোনটো ৰাখিব পাৰে।",
+      hi: "आपकी अपॉइंटमेंट रद्द हो गई है। कोई और सवाल न हो तो कॉल समाप्त कर सकते हैं।",
+      en: "Your appointment has been cancelled. You can end the call if you have no more questions." })[language];
+  }
+  /** Keep natural model wording after commit; only contradictory/invalid replies use the receipt. */
+  private completedSpeech(text: string, language: AgentLanguage, source: "model" | "recovery"): { text: string; source: "model" | "verified_tool" } | undefined {
+    const completed = this.completedSummary();
+    if (!completed || (this.draft && !this.draft.completed)) return undefined;
+    const fallback = this.completedReply(language)!;
+    const normalized = asciiNumberText(text);
+    const reconfirm = /(?:shall|should|would|can)\s+(?:i|we).{0,40}(?:book|confirm)|(?:please|you).{0,30}confirm|নিশ্চিত\s*কৰিবনে|বুক\s*(?:কৰিমনে|কৰিবনে|কৰক)|क्या.{0,25}(?:बुक|पुष्टि)/iu.test(text);
+    const deniedBooking = /\b(?:not|nothing|never).{0,35}(?:booked|confirmed)\b|এতিয়াও.{0,20}বুক.{0,15}নাই|বুক\s*হোৱা\s*নাই|बुक.{0,20}नहीं/iu.test(text);
+    const wrongOutcome = completed.outcome === "booked"
+      ? deniedBooking || /\b(?:cancelled|canceled)\b|বাতিল\s*কৰা|रद्द\s*(?:हो|कर)/iu.test(text)
+      : /\b(?:booked|confirmed)\b|বুক\s*হ|নিশ্চিত|बुक\s*(?:हो|हुआ)/iu.test(text);
+    const tokens = [...normalized.matchAll(/(?:token(?:\s+(?:number|no\.?))?|টোকেন(?:\s*নম্বৰ)?|टोकन(?:\s*नंबर)?)\s*[:#]?\s*(\d+)/giu)];
+    const wrongToken = tokens.some(match => completed.outcome !== "booked" || Number(match[1]) !== completed.token);
+    const wrongDate = completed.outcome === "booked" && hasUnverifiedNumericDate(text, [completed.date]);
+    if (source === "recovery" || reconfirm || wrongOutcome || wrongToken || wrongDate) return { text: fallback, source: "verified_tool" };
+    const concise = conciseClinicSpeech(text, () => fallback);
+    return { text: concise.text, source: concise.fallback ? "verified_tool" : "model" };
   }
   private turnTools(): string[] {
     if (this.phoneConfirmed && this.dialogue.state.offeredSlots.length) {

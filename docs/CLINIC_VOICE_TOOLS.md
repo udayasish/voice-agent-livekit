@@ -1,5 +1,29 @@
 # Phase 17 — Talk to the clinic services 🎙️
 
+## Current checkpoint — booking works; Phase 18 discussion next
+
+On 22 October, the supplied real Assamese call completed booking and announced a token; a scoped database read verified the appointment is booked. Phase 18 is the user's next discussion, with implementation not started. Phase 17 remains IN PROGRESS for broader acceptance: live lookup/cancellation, the latest goodbye retest, intermittent recognition failures, the available-date question routed to doctor listing, a repeated name prompt, genuine speech-quality evaluation and audible latency measurements. Prompt/model/provider tuning remains tracked work. See PROGRESS.md for the current checklist; the earlier pending-live notes below describe their individual implementation milestones.
+
+## After a successful booking — 22 October
+
+The model receives the actual completed outcome/token, no pending action and no required intake field. It may naturally answer “এতিয়া মই ৰাখি দিও নেকি ফোনটো?” with “হয়, আপোনাৰ এপইণ্টমেণ্ট বুক হৈছে। আপুনি ফোনটো ৰাখিব পাৰে।” Correct model wording is kept. Contradictory status, renewed confirmation or wrong numeric receipt details use the verified result instead. A separate cancellation still needs its own readback and later confirmation; saying goodbye never changes or recreates a booking and does not disconnect the call automatically. Start a fresh call after reload to test the corrected conversation lifecycle.
+
+## Age-evidence follow-up — 22 October
+
+The 00:52 age failure was an intake evidence rejection after a completed model response, not a recognition or rate-limit error. The supplied sentence “মোৰ বয়স ২৮ বছৰ।” now passes an SDK regression even if the model quotes `28` and repeats the unchanged retained patient name. Only numeral-script differences are recovered back to the actual source; names and missing speech are not reconstructed. Safe validation logs now identify the evidence field, and VAD timing ranges support the separate recognition investigation. Start a fresh call after the worker reload. Missing/unclear recognition remains a separate live acceptance issue, not a claimed fix.
+
+## Doctor request loop fixed — 22 October
+
+Start a fresh call and say “মই ডঃ বৰুৱাক দেখাব বিচাৰিছোঁ।” The planner now looks up the doctor name alone, and reviewed-name matching accepts `বৰুৱাক`. A successful match selects that actual doctor and asks for a date. An unsuccessful lookup cannot announce a listed alternative as selected or proceed to patient intake. “মোৰ নাম উদয়চিছ বৰা।” remains patient intake even while the system still needs a doctor; it does not trigger another doctor search. Supplied spelling is retained. These scenarios pass SDK/database checks; real microphone acceptance remains separate. Unreviewed or corrupted names are not guessed.
+
+## Current local test setup — 22 October
+
+Open `http://localhost:3000/agents/default/testing`, log in with the existing staff account, select Brahmaputra Health Clinic and start a fresh call with headphones. Book using synthetic details, hear the token, check the appointment and separately confirm cancellation.
+
+The existing local database was verified to contain migration 0004. Both labelled synthetic doctors now have future availability through 4 November; no appointments were created by setup. The worker and frontend were started locally, and the API health/test page returned HTTP 200. Local recognition was restored from the earlier `multi` experiment to `as`; English digit collection and trusted-language confirmations remain. The existing Groq model and TTS adapters were retained. The Raya catalog successfully resolved an Assamese voice; this is connectivity evidence, not voice-quality approval or a synthesis benchmark.
+
+Provider error categories now survive the worker-to-frontend diagnostic message. Transcript/interruption updates are accepted only from agent participants. The former “Total” metric is labelled “Generation” because it excludes the listening pause and playback. Real microphone/provider quality and audible response timings still need acceptance; Phase 17 remains IN PROGRESS. The experiment notes below are historical.
+
 ## Retest the 20:17 phone-confirmation regression
 
 The supplied logs show **confirm** for “Right number” at turn 6, followed by a rejected resolver call (`INVALID_TOOL_INPUT`) and a reply stopped by the 384-token completion limit. No-transcript recoveries occurred after returning to `multi`; a missing transcript never reaches the LLM. The precise rejected arguments were not logged, so a particular malformed argument cannot be established from these logs. They also contain short event-loop stalls, which are a separate latency observation rather than a proven explanation for all missing speech.

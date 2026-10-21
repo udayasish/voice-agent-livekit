@@ -265,7 +265,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                   <div className="border-t border-muted/50 pt-1.5 mt-1.5">
                     <div className="flex items-center justify-between text-[10px] text-primary font-semibold">
                       <span className="flex items-center gap-1.5">
-                        <span>🤖 Agent (LLM + Raya TTS):</span>
+                        <span>🤖 Agent:</span>
                         {turn.isInterrupted && (
                           <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 text-rose-500 border-rose-500/40">
                             ⚡ Interrupted
@@ -279,7 +279,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                       </span>
                       <div className="flex items-center gap-1.5 font-mono text-muted-foreground text-[10px]">
                         {turn.ttftMs !== undefined && <span>TTFT: {turn.ttftMs}ms</span>}
-                        {turn.totalLatencyMs !== undefined && <span>Total: {turn.totalLatencyMs}ms</span>}
+                        {turn.totalLatencyMs !== undefined && <span title="Response generation time; excludes the listening pause and audio playback.">Generation: {turn.totalLatencyMs}ms</span>}
                       </div>
                     </div>
                     {(turn.failureCategory || turn.recoveryCategory || turn.confirmationStage === "phone" || turn.confirmationStage === "action") && <p className="text-[10px] text-amber-600">{turn.failureCategory ? voiceStatusLabel(turn.failureCategory) : turn.recoveryCategory ? voiceStatusLabel(turn.recoveryCategory) : "Waiting for confirmation"} · {turn.inputMode === "english-digits" ? "English digits" : "Conversation language"}</p>}

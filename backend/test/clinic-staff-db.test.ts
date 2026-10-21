@@ -42,6 +42,20 @@ test("staff reschedules atomically on the same date, preserves identity/token an
   const slots = data(await h.service().listSlots(h.f.doctor.id, { from: "2026-10-15", to: "2026-10-16" }));
   assert.equal(slots.items.find(s => s.id === h.a.id)?.remainingCapacity, 1); assert.equal(slots.items.find(s => s.id === h.b.id)?.remainingCapacity, 0);
 });
+test("paginated staff slots count only booked appointments and retain empty slots", async () => {
+  const h = await setup();
+  data(await h.service().book(randomUUID(), { ...h.booking, slotId: h.b.id }));
+  data(await h.service().mutate(h.booked.appointmentId, randomUUID(), { action: "cancel", expectedVersion: 1, reason: "Synthetic cancellation" }));
+  const query = { from: "2026-10-15", to: "2026-10-16", pageSize: 1 };
+  const first = data(await h.service().listSlots(h.f.doctor.id, { ...query, page: 1 }));
+  const second = data(await h.service().listSlots(h.f.doctor.id, { ...query, page: 2 }));
+  const third = data(await h.service().listSlots(h.f.doctor.id, { ...query, page: 3 }));
+  assert.equal(first.pagination.total, 3);
+  assert.deepEqual(first.items.map(s => [s.id, s.bookedCount, s.remainingCapacity]), [[h.a.id, 0, 1]]);
+  assert.deepEqual(second.items.map(s => [s.id, s.bookedCount, s.remainingCapacity]), [[h.b.id, 1, 0]]);
+  assert.deepEqual(third.items.map(s => [s.id, s.bookedCount, s.remainingCapacity]), [[h.c.id, 0, 1]]);
+});
+
 test("date changes allocate tokens without reusing the highest departed token", async () => {
   const h = await setup();
   const moved = data(await h.service().mutate(h.booked.appointmentId, randomUUID(), { action: "reschedule", expectedVersion: 1, targetSlotId: h.c.id, reason: "Next day" }));

@@ -11,6 +11,25 @@ import { containsCompletionClaim } from "../src/components/clinic/voice/confirma
 
 const doctor: VoiceDoctor = { id: randomUUID(), name: "ডাঃ বৰুৱা", nameEn: "Dr. Baruah", nameAs: "ডাঃ বৰুৱা", searchAliases: ["Boruah"], isActive: true };
 
+test("reported Assamese doctor requests exclude the surrounding request words", () => {
+  const d = new ClinicDialogue("Asia/Kolkata");
+  for (const text of ["মই ডঃ বৰুৱাক দেখাব বিচাৰিছোঁ।", "মই ডঃ বৰুৱাক দেখাব বিচাৰো।", "মই ডাঃ বৰুৱাক দেখুৱাব বিচাৰোঁ।"]) {
+    assert.deepEqual(d.plan(text, "2026-10-22").call, { name: "find_doctor", arguments: { name: "বৰুৱাক" } });
+  }
+});
+
+test("failed doctor lookup cannot announce an alternative as selected or ask for patient details", () => {
+  const d = new ClinicDialogue("Asia/Kolkata");
+  d.doctors(1, [], [doctor]);
+  assert.equal(d.useful("ডাঃ বৰুৱা উপলব্ধ আছে। দয়া কৰি আপোনাৰ নাম ক'ব।"), false);
+  assert.equal(d.useful("ডাঃ বৰুৱা উপলব্ধ। আপুনি তেওঁৰ সৈতে কিমান বয়সৰ (বছৰ) বয়সী?"), false);
+  assert.match(d.render("as"), /কোনজন চিকিৎসক/u);
+  assert.equal(d.plan("মোৰ নাম উদয়চিছ বৰা।", "2026-10-22", true).call, undefined);
+  assert.equal(d.plan("উদয়চিছ বৰা", "2026-10-22", true).call, undefined);
+  d.doctors(2, [doctor]);
+  assert.equal(d.useful("ডাঃ বৰুৱা উপলব্ধ আছে। দয়া কৰি আপোনাৰ নাম ক'ব।"), false);
+});
+
 test("honest negative booking statements are not replaced as successful action claims", () => {
   assert.equal(containsCompletionClaim("Your appointment has not been booked yet."), false);
   assert.equal(containsCompletionClaim("এপইণ্টমেণ্ট বুক হোৱা নাই।"), false);

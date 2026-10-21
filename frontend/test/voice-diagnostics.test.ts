@@ -42,3 +42,15 @@ test("listening readiness is a distinct safe status, not inferred from room conn
   assert.equal(voiceStatusSchema.safeParse({ category: "listening_ready" }).success, true);
   assert.match(voiceStatusLabel("listening_ready"), /can speak/u);
 });
+
+test("a worker transcript packet retains provider diagnostics without copying its private payload", () => {
+  const diagnostics = turnVoiceSchema.parse({ type: "transcript_turn", turnId: 7,
+    userText: "synthetic patient details", responseText: "Please try again later",
+    failureCategory: "rate_limit", providerTtftMs: 125, confirmationStage: "phone", inputMode: "conversation" });
+  assert.equal(diagnostics.failureCategory, "rate_limit");
+  assert.equal(diagnostics.providerTtftMs, 125);
+  assert.equal(diagnostics.confirmationStage, "phone");
+  assert.equal("userText" in diagnostics, false);
+  assert.equal("responseText" in diagnostics, false);
+  assert.equal(turnVoiceSchema.safeParse({ failureCategory: "raw provider body" }).success, false);
+});

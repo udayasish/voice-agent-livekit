@@ -16,5 +16,6 @@ export async function findDoctorsByName(runtime: ClinicRuntime, namePart: string
   // Normalize both sides identically, including legacy rows. Scoped catalog sizes
   // are small; no unreviewed transliteration, wildcard interpretation or fuzzy selection.
   return rows.filter(row => [row.name, row.nameEn, row.nameAs, ...row.searchAliases]
-    .some(value => value && (doctorSearchKey(value).includes(key) || `${doctorSearchKey(value)}ৰ` === key))).map(row => ({ ...row, name: row.name ?? "Doctor" }));
+    .some(value => value && (doctorSearchKey(value).includes(key) || `${doctorSearchKey(value)}ৰ` === key
+      || `${doctorSearchKey(value)}ক` === key))).map(row => ({ ...row, name: row.name ?? "Doctor" }));
 }

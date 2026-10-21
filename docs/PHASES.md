@@ -421,6 +421,12 @@ This Phase 16 milestone added no HTTP endpoints, voice tools, WhatsApp transport
 
 # Phase 17 — Voice Appointment Agent
 
+### Booking MVP checkpoint and next-phase discussion (22 October 2026)
+
+A real Assamese microphone/provider call completed booking and returned a token; a scoped application database read verified the appointment remains booked. The latest post-booking conversation fix has automated acceptance and is awaiting a live retest. Live lookup/cancellation, wider failure-flow acceptance, recognition issues, the reported date-question routing/repeated name prompt and genuine speech/latency evaluation remain open in PROGRESS.md.
+
+The user selected Phase 18 as the next discussion while retaining this backlog. This records an authorized development handoff; Phase 17 remains IN PROGRESS under its existing full definition of done. Prompt/model/speech tuning can continue later without representing current quality as fully accepted.
+
 ### Read
 - all architecture docs
 - DATA_MODEL_AND_API_CONTRACT.md
@@ -439,7 +445,7 @@ Use the locally adopted Phase 16 services and independent voice database. Build:
 
 Connect the existing browser worker through server-owned profiles and one-use Redis bindings. Patients need no login; require confirmed phone and separate action readbacks, and token/date knowledge for access to existing bookings. Preserve source locks/capacity/tokens/timezones and injected post-commit scheduling. Add durable request-key replay protection in the existing appointment table. Document automated checks separately from live microphone/provider acceptance.
 
-Rescheduling is excluded because no safe source service exists. Human transfer is outside this selected milestone. Phase 18 saved configuration is not started. Details and frontend instructions: `CLINIC_VOICE_TOOLS.md`.
+Voice rescheduling and human transfer remain outside this user-selected milestone. Phase 16 now has safe staff rescheduling; its existence does not expand the selected voice scope. Phase 18 saved configuration is not started. Details and frontend instructions: `CLINIC_VOICE_TOOLS.md`.
 
 The authorized follow-up adds reviewed bilingual doctor metadata/aliases, deterministic first read-tool routing through the same SDK/executor, immediate doctor selection, clinic-local calendar interpretation, verified fallback speech and clearer frontend diagnostics. It does not change the independent database boundary or complete Phase 16 API/rescheduling work. A subsequent authorized follow-up replaces live clinic keyword confirmation with contextual SDK interpretation, retained phone candidates, playback eligibility and bounded speech/no-input recovery. Automated acceptance and remaining live limitations are recorded in PROGRESS.md. Live microphone/hosted-provider acceptance remains outstanding; Phase 17 remains IN PROGRESS.
 
@@ -457,6 +463,10 @@ The selected milestone is accepted when its typed tool/service/database checks p
 ---
 
 # Phase 18 — Agent Configuration
+
+### Next discussion (22 October 2026)
+
+The user has chosen this phase next. Implementation remains NOT STARTED; its detailed scope and implementation plan will be discussed separately. Preserve the operational clinic booking flow and keep Phase 17's outstanding voice acceptance visible. The outline below is the existing phase direction, not a newly implemented capability.
 
 ### Read
 - PRODUCT_OVERVIEW.md

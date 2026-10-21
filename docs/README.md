@@ -4,9 +4,11 @@ Read `AGENTS.md` before making changes.
 
 ## Plain-Language Project Review
 
+- [Current progress and Phase 18 handoff](PROGRESS.md) — 22 October: live booking/token verified; remaining Phase 17 testing and fixes tracked; Phase 18 discussion next, implementation not started.
+
 - [Phase 16 backend completion and acceptance](PHASE_16_BACKEND_ACCEPTANCE.md) — staff API contracts, safe rescheduling, test results, Bruno usage and migration rollout.
 
-- [Project status, voice quality and next steps](PROJECT_STATUS_AND_NEXT_STEPS.md) — reviewed 21 October 2026; explains completed work, remaining phases, benchmark evidence gaps and priorities in simple language.
+- [Project status, voice quality and next steps](PROJECT_STATUS_AND_NEXT_STEPS.md) — 21 October review with a 22 October checkpoint; explains completed work, remaining phases, benchmark evidence gaps and priorities in simple language.
 
 ## Core Product
 - `PRODUCT_OVERVIEW.md`

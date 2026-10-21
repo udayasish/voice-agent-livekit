@@ -10,6 +10,11 @@ import { clinicToolNames } from "../src/components/clinic/voice/names.js";
 import { ScriptedProvider } from "./helpers/scripted-provider.js";
 
 test("token issuer → one-use Redis binding → real worker session factory → SDK clinic tool → Redis cleanup", async () => {
+  const redisUrl = new URL(process.env["CLINIC_TEST_REDIS_URL"] ?? "redis://127.0.0.1:6380/15");
+  if (!["localhost", "127.0.0.1"].includes(redisUrl.hostname) || redisUrl.pathname !== "/15") {
+    throw new Error("Live-session acceptance requires local Redis test database 15");
+  }
+  process.env["REDIS_URL"] = redisUrl.toString();
   const database = await openClinicTestDatabase();
   const folder = await mkdtemp(join(tmpdir(), "clinic-voice-profile-"));
   const profilePath = join(folder, "profiles.json");

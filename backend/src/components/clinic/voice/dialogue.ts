@@ -23,7 +23,7 @@ export class ClinicDialogue {
   request: CalendarRequest = {};
   constructor(public timezone: string) {}
   reset() { this.state = { candidates: [], selectedDoctor: null, selectedDate: null, question: "none", offeredSlots: [], selectedSlotId: null, pendingTimes: [], offeredDates: [], dateOffset: 0, latest: null }; this.request = {}; }
-  plan(text: string, localDate: string): { call?: NonNullable<TurnOptions["initialToolCall"]>; guidance?: "doctor" | "date" | "time" | "ampm" } {
+  plan(text: string, localDate: string, patientAnswer = false): { call?: NonNullable<TurnOptions["initialToolCall"]>; guidance?: "doctor" | "date" | "time" | "ampm" } {
     const t = text.normalize("NFKC").trim(); this.request = calendarRequest(t, localDate, this.state.question === "time" || this.state.question === "ampm");
     if (this.request.conflicting) return { guidance: "time" };
     if (!this.request.date && this.state.offeredDates.length && this.state.question === "date") {
@@ -41,7 +41,7 @@ export class ClinicDialogue {
     if (doctorList || specialty) return { call: { name: "list_doctors", arguments: specialty ? { specialty } : {} } };
     const named = /(?:\bdr\.|\bdoctor\s|\bdr\s|ডাঃ|ডঃ|ডা\.|ডাক্টৰ|ডাক্তৰ|ডক্টৰ|डॉक्टर)\s*([^?।!,]+)/iu.exec(t);
     if (named?.[1]) {
-      const name = named[1].split(/\s+(?:লগত|সৈতে|কৈ|বিচাৰ|লাগ|appointment|please|के|से)/iu)[0]!.trim();
+      const name = named[1].split(/\s+(?:লগত|সৈতে|কৈ|দেখাব|দেখুৱাব|দেখিব|দেখা|চাব|বিচাৰ|লাগ|appointment|please|के|से)/iu)[0]!.trim();
       if (name) return { call: { name: "find_doctor", arguments: { name } } };
     }
     const hasCalendar = Boolean(this.request.date || this.request.times || /dates?|times?|তাৰিখ|সময়|বজাত|কেতিয়া|तारीख|समय/iu.test(t)
@@ -56,7 +56,7 @@ export class ClinicDialogue {
         ...(/more|next|আৰু|অন্য/iu.test(t) && this.state.offeredDates.length ? { offset: this.state.dateOffset + this.state.offeredDates.length } : {}) } } };
     }
     const answer = t.replace(/[।.!?]+$/gu, "").trim();
-    if (this.state.question === "doctor" && /^[\p{L}\p{M} .'’-]+$/u.test(answer) && answer.split(/\s+/u).length <= 5 && !/^(?:হয়|হয়|নহয়|yes|no|hello|হেল্ল|নমস্কাৰ|ঠিক|শুদ্ধ)|what.*say|কি.*ক[ও']|क्या.*बोल/iu.test(answer)) {
+    if (!patientAnswer && this.state.question === "doctor" && /^[\p{L}\p{M} .'’-]+$/u.test(answer) && answer.split(/\s+/u).length <= 5 && !/^(?:হয়|হয়|নহয়|yes|no|hello|হেল্ল|নমস্কাৰ|ঠিক|শুদ্ধ)|what.*say|কি.*ক[ও']|क्या.*बोल/iu.test(answer)) {
       return { call: { name: "find_doctor", arguments: { name: answer } } };
     }
     return {};
@@ -138,10 +138,12 @@ export class ClinicDialogue {
   }
   useful(text: string): boolean {
     const r = this.state.latest; if (!r || /আকৌ.*কওক|আকৌ.*ক'ব|repeat|say.*again|दोबारा|स्पष्ट/iu.test(text)) return false;
+    // Alternatives in a failed lookup are suggestions, never a selected doctor.
+    if (r.outcome === "not_found" || r.outcome === "inactive") return false;
     const names = [...r.doctors, ...r.alternatives];
     if (names.length) {
       if (r.outcome === "matched" && /not found|no match|পোৱা নগ'ল|নাম.*বুজি|नहीं मिला|কোনজন.*চিকিৎসক.*বিচাৰে/iu.test(text)) return false;
-      if (r.outcome === "matched" && /[?？]/u.test(text) && !/date|day|তাৰিখ|কোনদিন|কোন.*দিন|কেতিয়া|तारीख|दिन/iu.test(text)) return false;
+      if (r.outcome === "matched" && !/date|day|তাৰিখ|কোনদিন|কোন.*দিন|কেতিয়া|तारीख|दिन/iu.test(text)) return false;
       const mentioned = (d: VoiceDoctor) => [d.name, d.nameEn, d.nameAs, ...d.searchAliases ?? []].some(name => name && doctorSearchKey(text).includes(doctorSearchKey(name).replace(/\s*\(voice test\)/u, "")));
       return names.slice(0, 5).some(mentioned) && (r.outcome !== "ambiguous" || /which|choose|কোন|বাছ|कौन|चुन/iu.test(text));
     }

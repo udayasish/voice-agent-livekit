@@ -313,14 +313,16 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
                     if (parsed.data.category === "recognition_failure") setIsAgentListening(false);
                   }
                 } else if (data.type === "transcript_turn") {
-                  if (_participant?.isAgent) setIsAgentListening(true);
+                  if (!_participant?.isAgent) return;
+                  const diagnostics = turnVoiceSchema.parse(data);
+                  setIsAgentListening(true);
                   setVoiceStatus(null);
                   setConversationTurns((prev) => [
                     ...prev,
                     {
                       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                       turnId: typeof data.turnId === "number" ? data.turnId : undefined,
-                      ...turnVoiceSchema.parse({ inputMode: data.inputMode, confirmationStage: data.confirmationStage, recoveryCategory: data.recoveryCategory }),
+                      ...diagnostics,
                       userText: typeof data.userText === "string" ? data.userText : "",
                       responseText: data.responseText,
                       ttftMs: typeof data.ttftMs === "number" ? data.ttftMs : undefined,
@@ -336,6 +338,7 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
                     },
                   ]);
                 } else if (data.type === "agent_interrupted") {
+                  if (!_participant?.isAgent) return;
                   const interruptedTurnId = typeof data.turnId === "number" ? data.turnId : undefined;
                   if (interruptedTurnId !== undefined) {
                     setConversationTurns((prev) =>

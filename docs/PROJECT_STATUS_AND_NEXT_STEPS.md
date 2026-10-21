@@ -1,5 +1,7 @@
 # Project Status, Voice Quality and Next Steps
 
+> **Current checkpoint — 22 October:** a real Assamese call booked an appointment and received its token; a scoped database read verified booked state. Phase 18 Agent Configuration is the user's next discussion and remains NOT STARTED. Phase 17 remains IN PROGRESS for full live lookup/cancellation, the latest goodbye retest, reported dialogue/recognition issues and genuine voice/latency evaluation. See [PROGRESS.md](PROGRESS.md) for the current checklist. The longer review below preserves the earlier assessment unless explicitly updated.
+
 > **Later update on 21 October:** Phase 16's staff backend, same-doctor rescheduling and Bruno acceptance have since been implemented and verified. See [Phase 16 backend completion](PHASE_16_BACKEND_ACCEPTANCE.md) for results and the required application migration. This report preserves the earlier review snapshot; its Phase 16 remaining-work statements describe the state before that implementation. Phase 17 voice acceptance remains pending.
 
 **Project:** Assamese AI Voice Agent Platform  
@@ -8,13 +10,13 @@
 
 ## 1. The answer in simple words
 
-We are currently working on **Phase 17 — Voice Appointment Agent**.
+The **Phase 17 booking MVP is operational**, and **Phase 18 — Agent Configuration is next for discussion**. Phase 17's full voice acceptance remains open; Phase 18 implementation has not started.
 
 The project has moved beyond a basic talking demo. It has an agent engine, browser audio, speech recognition, spoken replies, interruption handling, clinic data services and eight clinic tools. Automated tests cover many important rules.
 
 However, it is **not yet a finished clinic product or a production-ready phone service**. The main unfinished job is proving that a person can reliably book, hear the real token, check and cancel an appointment through a natural Assamese conversation using the actual microphone and hosted AI providers.
 
-There are also unfinished items from **Phase 16**, especially clinic HTTP APIs and rescheduling. Phase 18 and the later phases have not started according to the progress tracker.
+**Phase 16's staff APIs and safe rescheduling are complete and locally accepted.** Migration 0004 is verified in the local application database. Phase 18 and later implementation have not started. References elsewhere in this historical review to unfinished Phase 16 work describe the earlier snapshot.
 
 **How efficient are the voices?** The code contains useful speed and reliability improvements. But the available benchmark evidence does not support a trustworthy overall accuracy percentage, a naturalness score, a full reply-time figure or a real simultaneous-call capacity figure. We need real speech measurements before making those claims.
 
@@ -22,11 +24,11 @@ There are also unfinished items from **Phase 16**, especially clinic HTTP APIs a
 
 | Question | Answer |
 |---|---|
-| What phase are we in? | Phase 17, in progress. |
+| What phase are we in? | Booking MVP operational; Phase 17 acceptance remains in progress; Phase 18 discussion is next. |
 | Is the core voice system built? | Yes. Its components and local test coverage exist. |
 | Are clinic booking tools connected? | Yes, through the existing engine and local clinic services. |
-| Is the clinic workflow accepted with real microphone/provider testing? | Still pending in the project records. |
-| Is Phase 16 fully complete? | No. HTTP/API acceptance and rescheduling remain open. |
+| Is the clinic workflow accepted with real microphone/provider testing? | Booking/token verified live. Full lookup/cancellation, failure/recovery and quality acceptance remain pending. |
+| Is Phase 16 fully complete? | Its selected staff backend milestone is complete and locally accepted; other deployment states need separate verification. |
 | Can all dashboard pages manage real data? | No. Several inspected pages use sample data or unfinished controls. |
 | Can a real mobile phone call this system today as an accepted product? | Production telephony is a later, unstarted phase. |
 | Are reminders actually being delivered? | Delivery is unconfigured. Scheduling contracts exist. |

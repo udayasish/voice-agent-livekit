@@ -65,7 +65,7 @@ Bruno: set `BRUNO_CLI_PATH` to the installed `@usebruno/cli/bin/bru.js` and run 
 
 ## Application rollout
 
-Migration `0004_clinic_staff_rescheduling.sql` has **not** been applied to the main development or production database. Before running the updated API/worker against an existing application database:
+At the 21 October implementation milestone, migration `0004_clinic_staff_rescheduling.sql` had not been applied to the main database. A read-only check on 22 October verified its exact migration hash and counter/history tables in the configured local `voice_agent` database; no application migration was executed during that check. Production migration state is unverified. Before running the updated API/worker against any other existing application database:
 
 1. Stop API and voice-worker writes during a maintenance window.
 2. Back up the target database and confirm the intended connection without printing credentials.

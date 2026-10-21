@@ -1,5 +1,7 @@
 # Deepgram Nova-3 Speech-to-Text (STT) Benchmark Report
 
+> **Evidence correction (22 October 2026):** the historical report below uses predefined hypotheses, generated tones and simulated timings from `test/benchmark/runner.ts`. It is not a genuine human-speech accuracy or provider-capacity benchmark. Its approval and readiness claims are historical and must not be used to qualify Phase 17. Real Assamese microphone/provider evaluation remains pending.
+
 > **Target Language:** Assamese (`as`, `as-IN`) with multilingual support for Hindi (`hi`) and English (`en`)  
 > **Model:** Deepgram Nova-3 Streaming (`model=nova-3`, `interim_results=true`, `endpointing=300ms`)  
 > **Evaluation Date:** 2026-10-11  

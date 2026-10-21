@@ -57,6 +57,34 @@ async function sessionFor(f: ClinicFixture, mode: "empty" | "error" | "irrelevan
   return { session, provider, events };
 }
 
+test("reported full Assamese doctor request matches and patient introductions never become doctor searches", async () => {
+  const f = await fixture();
+  const provider = new ScriptedProvider(() => [{ type: "text", delta: "ডাঃ বৰুৱা উপলব্ধ আছে। দয়া কৰি আপোনাৰ নাম ক'ব।" }, { type: "done" }]);
+  const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() },
+    { interpreter: fixtureInterpreter, intakeInterpreter: async input => ({ intent: "provide_details",
+      name: { value: "উদয়চিছ বৰা", evidence: "উদয়চিছ বৰা", sourceTurn: input.turnId }, age: null,
+      nextField: "age", reply: "আপোনাৰ বয়স কিমান?" }),
+      callId: randomUUID(), conversationId: randomUUID(), enabledTools: [...clinicToolNames], deps: f.deps });
+  try {
+    const matched = await session.processUserUtterance("মই ডঃ বৰুৱাক দেখাব বিচাৰিছোঁ।");
+    assert.equal(matched.businessState.dialogue.selectedDoctor?.id, f.doctor.id);
+    assert.equal(matched.businessState.dialogue.latest?.outcome, "matched");
+    assert.match(matched.text, /তাৰিখ/u);
+    const missing = await session.processUserUtterance("ডঃ পাণ্ডে");
+    assert.equal(missing.businessState.dialogue.selectedDoctor, null);
+    assert.match(missing.text, /পোৱা নগ'ল/u);
+    assert.doesNotMatch(missing.text, /আপোনাৰ নাম/u);
+    const before = session.getState().toolHistory.length;
+    const patient = await session.processUserUtterance("মোৰ নাম উদয়চিছ বৰা।");
+    assert.equal(patient.businessState.intake.name?.value, "উদয়চিছ বৰা");
+    assert.equal(session.getState().toolHistory.length, before);
+    const retry = await session.processUserUtterance("মই ডঃ বৰুৱাক দেখাব বিচাৰো।");
+    assert.equal(retry.businessState.dialogue.selectedDoctor?.id, f.doctor.id);
+    assert.equal(retry.businessState.intake.name?.value, "উদয়চিছ বৰা");
+    assert.match(retry.text, /তাৰিখ/u);
+  } finally { await session.close(); }
+});
+
 test("reported day/date conversation uses selected identity, concise dates and available times", async () => {
   const f = await fixture({ now: "2026-10-17T00:00:00Z" });
   for (const date of ["2026-10-18", "2026-10-19", "2026-10-20", "2026-10-21"]) await insertFixtureSlot(database.db, f, { slotDate: date });
@@ -236,7 +264,7 @@ test("migration and reviewed metadata preserve identities, source names, tenant 
 });
 test("Assamese, English and reviewed alias lookups resolve the same ID; ambiguity and inactive status remain explicit", async () => {
   const f = await fixture(), other = await fixture();
-  for (const namePart of ["ডঃ বৰুৱা", "Dr. Baruah", "Dr. Boruah", " Asha  Basu ", "Boruah", "বৰুৱা", "বৰুৱাৰ"]) {
+  for (const namePart of ["ডঃ বৰুৱা", "Dr. Baruah", "Dr. Boruah", " Asha  Basu ", "Boruah", "বৰুৱা", "বৰুৱাৰ", "বৰুৱাক"]) {
     const result = await f.services().findDoctorsByName({ namePart }); assert.equal(result.success, true);
     if (result.success) assert.deepEqual(result.data.map(d => d.id), [f.doctor.id]);
   }

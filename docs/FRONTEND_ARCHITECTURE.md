@@ -1,5 +1,9 @@
 # Assamese AI Voice Agent Platform — Frontend Architecture
 
+## Voice diagnostics correction (22 October 2026)
+
+Transcript packets retain all fields validated by `turnVoiceSchema`, including provider failure category and optional provider TTFT; the hook previously dropped those fields. Transcript/interruption updates require an agent participant. Existing generation time is labelled “Generation”, not total voice latency, and the speaker label does not assume a TTS provider. No new HTTP endpoint, state library or API call is introduced. Seven frontend diagnostic checks pass; real microphone acceptance remains separate.
+
 ## Phase 17 listening readiness (2026-10-17)
 
 The sandbox distinguishes room/microphone connection from agent audio-pipeline readiness. `use-livekit-room.ts` accepts `voice_status.category: listening_ready` from an agent participant and exposes `isAgentListening`; the UI shows “Preparing the agent — please wait” until ready. The worker sends the reliable event only to its caller after first VAD inference and first recognizer audio submission. This is a local readiness signal, not a remote recognition guarantee. Disconnect/agent departure clears readiness; an accepted agent transcript also establishes it. Existing recognition-failure status remains distinct. The change addresses callers speaking while the worker is still attaching, without changing token or HTTP contracts.

@@ -1,5 +1,7 @@
 # Assamese AI Voice Agent Platform — TTS Benchmark & Service Report
 
+> **Evidence correction (22 October 2026):** the saved benchmark uses synthetic test audio, not neural Assamese speech. It verifies transport/adapter behavior, not pronunciation, naturalness or real synthesis speed. Actual voice-quality evaluation and any alternative-provider approval remain separate requirements.
+
 **Phase:** 11 — IndicF5 TTS  
 **Date:** 2026-10-09  
 **Service:** AI4Bharat IndicF5 Standalone Python Service (`ai/tts/`)  

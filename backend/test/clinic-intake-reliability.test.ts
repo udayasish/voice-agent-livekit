@@ -389,6 +389,37 @@ test("reported mixed age progresses through one SDK interpretation while retaini
   } finally { await h.session.close(); }
 });
 
+test("reported Assamese age survives digit-script normalization and an unchanged retained-name echo", async () => {
+  const provider = new ScriptedProvider(messages => {
+    const input = JSON.parse(messages[0]!.content) as IntakeInput;
+    if (input.turnId === 1) return [{ type: "text", delta: JSON.stringify({ ...nothing, intent: "provide_details",
+      name: { quote: "উদয়চিছ বৰাক", sourceTurn: 1 }, nextField: "age", reply: "আপোনাৰ বয়স কিমান?" }) }];
+    return [{ type: "text", delta: JSON.stringify({ ...nothing, intent: "provide_details",
+      name: { quote: "উদয়চিছ বৰাক", sourceTurn: 1 },
+      age: { value: 28, evidence: "28", sourceTurn: input.turnId }, nextField: "phone", reply: "আপোনাৰ ফোন নম্বৰটো কওক।" }) }];
+  });
+  const h = harness(createIntakeInterpreter(provider)); h.runtime.dialogue.state.question = "patient";
+  try {
+    await h.session.processUserUtterance("উদয়চিছ বৰাক।", { responseLanguage: "as" });
+    const result = await h.session.processUserUtterance("মোৰ বয়স ২৮ বছৰ।", { responseLanguage: "as" });
+    assert.equal(result.businessState.intake.name?.value, "উদয়চিছ বৰাক");
+    assert.equal(result.businessState.intake.age?.value, 28);
+    assert.equal(result.businessState.intake.age?.evidence, "২৮");
+    assert.equal(result.failureCategory, undefined);
+    assert.equal(result.text, "আপোনাৰ ফোন নম্বৰটো কওক।");
+  } finally { await h.session.close(); }
+});
+
+test("age digit normalization cannot invent evidence, change a name or take part of a larger number", () => {
+  const input: IntakeInput = { text: "মোৰ বয়স ২৮ বছৰ।", turnId: 2, language: "as", state: emptyIntake(), phoneConfirmed: false };
+  const proposal = { ...nothing, intent: "provide_details", name: null, age: { value: 28, evidence: "28", sourceTurn: 2 } };
+  assert.equal(materializeIntakeDecision(proposal, input).age?.evidence, "২৮");
+  for (const text of ["মোৰ বয়স ২৮০ বছৰ।", "মোৰ বয়স ২৯ বছৰ।", "unclear"]) {
+    assert.throws(() => materializeIntakeDecision(proposal, { ...input, text }));
+  }
+  assert.throws(() => materializeIntakeDecision({ ...proposal, name: { quote: "invented", sourceTurn: 1 } }, input));
+});
+
 test("numeric hints are derived from current speech and supplied hints cannot override them", async () => {
   const provider = new ScriptedProvider(messages => {
     const input = JSON.parse(messages[0]!.content) as IntakeInput;

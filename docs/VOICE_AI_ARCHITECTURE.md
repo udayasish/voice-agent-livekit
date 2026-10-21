@@ -1,5 +1,21 @@
 # Assamese AI Voice Agent Platform — Voice & AI Architecture
 
+## Completed-action conversation (22 October 2026)
+
+After a committed clinic action, current-caller verified context explicitly describes a completed phase, no next intake field and no pending finished draft. Conditional completion guidance leaves pre-booking context budgets unchanged. Natural model follow-ups and goodbye wording are retained; bounded receipt checks replace contradictory status, renewed booking confirmation or incorrect numeric receipt details. Completed-state fallbacks never reuse “not booked yet” intake guidance. A pending new cancellation takes precedence and retains its independent authorization. Caller boundaries still exclude earlier callers' outcomes, and speech never triggers automatic disconnect or mutation replay. These checks are targeted safeguards, not a semantic proof of all model sentences.
+
+## Intake evidence and recognition diagnostics (22 October 2026)
+
+Age interpretation can map a numeral-script-only quote back to its exact original source span; it cannot change words, names, spacing or spelling, or select part of a larger numeral. Unchanged echoes of already trusted fields are KEEP operations, with disputed-state rules retained. Explicit age introductions feed the existing whole-number hint. Evidence rejection logs identify the field without its content. VAD speech events include operational audio ranges for comparison with rejected recognition timestamps; admission thresholds and action authorization are unchanged. Missing live recognition remains an unverified provider/audio issue, separate from the corrected intake evidence boundary.
+
+## Assamese doctor-selection correction (22 October 2026)
+
+Named-doctor planning separates surrounding Assamese request verbs from the supplied name. The existing reviewed-name service recognizes exact `ক`/`ৰ` case suffixes without fuzzy spelling or transliteration. Patient introductions and answers to approved intake questions bypass the bare-doctor-answer shortcut. Failed/inactive doctor reads render verified negative results; alternatives cannot authorize selection. Successful doctor-read replies advance to date selection independently of question punctuation. The SDK/executor, database services, confirmations and mutation contracts remain unchanged.
+
+## Local acceptance baseline (22 October 2026)
+
+The local recognition experiment was restored to Nova-3 `as` for fresh Assamese acceptance; English digit collection and trusted-language critical confirmations remain unchanged. Groq GPT-OSS-120B and the existing TTS adapters are retained. A registered worker and successful Assamese voice-catalog lookup establish readiness only, not hosted conversation quality, provider approval or audible latency. Frontend generation timing explicitly excludes listening and playback. Real microphone/provider evaluation remains required for Phase 17 completion.
+
 ## Phase 16 staff rescheduling compatibility (2026-10-21)
 
 The clinic backend supports authenticated staff rescheduling, not a new voice tool. Voice bookings use persistent doctor/date token counters. Actual upcoming reads include a version; new voice bookings retain version 1. Cancellation binds the spoken appointment version/date/time in trusted service context and rechecks after locking. A database-backed SDK test verifies that an old confirmation cannot cancel an appointment staff have moved. Tool inputs, playback eligibility and patient knowledge checks remain authoritative. Phase 17 microphone/provider acceptance remains pending. See PHASE_16_BACKEND_ACCEPTANCE.md for migration/rollout requirements.

@@ -3,6 +3,11 @@ import { openClinicTestDatabase } from "./clinic-test-db.js";
 
 const selected = process.argv[2];
 if (selected !== "auth" && selected !== "livekit") throw new Error("Choose auth or livekit");
+const redisUrl = new URL(process.env["CLINIC_TEST_REDIS_URL"] ?? "redis://127.0.0.1:6380/15");
+if (!["localhost", "127.0.0.1"].includes(redisUrl.hostname) || redisUrl.pathname !== "/15") {
+  throw new Error("Local API regressions require local Redis test database 15");
+}
+process.env["REDIS_URL"] = redisUrl.toString();
 const database = await openClinicTestDatabase();
 try {
   process.env["DATABASE_URL"] = database.url;

@@ -10,7 +10,8 @@ import { replyLanguageInstruction } from "../../agent/engine/prompts.js";
 import { asciiNumberText, spokenNumber } from "./spoken-numbers.js";
 
 class IntakeValidationError extends Error {
-  constructor(readonly category: "invalid_evidence" | "name_mismatch" | "age_mismatch" | "invalid_correction" | "invalid_selection") { super(category); }
+  constructor(readonly category: "invalid_evidence" | "name_mismatch" | "age_mismatch" | "invalid_correction" | "invalid_selection",
+    readonly field?: "name" | "age") { super(category); }
 }
 
 const field = <T extends z.ZodType>(value: T) => z.object({ value, evidence: z.string().min(1).max(200), sourceTurn: z.number().int().positive() }).strict();
@@ -39,19 +40,45 @@ export type IntakeDecision = z.infer<typeof intakeDecisionSchema>;
 export type IntakeInterpreter = (input: IntakeInput, signal: AbortSignal) => Promise<z.input<typeof intakeDecisionSchema> | null>;
 export function emptyIntake(): IntakeState { return intakeStateSchema.parse({ name: null, age: null, unresolved: false, unresolvedAge: false, pending: [] }); }
 
+/** Strip only an explicit age introduction; the remaining whole number must parse. */
+function ageNumber(text: string) {
+  return spokenNumber(text.replace(/^\s*(?:(?:মোৰ\s+)?(?:বয়স|বয়স)(?:টো)?(?:\s+হৈছে)?|my\s+age(?:\s+is)?|i\s+am|i['’]m|(?:मेरी\s+)?उम्र(?:\s+है)?)\s*/iu, ""));
+}
+
 export function materializeIntakeDecision(value: unknown, input: IntakeInput): IntakeDecision {
   const proposal = intakeModelDecisionSchema.parse(value);
+  // Re-emitting an unchanged trusted field is KEEP, not fresh evidence from a
+  // previous turn whose pending transcript was deliberately discarded.
+  if (proposal.name && input.state.name && proposal.name.sourceTurn === input.state.name.sourceTurn
+    && proposal.name.quote === input.state.name.evidence) proposal.name = null;
+  if (proposal.age && input.state.age && proposal.age.sourceTurn === input.state.age.sourceTurn
+    && proposal.age.value === input.state.age.value && proposal.age.evidence === input.state.age.evidence) proposal.age = null;
   let name: IntakeState["name"] = null;
   if (proposal.name) {
     const { quote, sourceTurn } = proposal.name;
     const source = sourceTurn === input.turnId ? input.text : input.state.pending.find(p => p.turnId === sourceTurn)?.text;
     const start = source?.indexOf(quote) ?? -1;
-    if (start < 0 || !source || !["provide_details", "correct_details"].includes(proposal.intent)) throw new IntakeValidationError("invalid_evidence");
+    if (start < 0 || !source || !["provide_details", "correct_details"].includes(proposal.intent)) throw new IntakeValidationError("invalid_evidence", "name");
     // Remove only outer whitespace and terminal speech punctuation, never spelling,
     // internal punctuation, initials, case, Unicode or numbers within the name.
     const exact = source.slice(start, start + quote.length).trim().replace(/[?？!।]+$/u, "").trim();
-    if (exact.length < 2 || exact.length > 100) throw new IntakeValidationError("invalid_evidence");
+    if (exact.length < 2 || exact.length > 100) throw new IntakeValidationError("invalid_evidence", "name");
     name = { value: exact, evidence: exact, sourceTurn };
+  }
+  if (proposal.age) {
+    const age = proposal.age;
+    const source = age.sourceTurn === input.turnId ? input.text : input.state.pending.find(p => p.turnId === age.sourceTurn)?.text;
+    if (source && !source.includes(age.evidence)) {
+      // Digit substitution is one character for one character. Preserve the
+      // actual source quote; do not normalize names, wording, spacing or spelling.
+      const digits = (text: string) => text.replace(/[০-৯०-९]/gu, c => asciiNumberText(c));
+      const normalized = digits(source), quote = digits(age.evidence), start = normalized.indexOf(quote);
+      if (start < 0 || (/^\d/u.test(quote) && /\d/u.test(normalized[start - 1] ?? ""))
+        || (/\d$/u.test(quote) && /\d/u.test(normalized[start + quote.length] ?? ""))) throw new IntakeValidationError("invalid_evidence", "age");
+      age.evidence = source.slice(start, start + quote.length);
+    }
+    const whole = age.sourceTurn === input.turnId ? ageNumber(input.text) : undefined;
+    if (whole?.kind === "value" && whole.value !== age.value) throw new IntakeValidationError("age_mismatch", "age");
   }
   return validateIntakeDecision({ ...proposal, name }, input);
 }
@@ -59,15 +86,15 @@ export function materializeIntakeDecision(value: unknown, input: IntakeInput): I
 /** Revalidated even for injected interpreters; model proposals never directly patch state. */
 export function validateIntakeDecision(value: unknown, input: IntakeInput): IntakeDecision {
   const decision = intakeDecisionSchema.parse(value);
-  for (const candidate of [decision.name, decision.age]) {
+  for (const [field, candidate] of [["name", decision.name], ["age", decision.age]] as const) {
     if (!candidate) continue;
     const source = candidate.sourceTurn === input.turnId ? input.text : input.state.pending.find(p => p.turnId === candidate.sourceTurn)?.text;
-    if (!source?.includes(candidate.evidence)) throw new IntakeValidationError("invalid_evidence");
+    if (!source?.includes(candidate.evidence)) throw new IntakeValidationError("invalid_evidence", field);
   }
   if (decision.name && decision.name.value !== decision.name.evidence.trim()) throw new IntakeValidationError("name_mismatch");
   if (decision.age) {
     const evidence = asciiNumberText(decision.age.evidence);
-    const parsed = spokenNumber(evidence);
+    const parsed = ageNumber(evidence);
     const digits = evidence.match(/\d+/gu);
     const individualDigits = /^\s*\d(?:\s*,?\s+\d){1,2}\s*$/u.test(evidence);
     if (parsed.kind === "invalid" || (parsed.kind === "value" && parsed.value !== decision.age.value)
@@ -139,7 +166,7 @@ export function createIntakeInterpreter(provider: LLMProvider, event: (category:
     const model = new ProviderModel(provider);
     try {
       const expected = input.expectedField ?? input.state.lastQuestion?.field ?? nextIntakeField(input.state, input.phoneConfirmed);
-      const parsedNumber = expected === "age" ? spokenNumber(input.text) : undefined;
+      const parsedNumber = expected === "age" ? ageNumber(input.text) : undefined;
       const numberHint = parsedNumber?.kind === "value" && parsedNumber.value >= 0 && parsedNumber.value <= 120
         ? { value: parsedNumber.value, quote: input.text, sourceTurn: input.turnId } : undefined;
       // Derive hints here; callers/model text cannot supply or override them.
@@ -164,6 +191,7 @@ export function createIntakeInterpreter(provider: LLMProvider, event: (category:
         : error instanceof DOMException && error.name === "TimeoutError" ? "timeout" : error instanceof z.ZodError ? "invalid_schema"
         : error instanceof SyntaxError ? "invalid_json" : "invalid_output_or_sdk";
       event(category, Date.now() - started, input.turnId, { finishReason: ["stop", "length", "tool_calls", "content_filter"].includes(model.finishReason ?? "") ? model.finishReason! : "unknown",
+        ...(error instanceof IntakeValidationError && error.field ? { evidenceField: error.field } : {}),
         ...(error instanceof LLMFailure && error.status ? { httpStatus: error.status } : {}),
         ...(model.usage?.completionTokens !== undefined ? { completionTokens: model.usage.completionTokens } : {}) });
       signal.throwIfAborted(); return null;

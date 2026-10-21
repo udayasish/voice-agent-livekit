@@ -510,6 +510,8 @@ const agent = defineAgent<AgentProcessUserData>({
               roomName: ctx.room.name,
               participantIdentity,
               speaking: true,
+              audioStartMs: startMs,
+              audioEndMs: event.samplesIndex / 16,
             });
 
             // Interruption / Barge-in handling via InterruptionManager
@@ -574,6 +576,8 @@ const agent = defineAgent<AgentProcessUserData>({
               speechDurationMs,
               silenceDurationMs: event.silenceDuration,
               speaking: false,
+              audioStartMs: lastSpeechRange?.startMs,
+              audioEndMs: lastSpeechRange?.endMs,
             });
           },
         });

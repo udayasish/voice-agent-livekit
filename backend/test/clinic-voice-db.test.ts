@@ -30,13 +30,15 @@ class Driver {
   readonly callId = randomUUID();
   readonly limits = { timeoutMs: 5000 };
   emptyAnswer = false;
+  answer: string | undefined;
+  get modelPrompt() { return this.provider.options.at(-1)?.systemPrompt ?? ""; }
   constructor(readonly f: ClinicFixture, deps = f.deps, interpret: ConfirmationInterpreter = fixtureInterpreter) {
     const context = { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() };
     this.runtime = new ClinicVoiceRuntime(context, this.callId, randomUUID(), deps, "Asia/Kolkata", interpret);
     this.provider = new ScriptedProvider((_messages: LLMMessage[], count: number) => {
       const step = this.steps.shift();
       return step ? [{ type: "tool_call", toolCall: { id: `invoke_${count}`, name: step.name, arguments: JSON.stringify(typeof step.input === "function" ? step.input() : step.input) } }, { type: "done" }]
-        : this.emptyAnswer ? [{ type: "done" }] : [{ type: "text", delta: `Ready for your next question ${count}.` }, { type: "done" }];
+        : this.emptyAnswer ? [{ type: "done" }] : [{ type: "text", delta: this.answer ?? `Ready for your next question ${count}.` }, { type: "done" }];
     });
     this.session = new AgentSession({ agentId: "clinic", name: "Reception", businessName: f.organization.name,
       instructions: "Use enabled clinic tools.", languages: ["as", "hi", "en"], defaultLanguage: "en", enabledTools: [...clinicToolNames] }, context,
@@ -92,6 +94,42 @@ test("real SDK executes all eight tools, books/token/checks/cancels with Assames
     const repeat = await d.call("cancel_appointment", { mode: "confirm", draftId: cancelDraft }); assert.equal(repeat.success, true);
     const row = await database.db.select().from(schema.clinicAppointments).where(eq(schema.clinicAppointments.id, result.appointment.appointmentId));
     assert.equal(row[0]!.source, "voice"); assert.equal(row[0]!.callId, d.callId); assert.equal(row[0]!.status, "cancelled");
+  } finally { await d.session.close(); }
+});
+
+test("after booking, natural goodbye replies retain completed context and cannot restart confirmation or deny the booking", async () => {
+  const f = await fixture(), slot = await insertFixtureSlot(database.db, f);
+  const scheduler = new RecordingClinicScheduler(); const d = new Driver(f, { ...f.deps, scheduler });
+  try {
+    await d.caller(); await d.call("get_available_times", { doctorId: f.doctor.id, date: slot.slotDate });
+    const draftId = await d.prepare(f.doctor.id, slot.id);
+    const booking = bookingData.parse(unwrap(await d.call("book_appointment", { mode: "confirm", draftId }, "হয় শুদ্ধ।")));
+    const tools = d.session.getState().toolHistory.length;
+    for (const text of ["হয়, আপুনি ফোনটো ৰাখি দিব পাৰে।", "হয়, আপোনাৰ এপইণ্টমেণ্ট বুক হৈছে। আপুনি ফোনটো ৰাখি দিব পাৰে।"]) {
+      d.answer = text;
+      const reply = await d.turn("এতিয়া মই ৰাখি দিও নেকি ফোনটো?");
+      assert.equal(reply.text, text);
+      assert.equal(reply.replySource, "model");
+      assert.equal(reply.businessState.pendingAction, null);
+      const input = d.modelPrompt;
+      assert.match(input, /booked_in_session/u); assert.match(input, /"pendingAction":null/u);
+    }
+    for (const text of ["Nothing is booked yet.", "আপুনি এই সময়ত বুকিং নিশ্চিত কৰিবনে?", "Your appointment has been cancelled.", "Your appointment is booked. Token 999."]) {
+      d.answer = text; const reply = await d.turn("Is my appointment booked?");
+      assert.equal(reply.replySource, "verified_tool");
+      assert.match(reply.text, /booked|বুক হ/u);
+      assert.doesNotMatch(reply.text, /not booked|Nothing is booked|বুক হোৱা নাই|কৰিবনে|999|cancelled/u);
+    }
+    assert.equal(d.session.getState().toolHistory.length, tools);
+    assert.equal(scheduler.snapshot().length, 2);
+    const rows = await database.db.select().from(schema.clinicAppointments).where(eq(schema.clinicAppointments.id, booking.appointment.appointmentId));
+    assert.equal(rows.length, 1); assert.equal(rows[0]?.status, "booked");
+    await d.call("cancel_appointment", { mode: "prepare", appointmentId: booking.appointment.appointmentId, reason: "Synthetic cancellation" });
+    const cancelDraft = d.runtime.snapshot().pendingDraftId!;
+    unwrap(await d.call("cancel_appointment", { mode: "confirm", draftId: cancelDraft }, "হয়।"));
+    d.answer = "Your appointment is booked.";
+    const cancelled = await d.turn("Can I end the call now?");
+    assert.match(cancelled.text, /cancelled|বাতিল/u); assert.equal(cancelled.businessState.pendingAction, null);
   } finally { await d.session.close(); }
 });
 
