@@ -5,7 +5,8 @@ import type { ClinicRuntime } from "./runtime.js";
 
 export async function listActiveDoctors(runtime: ClinicRuntime) {
   await runtime.requireClinic();
-  const rows = await runtime.deps.db.select({ id: clinicDoctors.id, name: clinicPeople.name, specialization: clinicDoctors.specialization })
+  const rows = await runtime.deps.db.select({ id: clinicDoctors.id, name: clinicPeople.name, specialization: clinicDoctors.specialization,
+    nameEn: clinicDoctors.nameEn, nameAs: clinicDoctors.nameAs, searchAliases: clinicDoctors.searchAliases })
     .from(clinicDoctors).innerJoin(clinicPeople, and(eq(clinicDoctors.personId, clinicPeople.id), eq(clinicPeople.organizationId, runtime.identity.organizationId)))
     .where(and(eq(clinicDoctors.organizationId, runtime.identity.organizationId), eq(clinicDoctors.isActive, true), eq(clinicPeople.role, "doctor")))
     .orderBy(clinicPeople.name);

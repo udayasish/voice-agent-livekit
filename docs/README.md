@@ -2,6 +2,10 @@
 
 Read `AGENTS.md` before making changes.
 
+## Plain-Language Project Review
+
+- [Project status, voice quality and next steps](PROJECT_STATUS_AND_NEXT_STEPS.md) — reviewed 21 October 2026; explains completed work, remaining phases, benchmark evidence gaps and priorities in simple language.
+
 ## Core Product
 - `PRODUCT_OVERVIEW.md`
 - `TECH_STACK.md`

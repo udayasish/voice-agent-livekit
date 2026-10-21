@@ -1,0 +1,37 @@
+meta {
+  name: Reject Unknown Agent
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{host}}/api/v1/livekit/token
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "agentId": "phase17-unconfigured-agent"
+  }
+}
+
+script:post-response {
+  if (!res.body || res.body.success !== false || !res.body.error || res.body.error.code !== "AGENT_NOT_AVAILABLE") {
+    throw new Error("Expected rejection of an explicitly unconfigured agent");
+  }
+}
+
+docs {
+  Run Login first. This agent must not exist in the selected organization's server profile.
+  Expected HTTP 403 and safe AGENT_NOT_AVAILABLE envelope; no LiveKit token is issued.
+  The same negative behavior is exercised by test:livekit:local.
+}

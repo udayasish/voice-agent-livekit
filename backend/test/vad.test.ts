@@ -12,6 +12,7 @@ import {
   generateSyntheticSpeechFrames,
   generateBackgroundNoiseFrames,
 } from "./audio-fixtures.js";
+import { SpeechTranscriptGate } from "../src/agent/turn-collector.js";
 
 ensureAgentsLogger();
 
@@ -101,6 +102,13 @@ describe("Phase 7 — Silero Voice Activity Detection (VAD) Test Suite", () => {
 
     assert.ok(startEvent, "Start event must exist");
     assert.ok(endEvent, "End event must exist");
+    const gate = new SpeechTranscriptGate();
+    gate.speechStarted(startEvent.samplesIndex / 16, startEvent.speechDuration);
+    gate.speechEnded(endEvent.samplesIndex / 16, endEvent.silenceDuration);
+    assert.equal(gate.rejection({ text: "হয়", confidence: 0.9, language: "as", latencyMs: 0,
+      audioRange: { startMs: 0, endMs: 400 } }), undefined, "Real Silero sample timing must match the speech audio");
+    assert.equal(gate.rejection({ text: "phantom", confidence: 0.9, language: "as", latencyMs: 0,
+      audioRange: { startMs: 1000, endMs: 1200 } }), "no_speech", "Earlier speech must not authorize later silence");
     assert.equal(startEvent.speaking, true, "Start event speaking flag should be true");
     assert.equal(endEvent.speaking, false, "End event speaking flag should be false");
     assert.ok(endEvent.frames.length > 0, "End event must include captured speech frames");

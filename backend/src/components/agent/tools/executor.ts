@@ -31,6 +31,7 @@ export class ToolExecutor {
   }
   get invocationCount(): number { return this.attempts; }
   get history(): ToolInvocation[] { return structuredClone(this.invocations); }
+  modelResult(invocationId: string, fallback: ToolResult): ToolResult { return structuredClone(this.invocations.find(call => call.invocationId === invocationId)?.modelResult ?? fallback); }
   prepareCall(call: LLMToolCall): LLMToolCall {
     // SDK 0.8 pre-parses JSON before invoking function tools and bypasses errorFunction
     // on syntax errors. A reserved, always-invalid field routes rejection through
@@ -91,9 +92,17 @@ export class ToolExecutor {
         });
         const result = await Promise.race([tool.invokeValidated(validated, context).catch(() => toolFailure("TOOL_EXECUTION_FAILED", "The tool could not complete the request.")), stopped]);
         this.signal.throwIfAborted();
-        this.invocations.push({ name, invocationId, arguments: argumentsText, result: structuredClone(result) });
+        let modelResult = result;
+        try { modelResult = tool.projectValidated(result, validated); }
+        catch { this.log("tool_failed", name, invocationId, { code: "MODEL_PROJECTION_FAILED" }); }
+        // Presentation errors never change the authoritative execution result.
+        this.invocations.push({ name, invocationId, arguments: argumentsText, result: structuredClone(result), modelResult: structuredClone(modelResult) });
         const code = result.success ? "OK" : result.error.code;
-        this.log(code === "TOOL_TIMEOUT" ? "tool_timeout" : result.success ? "tool_completed" : "tool_failed", name, invocationId, { code, durationMs: Date.now() - started });
+        const data = result.success && result.data && typeof result.data === "object" ? result.data : undefined;
+        const outcome = data && "outcome" in data && typeof data.outcome === "string" && /^[a-z_]{1,40}$/u.test(data.outcome) ? data.outcome : undefined;
+        const resultCount = data && "resultCount" in data && typeof data.resultCount === "number" && Number.isInteger(data.resultCount) ? data.resultCount : undefined;
+        this.log(code === "TOOL_TIMEOUT" ? "tool_timeout" : result.success ? "tool_completed" : "tool_failed", name, invocationId, { code, durationMs: Date.now() - started,
+          ...(outcome ? { outcome } : {}), ...(resultCount !== undefined ? { resultCount } : {}) });
         return result;
       } catch (error) {
         controller.abort(); this.log("tool_cancelled", name, invocationId, { durationMs: Date.now() - started }); throw error;

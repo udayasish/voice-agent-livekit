@@ -67,8 +67,7 @@ export class RayaTTS extends tts.TTS {
         sampleRate: this.resolvedConfig.sampleRate,
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error("[agent:tts:raya] Failed to resolve Raya voice at startup", { error: message });
+      logger.error("[agent:tts:raya] Failed to resolve Raya voice at startup", { errorCode: "TTS_VOICE_RESOLUTION_FAILED" });
       throw err;
     }
   }

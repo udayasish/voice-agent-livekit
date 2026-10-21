@@ -411,7 +411,7 @@ A booking can be completed safely through API and database.
 
 Adopt the existing WhatsApp appointment platform's clinic models and domain services locally under `backend/src/components/clinic/`, using an independent voice database. Preserve capacity-based concrete slots, transactional advisory/row locking and per-doctor/day tokens; adapt tenant scope, trusted context, safe contracts and timezone handling. Include internal service/database tests and reminder/booking-alert scheduling contracts without actual delivery.
 
-This milestone adds no HTTP endpoints, voice tools, WhatsApp transport, live-data migration or rescheduling implementation. Its completion is recorded separately in `PROGRESS.md`; the full phase remains **IN PROGRESS** until API/database acceptance and rescheduling are completed. Phase 17 remains **NOT STARTED**. The existing source has no rescheduling service to copy, so that requirement must be designed as remaining Phase 16 work before enabling its voice tool.
+This Phase 16 milestone added no HTTP endpoints, voice tools, WhatsApp transport, live-data migration or rescheduling implementation. Its completion is recorded separately in `PROGRESS.md`; the full phase remains **IN PROGRESS** until API/database acceptance and rescheduling are completed. The user subsequently authorized the scoped Phase 17 voice-tool milestone below while those Phase 16 items remain open. The existing source has no rescheduling service to copy, so its voice tool remains deferred.
 
 ---
 
@@ -421,17 +421,34 @@ This milestone adds no HTTP endpoints, voice tools, WhatsApp transport, live-dat
 - all architecture docs
 - DATA_MODEL_AND_API_CONTRACT.md
 
-### Build tools:
-- get_doctors
-- get_doctor_availability
-- get_available_slots
+### Selected voice-tool milestone (2026-10-16)
+
+Use the locally adopted Phase 16 services and independent voice database. Build:
+- resolve_clinic_and_caller
+- list_doctors
+- find_doctor
+- get_available_dates
+- get_available_times
 - book_appointment
+- check_my_appointments
 - cancel_appointment
-- reschedule_appointment
-- transfer_to_human
+
+Connect the existing browser worker through server-owned profiles and one-use Redis bindings. Patients need no login; require confirmed phone and separate action readbacks, and token/date knowledge for access to existing bookings. Preserve source locks/capacity/tokens/timezones and injected post-commit scheduling. Add durable request-key replay protection in the existing appointment table. Document automated checks separately from live microphone/provider acceptance.
+
+Rescheduling is excluded because no safe source service exists. Human transfer is outside this selected milestone. Phase 18 saved configuration is not started. Details and frontend instructions: `CLINIC_VOICE_TOOLS.md`.
+
+The authorized follow-up adds reviewed bilingual doctor metadata/aliases, deterministic first read-tool routing through the same SDK/executor, immediate doctor selection, clinic-local calendar interpretation, verified fallback speech and clearer frontend diagnostics. It does not change the independent database boundary or complete Phase 16 API/rescheduling work. A subsequent authorized follow-up replaces live clinic keyword confirmation with contextual SDK interpretation, retained phone candidates, playback eligibility and bounded speech/no-input recovery. Automated acceptance and remaining live limitations are recorded in PROGRESS.md. Live microphone/hosted-provider acceptance remains outstanding; Phase 17 remains IN PROGRESS.
+
+The 17 October follow-up bounds the SDK's model view while retaining full active session records, projects read-tool results, saves name/age candidates before booking, uses the configured model for ordinary intake replies and idle conversational notes, and classifies 413/rate/provider failures honestly. Exact action readbacks and service-confirmed outcomes remain server-controlled. This is part of Phase 17; frontend microphone/hosted-provider acceptance is still required before marking it complete. Phase 16 HTTP/rescheduling acceptance and Phase 18 configuration work remain open.
+
+The subsequent live-call follow-up adds offered-date selection, server-bound doctor references, stage-relevant tools, prospective result headroom, concise options and contextual failure recovery. Redundant clinic read-event summaries yield quota to foreground calls, and repeated unusable-speech prompts are suppressed until accepted input. This remains Phase 17 reliability work; automated checks do not complete live Assamese/provider acceptance.
+
+The early-intake follow-up removes the slot-stage gate for patient capture, retains name/age candidates and explicit disputes, tracks approved question context and non-progress, and resolves short contextual date/slot choices against returned records before speech. Ordinary capture and follow-up share the existing tool-free SDK interpretation; real operations retain the SDK tool loop. Corrections invalidate pending drafts and require revised readbacks. Exceptional availability guidance consults retained details instead of always asking for a name. No schema/endpoint/dependency or booking engine changes. Live early-details/age-correction acceptance remains outstanding; Phase 17 remains IN PROGRESS.
+
+The first-transcript follow-up adds a bounded delayed-final grace/Finalize request, an agent listening-readiness signal, shorter ordinary model guidance, explicit intake-failure categories and prepare-only routing for complete booking requests. Existing services bind confirmed callers; no new appointment operation or schema is added. This fixes reproducible local paths while the supplied initial-hello cause and hosted intake-validation outcome still require live verification. Phase 17 remains IN PROGRESS; Phase 18 remains NOT STARTED.
 
 ### Done when
-A caller can book/cancel/reschedule through natural Assamese conversation.
+The selected milestone is accepted when its typed tool/service/database checks pass and a caller can book, receive a token, check and cancel through natural Assamese conversation in the frontend. Implementation/local automated verification may be complete while live audio acceptance remains pending; do not mark the phase DONE prematurely. Rescheduling and human transfer remain explicitly deferred capabilities.
 
 ---
 

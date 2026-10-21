@@ -3,13 +3,14 @@ import type { ApiError, ApiSuccess } from "../../../types.js";
 import { dateSchema } from "./inputs.js";
 
 export type ClinicResult<T> = ApiSuccess<T> | ApiError;
-export const notificationStatusSchema = z.enum(["scheduled", "disabled", "skipped_window", "unconfigured", "failed"]);
+export const notificationStatusSchema = z.enum(["scheduled", "disabled", "skipped_window", "unconfigured", "failed", "not_repeated"]);
 export const notificationOutcomesSchema = z.object({ reminder: notificationStatusSchema, doctorAlert: notificationStatusSchema }).strict();
 export type NotificationOutcomes = z.infer<typeof notificationOutcomesSchema>;
 export type NotificationStatus = z.infer<typeof notificationStatusSchema>;
 
-export const doctorSummarySchema = z.object({ id: z.uuid(), name: z.string(), specialization: z.string().nullable() }).strict();
-export const doctorMatchSchema = z.object({ id: z.uuid(), name: z.string(), isActive: z.boolean() }).strict();
+const doctorNames = { nameEn: z.string().nullable().optional(), nameAs: z.string().nullable().optional(), searchAliases: z.array(z.string()).optional() };
+export const doctorSummarySchema = z.object({ id: z.uuid(), name: z.string(), specialization: z.string().nullable(), ...doctorNames }).strict();
+export const doctorMatchSchema = z.object({ id: z.uuid(), name: z.string(), isActive: z.boolean(), specialization: z.string().nullable().optional(), ...doctorNames }).strict();
 export const patientSummarySchema = z.object({ id: z.uuid(), phoneNumber: z.string(), role: z.literal("patient") }).strict();
 export const slotSummarySchema = z.object({
   id: z.uuid(), slotDate: dateSchema, startTime: z.string(), endTime: z.string(),

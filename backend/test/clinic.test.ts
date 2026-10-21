@@ -123,12 +123,12 @@ test("source inventory classifies every source module and preserves adoption has
   }
 });
 
-test("clinic runtime imports no source repository, agent engine, WhatsApp transport or SQL client", () => {
+test("clinic domain imports no source repository, agent engine, WhatsApp transport or SQL client", () => {
   const root = fileURLToPath(new URL("../src/components/clinic/", import.meta.url));
   function inspect(folder: string): void {
     for (const entry of readdirSync(folder, { withFileTypes: true })) {
       const path = join(folder, entry.name);
-      if (entry.isDirectory()) inspect(path);
+      if (entry.isDirectory()) { if (entry.name !== "voice") inspect(path); }
       else if (entry.name.endsWith(".ts")) {
         const content = readFileSync(path, "utf8");
         const imports = [...content.matchAll(/(?:from\s+|import\s*)["']([^"']+)["']/g)].map((match) => match[1]!);

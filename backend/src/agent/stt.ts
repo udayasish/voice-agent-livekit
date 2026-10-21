@@ -2,6 +2,8 @@ import { stt } from "@livekit/agents";
 import type * as deepgram from "@livekit/agents-plugin-deepgram";
 import { AudioStream, type AudioFrame, type Track } from "@livekit/rtc-node";
 import logger from "../lib/logger.js";
+import type { TranscriptAudioRange, TranscriptFragment } from "./turn-collector.js";
+import { UtteranceAudioBuffer } from "./recognition-recovery.js";
 import {
   createLiveKitDeepgramSTT,
   ensureAgentsLogger,
@@ -11,9 +13,11 @@ import {
 } from "../components/agent/providers/stt/index.js";
 
 export interface STTCallbacks {
+  /** The audio reader has delivered its first frame into the configured SDK stream. */
+  onAudioReady?: () => void;
   onSpeechStart?: (event: stt.SpeechEvent) => void | Promise<void>;
   onInterimTranscript?: (event: stt.SpeechEvent, latencyMs: number) => void | Promise<void>;
-  onFinalTranscript?: (event: stt.SpeechEvent, latencyMs: number) => void | Promise<void>;
+  onFinalTranscript?: (event: stt.SpeechEvent, latencyMs: number, audioRange?: TranscriptAudioRange) => void | Promise<void>;
   onSpeechEnd?: (event: stt.SpeechEvent) => void | Promise<void>;
   onError?: (error: Error) => void | Promise<void>;
   onInputModeChanged?: (mode: STTInputMode, language: string) => void;
@@ -33,11 +37,17 @@ export interface ManagedSTTStream extends AsyncIterable<stt.SpeechEvent> {
   pushFrame(frame: AudioFrame): void;
   close(): void;
   readonly terminalError?: Error | undefined;
+  endInput?(): void;
+  flush?(): void;
 }
 export interface STTTrackSubscription {
   readonly stream: ManagedSTTStream;
   readonly inputMode: STTInputMode;
-  setInputMode(mode: STTInputMode): void;
+  /** Optional trusted language for a pending confirmation; omission restores the configured baseline. */
+  setInputMode(mode: STTInputMode, conversationLanguage?: string): void;
+  recoverSpeech(range: TranscriptAudioRange, signal: AbortSignal): Promise<TranscriptFragment | undefined>;
+  discardRecoveryAudio(): void;
+  requestFinalTranscript(): void;
   close(): void;
 }
 
@@ -100,14 +110,23 @@ export function attachSTTToAudio(
   const reader = audio.getReader();
   let isClosed = false;
   let inputMode: STTInputMode = "conversation";
-  const createStream = (mode: STTInputMode): ManagedSTTStream => {
+  let recognitionLanguage = baseline.language;
+  let replayLanguage = baseline.language;
+  let audioElapsedMs = 0;
+  let audioReady = false;
+  const recoveryAudio = new UtteranceAudioBuffer();
+  let recoveryController: AbortController | undefined;
+  let recoveredThrough = -1;
+  const audioOffsets = new WeakMap<ManagedSTTStream, number>();
+  const createStream = (mode: STTInputMode, language = baseline.language): ManagedSTTStream => {
     const stream = provider.stream();
+    audioOffsets.set(stream, audioElapsedMs);
     try {
       // Configure a new stream before its scheduled SDK connection starts. Never
       // mutate the prewarmed/shared provider or reuse events from an old socket.
       stream.updateOptions(mode === "english-digits"
         ? { language: "en-IN", numerals: true, smartFormat: false, punctuate: false }
-        : { ...baseline, numerals: false });
+        : { ...baseline, language, numerals: false });
       return stream;
     } catch (error) { stream.close(); throw error; }
   };
@@ -118,6 +137,7 @@ export function attachSTTToAudio(
   const close = () => {
     if (isClosed) return;
     isClosed = true;
+    recoveryController?.abort(); recoveryAudio.clear();
     abortSignal?.removeEventListener("abort", close);
     try { current.close(); } catch { logger.warn("[agent:stt] Stream cleanup failed"); }
     void reader.cancel().catch(() => logger.warn("[agent:stt] Audio cleanup failed"));
@@ -140,11 +160,16 @@ export function attachSTTToAudio(
           switch (event.type) {
             case stt.SpeechEventType.START_OF_SPEECH: await callbacks.onSpeechStart?.(event); break;
             case stt.SpeechEventType.INTERIM_TRANSCRIPT: await callbacks.onInterimTranscript?.(event, latencyMs); break;
-            case stt.SpeechEventType.FINAL_TRANSCRIPT:
-              dispatchTranscriptCallback(() => callbacks.onFinalTranscript?.(event, latencyMs), () => {
+            case stt.SpeechEventType.FINAL_TRANSCRIPT: {
+              const alternative = event.alternatives?.[0];
+              const offset = audioOffsets.get(stream) ?? 0;
+              const audioRange = alternative && alternative.endTime > alternative.startTime
+                ? { startMs: offset + alternative.startTime * 1000, endMs: offset + alternative.endTime * 1000 } : undefined;
+              dispatchTranscriptCallback(() => callbacks.onFinalTranscript?.(event, latencyMs, audioRange), () => {
                 logger.error("[agent:stt] Error in final-transcript callback");
               });
               break;
+            }
             case stt.SpeechEventType.END_OF_SPEECH:
               await callbacks.onSpeechEnd?.(event); utteranceStartTime = null; break;
           }
@@ -169,7 +194,10 @@ export function attachSTTToAudio(
         if (frame.done || isClosed) break;
         // A single reader owns the track: queued new audio goes to the new
         // recognizer even while that recognizer is establishing its socket.
+        if ((inputMode as STTInputMode) === "english-digits") recoveryAudio.push(frame.value, audioElapsedMs);
         current.pushFrame(frame.value);
+        if (!audioReady) { audioReady = true; callbacks.onAudioReady?.(); }
+        audioElapsedMs += frame.value.samplesPerChannel / frame.value.sampleRate * 1000;
       }
     } catch { if (!isClosed) await reportError(); }
     finally { close(); reader.releaseLock(); }
@@ -178,15 +206,72 @@ export function attachSTTToAudio(
   return {
     get stream() { return current; },
     get inputMode() { return inputMode; },
-    setInputMode(mode) {
-      if (isClosed || mode === inputMode) return;
-      const next = createStream(mode);
+    setInputMode(mode, conversationLanguage) {
+      const language = mode === "english-digits" ? "en-IN" : conversationLanguage ?? baseline.language;
+      replayLanguage = conversationLanguage ?? baseline.language;
+      if (isClosed || (mode === inputMode && language === recognitionLanguage)) return;
+      recoveryController?.abort(); recoveryAudio.clear();
+      const next = createStream(mode, language);
       const previous = current;
       current = next;
       inputMode = mode;
+      recognitionLanguage = language;
       void consume(next);
       try { previous.close(); } catch { logger.warn("[agent:stt] Replaced stream cleanup failed"); }
-      callbacks.onInputModeChanged?.(mode, mode === "english-digits" ? "en-IN" : baseline.language);
+      callbacks.onInputModeChanged?.(mode, language);
+    },
+    discardRecoveryAudio() { recoveryController?.abort(); recoveryAudio.clear(); },
+    requestFinalTranscript() { if (!isClosed) current.flush?.(); },
+    async recoverSpeech(range, signal) {
+      signal.throwIfAborted();
+      if (isClosed || inputMode !== "english-digits" || range.endMs <= recoveredThrough) return undefined;
+      const frames = recoveryAudio.slice(range);
+      if (!frames) return undefined;
+      recoveredThrough = range.endMs;
+      recoveryController?.abort();
+      const controller = new AbortController(); recoveryController = controller;
+      const abort = () => controller.abort(); signal.addEventListener("abort", abort, { once: true });
+      let temporary: ManagedSTTStream | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const language = replayLanguage;
+      try {
+        temporary = createStream("conversation", language);
+        if (!temporary.endInput) return undefined;
+        const stream = temporary;
+        const collect = (async () => {
+          const parts: TranscriptFragment[] = [];
+          for await (const event of stream) {
+            controller.signal.throwIfAborted();
+            if (event.type !== stt.SpeechEventType.FINAL_TRANSCRIPT) continue;
+            const a = event.alternatives?.[0];
+            if (a?.text.trim() && Number.isFinite(a.confidence) && a.confidence >= 0.30) parts.push({ text: a.text.trim(),
+              confidence: a.confidence, language, latencyMs: 0, audioRange: range });
+          }
+          if (!parts.length) return undefined;
+          return { ...parts[0]!, text: parts.map(p => p.text).join(" "), confidence: Math.min(...parts.map(p => p.confidence)) };
+        })().catch(() => undefined);
+        const stopped = new Promise<undefined>(resolve => {
+          controller.signal.addEventListener("abort", () => resolve(undefined), { once: true });
+          timer = setTimeout(() => { controller.abort(); resolve(undefined); }, 3000);
+        });
+        for (const frame of frames) { controller.signal.throwIfAborted(); stream.pushFrame(frame); }
+        // The installed SDK starts its run asynchronously and skips connection
+        // entirely if input was closed before that task entered its loop.
+        // Match its startSoon(setTimeout(0)) phase; setImmediate can run first.
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        controller.signal.throwIfAborted();
+        stream.flush?.();
+        stream.endInput!();
+        const result = await Promise.race([collect, stopped]);
+        signal.throwIfAborted();
+        return controller.signal.aborted ? undefined : result;
+      } catch { signal.throwIfAborted(); return undefined; }
+      finally {
+        if (timer) clearTimeout(timer);
+        signal.removeEventListener("abort", abort);
+        try { temporary?.close(); } catch { /* Temporary stream only. */ }
+        if (recoveryController === controller) { recoveryController = undefined; recoveryAudio.clear(); }
+      }
     },
     close,
   };

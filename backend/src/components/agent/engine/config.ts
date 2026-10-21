@@ -11,6 +11,10 @@ export const agentConfigSchema = z.object({
   languages: z.array(languageSchema).min(1),
   defaultLanguage: languageSchema.default("as"),
   enabledTools: z.array(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/u)).default([]),
+  contextLimits: z.object({ targetBytes: z.number().int().min(1024).max(12288).default(8192),
+    hardBytes: z.number().int().min(1024).max(12288).default(12288), inputTokens: z.number().int().min(256).max(3500).default(3500),
+    contextWindowTokens: z.number().int().min(1024).optional() }).strict()
+    .refine(v => v.targetBytes <= v.hardBytes).default({ targetBytes: 8192, hardBytes: 12288, inputTokens: 3500 }),
   greeting: spokenText.optional(),
   modelSettings: z.object({
     model: z.string().trim().min(1).optional(),

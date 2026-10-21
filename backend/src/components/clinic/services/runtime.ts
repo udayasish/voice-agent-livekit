@@ -57,7 +57,7 @@ export class ClinicRuntime {
     try { clinicLocalDate(this.now(), row.organization.timezone); }
     catch { clinicError("INVALID_CLINIC_TIMEZONE"); }
     return {
-      organizationId: row.organization.id, timezone: row.organization.timezone,
+      organizationId: row.organization.id, name: row.organization.name, timezone: row.organization.timezone,
       remindersEnabled: row.settings?.remindersEnabled ?? true,
       notificationsEnabled: row.settings?.notificationsEnabled ?? true,
     };

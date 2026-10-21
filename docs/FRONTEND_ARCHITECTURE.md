@@ -1,5 +1,26 @@
 # Assamese AI Voice Agent Platform — Frontend Architecture
 
+## Phase 17 listening readiness (2026-10-17)
+
+The sandbox distinguishes room/microphone connection from agent audio-pipeline readiness. `use-livekit-room.ts` accepts `voice_status.category: listening_ready` from an agent participant and exposes `isAgentListening`; the UI shows “Preparing the agent — please wait” until ready. The worker sends the reliable event only to its caller after first VAD inference and first recognizer audio submission. This is a local readiness signal, not a remote recognition guarantee. Disconnect/agent departure clears readiness; an accepted agent transcript also establishes it. Existing recognition-failure status remains distinct. The change addresses callers speaking while the worker is still attaching, without changing token or HTTP contracts.
+
+## Phase 17 context/provider feedback (2026-10-17)
+
+The existing voice sandbox accepts optional safe `failureCategory` and `providerTtftMs` fields. It distinguishes an oversized request, rate limit, configuration/authentication or response-processing failure from unclear caller speech. Prepared readbacks, verified tool replies and generic recovery omit provider TTFT when no provider token arrived. Existing doctor/tool/outcome badges and transcript display stay compatible. These are diagnostic display changes using the current DataChannel; no dashboard configuration, raw API call, endpoint or patient login was added. Five offline frontend diagnostic tests pass; live microphone acceptance is separate.
+
+## Phase 17 voice recovery feedback (2026-10-16)
+
+The existing sandbox now validates optional listening-mode, confirmation-stage and recovery-category diagnostics through the shared Zod helpers. It displays waiting-for-confirmation, speech-unclear, recognition recovery and audio/provider failure statuses. Assistant-only recovery turns do not show a fabricated You (STT) message. Tool badges, selected-doctor display and existing transcript fields remain compatible.
+
+This adds local UI state and optional DataChannel fields only; no API calls, dashboard controls or patient-login flow. Diagnostics have four offline checks; live browser microphone acceptance remains separate.
+
+
+## Phase 17 doctor-result diagnostics (2026-10-16)
+
+The sandbox now displays optional business outcome/count and reply provenance from the existing agent DataChannel. A successful lookup with zero matches shows `not found · 0 results`, rather than implying a doctor was found. `Verified reply` identifies a server-rendered business response; `Recovery` identifies generic generation recovery. Empty-output help no longer falsely asserts a retry after tool execution. A selected doctor appears immediately, with the approved English name as secondary information when the primary name is Assamese.
+
+Validation and display helpers live in `src/lib/voice-diagnostics.ts`, used by the LiveKit hook/sandbox and covered by three offline tests (`npm run test:voice-diagnostics`). The tests use the already-installed backend `tsx` runtime; no frontend dependency was added. Existing legacy optional diagnostics remain compatible. No new API calls, configuration dashboard, patient login or audio transport behavior was added.
+
 **App:** `apps/dashboard/`
 
 **Framework:** Next.js App Router + React + TypeScript
@@ -309,6 +330,16 @@ UI should show:
 - tool activity
 - call/session duration
 - disconnect button
+
+### Phase 17 implemented sandbox changes
+
+The actual application uses `frontend/src/`. `/agents/default/testing` can exercise a server-configured default clinic profile. `VoiceSandbox` uses the existing authenticated organization-membership store for a test organization selector, disabled during connection/calls. It adds no raw API calls or agent-configuration dashboard; selected organization headers still undergo server membership authorization.
+
+The token response shape remains compatible. Room labels now resolve to separate organization-scoped caller rooms, so two tabs represent independent calls rather than shared audio loopback. The testing page's instructions were updated accordingly. Patients speaking into the microphone do not need accounts; the test operator retains the existing staff login.
+
+The existing transcript DataChannel adds optional validated `tools` summaries: tool name, success flag, safe error code and optional domain outcome (`confirmation_required`, `booked`, `unavailable`, `cancelled`). Badges distinguish prepared requests/unavailable results from a completed booking. Raw tool arguments/results are not published as tool activity. Existing slots, transcripts, TTFT, interruption and audio diagnostics remain compatible.
+
+Guarded setup, prerequisites, exact frontend steps and pending live acceptance are in `CLINIC_VOICE_TOOLS.md`. Saved tools/agent configuration remains Phase 18. Microphone and cloud-provider quality are not proven by deterministic SDK tests.
 
 ## 12. Calls and Conversations
 

@@ -50,6 +50,10 @@ export class ConversationSession {
   clearHistory() { return this.engine.reset(); }
   close() { return this.engine.close(); }
   notifyInterruption(turnId: number) { return this.engine.notifyInterruption(turnId); }
+  notifyPlaybackResult(turnId: number, completed: boolean) { return this.engine.notifyPlaybackResult(turnId, completed); }
+  async processRecovery(reason: import("../components/agent/engine/state.js").RecoveryReason, options: TurnOptions = {}) {
+    const result = await this.engine.processRecovery(reason, options); return { ...result, slots: result.businessState.slots };
+  }
   async processUserUtterance(text: string, options: TurnOptions = {}) {
     const result = await this.engine.processUserUtterance(text, {
       ...(this.isCollectingPhoneNumber() ? { responseLanguage: this.engine.getState().language } : {}), ...options,

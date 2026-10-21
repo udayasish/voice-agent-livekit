@@ -10,20 +10,24 @@ import type * as deepgram from "@livekit/agents-plugin-deepgram";
 import { RoomEvent, TrackKind, type Track, AudioSource } from "@livekit/rtc-node";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
 import env from "../lib/env.js";
 import logger from "../lib/logger.js";
 import { playDeterministicGreeting } from "./greeting.js";
 import { logLifecycle, registerShutdownHandlers } from "./lifecycle.js";
 import { attachVADToTrack, loadSileroVAD } from "./vad.js";
 import { attachSTTToTrack, loadDeepgramSTT, type STTTrackSubscription } from "./stt.js";
-import { loadLLMProvider, ConversationSession } from "./llm.js";
+import { VoiceRecoveryTimer, UnusableSpeechRecoveryGate, waitForPlayback } from "./voice-recovery.js";
+import { normalizePhoneNumber } from "../components/agent/normalizers/index.js";
+import type { RecoveryReason } from "../components/agent/engine/index.js";
+import { loadLLMProvider } from "./llm.js";
+import { createBoundVoiceSession } from "./create-session.js";
+import { consumeRuntimeBinding } from "../components/agent/runtime-binding.js";
 import { loadTTSProvider, type TTSAdapter, RayaTTS } from "./tts.js";
 import { InterruptionManager } from "../components/agent/index.js";
 import { RedisSessionStore } from "../components/agent/session-store.js";
 import { connectRedis, redis } from "../lib/redis.js";
-import { participantSessionContext } from "./session-context.js";
-import { TurnCollector, NORMAL_TURN_PAUSE_MS, DICTATION_TURN_PAUSE_MS, type TranscriptFragment } from "./turn-collector.js";
+import { RedisProviderCooldown, setProviderCooldownStore } from "../components/agent/providers/llm/cooldown.js";
+import { TurnCollector, SpeechTranscriptGate, NORMAL_TURN_PAUSE_MS, DICTATION_TURN_PAUSE_MS, type TranscriptFragment } from "./turn-collector.js";
 import type { LLMProvider } from "../components/agent/providers/llm/index.js";
 
 interface AgentProcessUserData extends Record<string, unknown> {
@@ -107,13 +111,15 @@ const agent = defineAgent<AgentProcessUserData>({
     const tts = ctx.proc.userData.tts ?? loadTTSProvider();
     if (!redis.isOpen) await connectRedis();
     if (!redis.isReady) throw new Error("Redis is required for active agent sessions");
+    setProviderCooldownStore(new RedisProviderCooldown(redis));
     const sessionStore = new RedisSessionStore(redis);
 
     // Setup audio source and single authoritative interruption coordinator
     let agentAudioSource: AudioSource | null = null;
     const interruptionManager = new InterruptionManager();
     let roomClosing = false;
-    const participantSessions = new Map<string, { session: ConversationSession; subscriptions: Array<() => void> }>();
+    const participantSessions = new Map<string, { session: Awaited<ReturnType<typeof createBoundVoiceSession>>; subscriptions: Array<() => void> }>();
+    const attaching = new Set<string>();
     const detachParticipant = async (identity: string) => {
       const resources = participantSessions.get(identity);
       participantSessions.delete(identity);
@@ -135,13 +141,16 @@ const agent = defineAgent<AgentProcessUserData>({
 
     const attachAudioPipelines = async (track: Track, participantIdentity: string) => {
       // Ensure only one active audio pipeline (VAD, STT, and ConversationSession) per participant
-      if (roomClosing || participantSessions.has(participantIdentity)) return;
+      if (roomClosing || participantSessions.has(participantIdentity) || attaching.has(participantIdentity)) return;
       const participant = ctx.room.remoteParticipants.get(participantIdentity);
       if (!participant) return;
-      const context = participantSessionContext(participant.metadata, randomUUID());
-      const session = new ConversationSession(llm, {
-        roomName, participantIdentity, context, store: sessionStore,
-      });
+      attaching.add(participantIdentity);
+      let session: Awaited<ReturnType<typeof createBoundVoiceSession>>;
+      try {
+        const binding = await consumeRuntimeBinding(redis, participant.metadata, roomName, participantIdentity);
+        session = await createBoundVoiceSession(llm, binding, sessionStore);
+      } finally { attaching.delete(participantIdentity); }
+      if (roomClosing || !ctx.room.remoteParticipants.has(participantIdentity)) { await session.close(); return; }
       const resources = { session, subscriptions: [] as Array<() => void> };
       participantSessions.set(participantIdentity, resources);
       try {
@@ -154,15 +163,35 @@ const agent = defineAgent<AgentProcessUserData>({
         });
 
         let sttSubscription: STTTrackSubscription | undefined;
-        const handleUserTurn = async (turn: TranscriptFragment) => {
+        let recoveryController: AbortController | undefined;
+        let lastSpeechRange: { startMs: number; endMs: number } | undefined;
+        let speechGeneration = 0;
+        let deliveredAudioThrough = -1;
+        let vadReady = false, sttReady = false, listeningReady = false;
+        const reportListeningReady = () => {
+          if (listeningReady || !vadReady || !sttReady || participantSessions.get(participantIdentity) !== resources) return;
+          listeningReady = true;
+          logLifecycle("listening_ready", "Audio readers are ready", { roomName, participantIdentity });
+          void ctx.room.localParticipant?.publishData(new TextEncoder().encode(JSON.stringify({ type: "voice_status", category: "listening_ready" })),
+            { reliable: true, topic: "agent_transcript", destination_identities: [participantIdentity] }).catch(() => {});
+        };
+        const publishStatus = (category: string) => {
+          logLifecycle("voice_recovery", "Voice recovery status", { roomName, participantIdentity, category });
+          void ctx.room.localParticipant?.publishData(new TextEncoder().encode(JSON.stringify({ type: "voice_status", category,
+            inputMode: sttSubscription?.inputMode ?? "conversation", timestamp: new Date().toISOString() })), { reliable: true, topic: "agent_transcript" }).catch(() => {});
+        };
+        const reminders = new VoiceRecoveryTimer(() => handleUserTurn({ text: "", confidence: 0, language: "as", latencyMs: 0 }, "no_input"));
+        resources.subscriptions.push(() => { reminders.close(); recoveryController?.abort(); });
+        const handleUserTurn = async (turn: TranscriptFragment, recovery?: RecoveryReason) => {
           if (participantSessions.get(participantIdentity) !== resources) return;
+          reminders.pause();
           const userUtterance = turn.text;
           const { confidence, latencyMs } = turn;
           // Acoustic self-echo filtering:
           // When testing via laptop speakers without headphones, the microphone may capture
           // the agent's recent speech. Discard transcripts that echo the assistant's own utterance.
           const lastAssistantText = session.getState().lastAssistantUtterance?.trim();
-          if (lastAssistantText) {
+          if (!recovery && lastAssistantText) {
             const u = userUtterance.toLowerCase();
             const a = lastAssistantText.toLowerCase();
             const isEcho =
@@ -208,10 +237,9 @@ const agent = defineAgent<AgentProcessUserData>({
           const llmSignal = interruptionManager.startThinking(turnId);
 
           try {
-            const llmResult = await session.processUserUtterance(userUtterance, {
-              abortSignal: llmSignal,
-              turnId,
-            });
+            const llmResult = recovery
+              ? await session.processRecovery(recovery, { abortSignal: llmSignal, turnId })
+              : await session.processUserUtterance(userUtterance, { abortSignal: llmSignal, turnId });
 
             // Verify turn is still active before proceeding to broadcast and TTS
             if (!interruptionManager.isTurnActive(turnId)) {
@@ -222,9 +250,13 @@ const agent = defineAgent<AgentProcessUserData>({
               });
               return;
             }
-            // Change recognition before speaking the question, so English digit
-            // dictation reaches an English stream. Restore conversation STT for confirmation.
-            sttSubscription?.setInputMode(session.isCollectingPhoneNumber() ? "english-digits" : "conversation");
+            // Critical confirmations use the trusted reply language even when
+            // the experimental multi baseline does not support that language.
+            const confirmationStage = "getVoiceDiagnostics" in session ? session.getVoiceDiagnostics().confirmationStage : "none";
+            const language = session.getSnapshot().conversation.language;
+            const collectingPhone = session.isCollectingPhoneNumber();
+            sttSubscription?.setInputMode(collectingPhone ? "english-digits" : "conversation",
+              collectingPhone || confirmationStage === "phone" || confirmationStage === "action" ? language : undefined);
             interruptionManager.finishThinking(turnId);
 
             logLifecycle("llm_response_completed", `LLM generated response: "${llmResult.text}"`, {
@@ -243,6 +275,7 @@ const agent = defineAgent<AgentProcessUserData>({
               responseRepeated: llmResult.text === lastAssistantText,
               fallbackReason: llmResult.fallbackReason ?? "none",
               isFallback: llmResult.isFallback,
+              replySource: llmResult.replySource,
             });
 
             // Broadcast transcript and response over WebRTC DataChannel to room (e.g. browser sandbox)
@@ -250,14 +283,27 @@ const agent = defineAgent<AgentProcessUserData>({
               const encoder = new TextEncoder();
               const payload = JSON.stringify({
                 type: "transcript_turn",
+                failureCategory: llmResult.failureCategory,
+                providerTtftMs: llmResult.providerTtftMs,
                 turnId,
                 userText: userUtterance,
                 responseText: llmResult.text,
-                ttftMs: llmResult.ttftMs,
+                ttftMs: llmResult.providerTtftMs,
                 totalLatencyMs: llmResult.totalLatencyMs,
                 slots: llmResult.slots,
+                recoveryCategory: recovery ?? (llmResult.fallbackReason === "provider_error" ? "provider_failure" : undefined),
+                inputMode: sttSubscription?.inputMode ?? "conversation",
+                confirmationStage: "getVoiceDiagnostics" in session ? session.getVoiceDiagnostics().confirmationStage : "none",
+                selectedDoctor: "selectedDoctor" in llmResult ? llmResult.selectedDoctor : undefined,
+                tools: session.getSnapshot().conversation.toolHistory.filter(call => call.turnId === turnId && !call.interrupted)
+                  .map(call => ({ name: call.name, success: call.result.success, ...(!call.result.success ? { code: call.result.error.code } : {}),
+                    ...(call.result.success && call.result.data && typeof call.result.data === "object" && "outcome" in call.result.data && typeof call.result.data.outcome === "string"
+                      ? { outcome: call.result.data.outcome } : {}),
+                    ...(call.result.success && call.result.data && typeof call.result.data === "object" && "resultCount" in call.result.data && Number.isInteger(call.result.data.resultCount)
+                      ? { resultCount: call.result.data.resultCount } : {}) })),
                 fallbackReason: llmResult.fallbackReason,
                 isFallback: llmResult.isFallback,
+                replySource: llmResult.replySource,
                 timestamp: new Date().toISOString(),
               });
               await ctx.room.localParticipant?.publishData(encoder.encode(payload), {
@@ -297,18 +343,30 @@ const agent = defineAgent<AgentProcessUserData>({
               const ttsStart = Date.now();
               const ttsStream = tts.synthesize(speechText, undefined, ttsSignal);
               let frameCount = 0;
+              let audioDurationMs = 0;
               for await (const packet of ttsStream) {
                 if (!interruptionManager.canDeliverFrame(turnId)) {
                   break;
                 }
+                if (!agentAudioSource || agentAudioSource.closed) throw new Error("Assistant audio is unavailable");
+                await agentAudioSource.captureFrame(packet.frame);
                 frameCount++;
-                if (agentAudioSource && !agentAudioSource.closed) {
-                  await agentAudioSource.captureFrame(packet.frame);
-                }
+                audioDurationMs += packet.frame.samplesPerChannel / packet.frame.sampleRate * 1000;
               }
               const ttsDurationMs = Date.now() - ttsStart;
+              if (frameCount === 0) {
+                await session.notifyInterruption(turnId);
+                logLifecycle("tts_skipped", "No assistant audio was delivered", { roomName, participantIdentity, turnId });
+                return;
+              }
 
               if (interruptionManager.isTurnActive(turnId)) {
+                if (!agentAudioSource) throw new Error("Assistant audio is unavailable");
+                await waitForPlayback(agentAudioSource, audioDurationMs, ttsSignal);
+                if (!interruptionManager.isTurnActive(turnId)) return;
+                await session.notifyPlaybackResult(turnId, true);
+                logLifecycle("playback_completed", "Readback playback completed", { roomName, participantIdentity, turnId });
+                reminders.playbackCompleted(/[?？]|কওক|ক'ব|দিব|please|tell|provide|say|बताएं/iu.test(speechText));
                 interruptionManager.finishSpeaking(turnId);
                 logLifecycle(
                   "tts_synthesis_completed",
@@ -324,6 +382,9 @@ const agent = defineAgent<AgentProcessUserData>({
                 );
               }
             } catch (ttsErr) {
+              // A prepared readback cannot authorize an action if speech delivery failed.
+              await session.notifyInterruption(turnId);
+              publishStatus("playback_failure");
               if (!interruptionManager.isTurnActive(turnId)) {
                 return; // Aborted cleanly
               }
@@ -354,6 +415,7 @@ const agent = defineAgent<AgentProcessUserData>({
             if (llmSignal.aborted || !interruptionManager.isTurnActive(turnId)) {
               return; // Turn was superseded or aborted by interruption
             }
+            publishStatus("provider_failure");
             logLifecycle(
               "agent_error",
               `LLM generation error: ${llmErr instanceof Error ? llmErr.message : String(llmErr)}`,
@@ -365,16 +427,84 @@ const agent = defineAgent<AgentProcessUserData>({
             );
           }
         };
+        const transcriptGate = new SpeechTranscriptGate();
+        const recoverRecognition = async (range = lastSpeechRange): Promise<TranscriptFragment | "cancelled" | undefined> => {
+          if (!range || !sttSubscription || !session.isCollectingPhoneNumber()) return undefined;
+          recoveryController?.abort(); const controller = new AbortController(); recoveryController = controller;
+          const generation = speechGeneration;
+          const historyLength = session.getSnapshot().conversation.history.length;
+          publishStatus("recognition_recovery");
+          try {
+            const result = await sttSubscription.recoverSpeech(range, controller.signal);
+            if (generation !== speechGeneration || controller.signal.aborted || session.getSnapshot().session.status === "closed"
+              || session.getSnapshot().conversation.history.length !== historyLength) return "cancelled";
+            return result && !transcriptGate.rejection(result) ? result : undefined;
+          } catch { return controller.signal.aborted ? "cancelled" : undefined; }
+        };
+        const unusableRecovery = new UnusableSpeechRecoveryGate();
         const turnCollector = new TurnCollector({
           pauseMs: () => session.isCollectingPhoneNumber() ? DICTATION_TURN_PAUSE_MS : NORMAL_TURN_PAUSE_MS,
-          onTurn: handleUserTurn,
+          finalTranscriptGraceMs: 1500,
+          onAwaitingFinal: () => {
+            logLifecycle("stt_final_wait", "Waiting for a delayed recognition final", { roomName, participantIdentity });
+            sttSubscription?.requestFinalTranscript();
+          },
+          onTurn: async turn => {
+            // A late final from the original socket must not repeat an utterance
+            // already handled through replay or explicit recognition recovery.
+            if (turn.audioRange && turn.audioRange.endMs <= deliveredAudioThrough) return;
+            deliveredAudioThrough = Math.max(deliveredAudioThrough, (lastSpeechRange?.endMs ?? turn.audioRange?.endMs ?? -301) + 300);
+            reminders.activity();
+            const capture = normalizePhoneNumber(turn.text);
+            if (session.isCollectingPhoneNumber() && (capture.unrecognizedTokens.length > 0 || capture.digitCount > 10)) {
+              const restored = await recoverRecognition(turn.audioRange ?? lastSpeechRange);
+              if (restored === "cancelled") return;
+              if (restored) {
+                const second = normalizePhoneNumber(restored.text);
+                // Two different digit interpretations cannot authorize a choice.
+                if (capture.digitCount && second.digitCount && capture.digits !== second.digits) {
+                  publishStatus("recognition_conflict");
+                  await handleUserTurn({ ...turn, text: "" }, "speech_unclear"); return;
+                }
+                unusableRecovery.acceptedInput(); await handleUserTurn(restored); return;
+              }
+              await handleUserTurn({ ...turn, text: "" }, "speech_unclear"); return;
+            }
+            sttSubscription?.discardRecoveryAudio();
+            unusableRecovery.acceptedInput();
+            await handleUserTurn(turn);
+          },
+          onUnusable: async reason => {
+            deliveredAudioThrough = Math.max(deliveredAudioThrough, (lastSpeechRange?.endMs ?? -301) + 300);
+            const restored = await recoverRecognition();
+            if (restored === "cancelled") return;
+            if (restored) { unusableRecovery.acceptedInput(); await handleUserTurn(restored); return; }
+            publishStatus(reason);
+            if (!unusableRecovery.shouldPrompt()) return;
+            await handleUserTurn({ text: "", confidence: 0, language: "as", latencyMs: 0 }, reason);
+          },
           onError: lifecycleFailure,
+          acceptFragment: fragment => {
+            const reason = transcriptGate.rejection(fragment);
+            if (!reason) return true;
+            logLifecycle(reason === "low_confidence" ? "stt_low_confidence_filtered" : "stt_unvoiced_filtered",
+              "Recognition result rejected before model input", {
+                roomName, participantIdentity, confidence: fragment.confidence, rejectionReason: reason,
+                audioStartMs: fragment.audioRange?.startMs, audioEndMs: fragment.audioRange?.endMs,
+              });
+            return false;
+          },
         });
         resources.subscriptions.push(() => turnCollector.close());
 
         // 1. Attach Silero VAD
         const vadSubscription = attachVADToTrack(vad, track, {
-          onSpeechStart: () => {
+          onInferenceDone: () => { if (!vadReady) { vadReady = true; reportListeningReady(); } },
+          onSpeechStart: event => {
+            reminders.activity(); recoveryController?.abort(); speechGeneration++;
+            const startMs = Math.max(0, event.samplesIndex / 16 - event.speechDuration);
+            lastSpeechRange = { startMs, endMs: event.samplesIndex / 16 };
+            transcriptGate.speechStarted(event.samplesIndex / 16, event.speechDuration);
             turnCollector.speechStarted();
             logLifecycle("speech_started", `User speech detected (START_OF_SPEECH)`, {
               roomName: ctx.room.name,
@@ -428,6 +558,8 @@ const agent = defineAgent<AgentProcessUserData>({
             }
           },
           onSpeechEnd: (event) => {
+            if (lastSpeechRange) lastSpeechRange.endMs = Math.max(lastSpeechRange.startMs, event.samplesIndex / 16 - event.silenceDuration);
+            transcriptGate.speechEnded(event.samplesIndex / 16, event.silenceDuration);
             turnCollector.speechEnded();
             const frame = event.frames[0];
             const bufferedDurationMs = frame
@@ -460,7 +592,9 @@ const agent = defineAgent<AgentProcessUserData>({
           );
 
           sttSubscription = attachSTTToTrack(stt, track, {
+            onAudioReady: () => { sttReady = true; reportListeningReady(); },
             onInputModeChanged: (inputMode, language) => {
+              publishStatus("input_mode_changed");
               logLifecycle("stt_input_mode_changed", "Recognition input mode changed", {
                 roomName: ctx.room.name, participantIdentity, inputMode, language,
               });
@@ -485,20 +619,16 @@ const agent = defineAgent<AgentProcessUserData>({
                 });
               }
             },
-            onFinalTranscript: (event, latencyMs) => {
+            onFinalTranscript: (event, latencyMs, audioRange) => {
               const alternative = event.alternatives?.[0];
               const text = alternative?.text?.trim();
               if (!alternative || !text) return;
-              const confidence = alternative.confidence ?? 1;
-              if (confidence < 0.30 && text.length < 15) {
-                logLifecycle("stt_low_confidence_filtered", "Ignoring low-confidence noise transcript", {
-                  roomName: ctx.room.name, participantIdentity, confidence,
-                });
-                return;
-              }
-              turnCollector.addFinal({ text, confidence, language: alternative.language ?? "as", latencyMs });
+              const confidence = alternative.confidence ?? 0;
+              turnCollector.addFinal({ text, confidence, language: alternative.language ?? "as", latencyMs,
+                ...(audioRange ? { audioRange } : {}) });
             },
             onError: (err) => {
+              reminders.pause(); publishStatus("recognition_failure");
               logLifecycle("agent_error", `Deepgram STT stream error: ${err.message}`, {
                 roomName: ctx.room.name,
                 participantIdentity,
@@ -646,9 +776,16 @@ if (
     invokedFile.endsWith("dist/agent/index.js"))
 ) {
   const wsURL = env.LIVEKIT_URL.replace(/^http/, "ws");
+  // The LiveKit SDK defaults to a 10-second child-process initialization window.
+  // On Windows, importing this TypeScript worker in a fresh tsx process can use
+  // nearly all of that window before its local VAD prewarm even begins.
+  const initializeProcessTimeoutMs = 60_000;
+  const localDevMode = process.argv.slice(2).includes("dev");
   logLifecycle("worker_started", "Starting LiveKit Agent worker process", {
     wsURL,
     agentName: env.LIVEKIT_AGENT_NAME || "(all rooms)",
+    initializeProcessTimeoutMs,
+    idleProcesses: localDevMode ? 1 : undefined,
   });
 
   cli.runApp(
@@ -658,6 +795,10 @@ if (
       apiKey: env.LIVEKIT_API_KEY,
       apiSecret: env.LIVEKIT_API_SECRET,
       agentName: env.LIVEKIT_AGENT_NAME || "",
+      initializeProcessTimeout: initializeProcessTimeoutMs,
+      // Warm one local job process before the first browser call in dev mode.
+      // Production keeps the SDK's own idle-process default.
+      ...(localDevMode ? { numIdleProcesses: 1 } : {}),
       requestFunc: async (jobRequest) => {
         await jobRequest.accept("Assamese Voice Assistant", "agent-assistant");
       },

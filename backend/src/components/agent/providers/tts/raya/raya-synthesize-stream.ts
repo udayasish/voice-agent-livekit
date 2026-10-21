@@ -71,7 +71,7 @@ export class RayaSynthesizeStream extends tts.SynthesizeStream {
     } catch (error) {
       if (!this.abortSignal.aborted && !this.abortController.signal.aborted) {
         logger.error("[agent:tts:raya] Error in RayaSynthesizeStream", {
-          error: error instanceof Error ? error.message : String(error),
+          errorCode: "TTS_STREAM_FAILED",
         });
       }
       this.queue.close();
@@ -96,7 +96,6 @@ export class RayaSynthesizeStream extends tts.SynthesizeStream {
 
     logger.debug("[agent:tts:raya] Synthesizing incremental phrase", {
       requestId,
-      phrase: phrase.slice(0, 40),
       isLastPhrase,
     });
 

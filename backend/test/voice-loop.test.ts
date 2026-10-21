@@ -24,6 +24,7 @@ import {
   decodeF32LEBase64ToPCM16,
 } from "../src/components/agent/providers/tts/raya/index.js";
 import { logLifecycle } from "../src/agent/lifecycle.js";
+import { SpeechTranscriptGate } from "../src/agent/turn-collector.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -241,24 +242,16 @@ describe("Phase 12 — Complete Voice Loop Integration & Reliability Test Suite"
   });
 
   it("Test 5: Deepgram Nova-3 STT Low-Confidence Noise Filtering", () => {
-    const STT_CONFIDENCE_THRESHOLD = 0.3;
-
-    // Filter rule verification from fixtures
+    const gate = new SpeechTranscriptGate();
+    gate.speechStarted(100, 100); gate.speechEnded(2600, 600);
     const noiseFixture = testCorpus.find((c) => c.id === "turn-9-noise-artifact");
     assert.ok(noiseFixture, "Noise fixture should exist");
-
-    const isNoise =
-      (noiseFixture.confidence ?? 1.0) < STT_CONFIDENCE_THRESHOLD &&
-      noiseFixture.rawText.length < 15;
-
-    assert.equal(isNoise, true, "Low-confidence short transcript should be classified as noise");
-
-    // Real valid utterance with standard confidence
-    const validTranscript = "নমস্কাৰ, মই ডাঃ বৰুৱাৰ সৈতে এটা এপইণ্টমেণ্ট বুক কৰিব বিচাৰোঁ।";
-    const validConfidence = 0.94;
-    const isValidNoise =
-      validConfidence < STT_CONFIDENCE_THRESHOLD && validTranscript.length < 15;
-    assert.equal(isValidNoise, false, "Valid user speech must not be filtered out");
+    assert.equal(gate.rejection({ text: noiseFixture.rawText, confidence: noiseFixture.confidence ?? 0,
+      language: "as", latencyMs: 0, audioRange: { startMs: 0, endMs: 1000 } }), "low_confidence");
+    assert.equal(gate.rejection({ text: "ভাৰতীয় সেনাৰ এজন অকলে", confidence: 0.18,
+      language: "as", latencyMs: 0, audioRange: { startMs: 0, endMs: 1000 } }), "low_confidence");
+    assert.equal(gate.rejection({ text: "নমস্কাৰ, মই ডাঃ বৰুৱাৰ সৈতে এটা এপইণ্টমেণ্ট বুক কৰিব বিচাৰোঁ।", confidence: 0.94,
+      language: "as", latencyMs: 0, audioRange: { startMs: 0, endMs: 2000 } }), undefined);
   });
 
   it("Test 6: Monotonic Turn ID & Superseded Audio Cancellation Guard", () => {

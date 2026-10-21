@@ -1,5 +1,27 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "rootDir": ".", "noEmit": true },
-  "include": ["test/engine.test.ts", "test/engine-redis.test.ts", "test/voice-turns.test.ts", "test/stt-language.test.ts", "test/tools.test.ts", "test/tool-smoke.ts"]
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": [
+    "test/engine.test.ts",
+    "test/compact-context.test.ts",
+    "test/clinic-intake-reliability.test.ts",
+    "test/contextual-confirmation.test.ts",
+    "test/engine-redis.test.ts",
+    "test/voice-turns.test.ts",
+    "test/stt-language.test.ts",
+    "test/tools.test.ts",
+    "test/tool-smoke.ts",
+    "test/clinic-voice.test.ts",
+    "test/clinic-voice-db.test.ts",
+    "test/clinic-voice-setup.ts",
+    "test/clinic-voice-dev-setup.ts",
+    "test/local-api-regressions.ts",
+    "test/clinic-live-session.test.ts",
+    "test/clinic-dialogue.test.ts",
+    "test/clinic-dialogue-db.test.ts",
+    "test/clinic-doctor-metadata.ts"
+  ]
 }

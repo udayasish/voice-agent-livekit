@@ -15,6 +15,20 @@
       "when": 1791893710062,
       "tag": "0001_lucky_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792138309848,
+      "tag": "0002_classy_madame_web",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792144863546,
+      "tag": "0003_chief_purple_man",
+      "breakpoints": true
     }
   ]
 }

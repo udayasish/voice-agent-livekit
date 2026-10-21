@@ -48,6 +48,9 @@ export type LLMToolSpec = {
  * Runtime execution options for LLM generation.
  */
 export type LLMOptions = {
+  background?: boolean | undefined;
+  responseFormat?: { type: "json_schema"; json_schema: { name: string; strict: boolean; schema: Record<string, unknown> } } | undefined;
+  requestByteLimit?: number | undefined;
   model?: string | undefined;
   tools?: LLMToolSpec[] | undefined;
   toolChoice?: string | undefined;
@@ -74,6 +77,7 @@ export type LLMResponse = {
  * Declared capabilities of an LLM provider.
  */
 export type LLMCapabilities = {
+  structuredOutput?: boolean;
   streaming: boolean;
   toolCalling: boolean;
   multilingual: boolean;
@@ -88,6 +92,8 @@ export type LLMCapabilities = {
 export interface LLMProvider {
   readonly label: string;
   readonly capabilities: LLMCapabilities;
+  /** Provider-specific completion budget, including hidden reasoning when required. */
+  getMaxCompletionTokens?(requested?: number, model?: string): number;
 
   /**
    * Generates a streaming response delta-by-delta as an AsyncIterable of LLMChunks.

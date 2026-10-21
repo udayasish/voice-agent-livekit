@@ -12,6 +12,7 @@ import { listUpcomingAppointmentsForPatient } from "./services/list-upcoming-for
 import { cancelAppointment } from "./services/cancel-appointment.js";
 import { generateSlots } from "./services/generate-slots.js";
 import { blockDoctorDate, unblockDoctorDate } from "./services/block-date.js";
+import { clinicLocalDate } from "./timezone.js";
 
 export type { ClinicIdentity } from "./contracts/inputs.js";
 export type { ClinicResult, AppointmentSummary, SlotSummary, NotificationOutcomes } from "./contracts/results.js";
@@ -22,6 +23,12 @@ export type { ClinicNotificationScheduler, ClinicNotificationJob } from "./notif
 export function createClinicServices(identity: inputs.ClinicIdentity, deps: ClinicDependencies) {
   const runtime = new ClinicRuntime(identity, deps);
   return Object.freeze({
+    resolveClinic: (input: z.input<typeof inputs.emptyInputSchema> = {}) => runtime.run("resolveClinic", input, inputs.emptyInputSchema,
+      z.object({ organizationId: z.uuid(), name: z.string(), timezone: z.string(), localDate: inputs.dateSchema, localTime: z.string() }).strict(), async () => {
+        const clinic = await runtime.requireClinic();
+        return { organizationId: clinic.organizationId, name: clinic.name, timezone: clinic.timezone,
+          localDate: clinicLocalDate(runtime.now(), clinic.timezone), localTime: new Intl.DateTimeFormat("en-GB", { timeZone: clinic.timezone, hourCycle: "h23", hour: "2-digit", minute: "2-digit" }).format(runtime.now()) };
+      }),
     listActiveDoctors: (input: z.input<typeof inputs.emptyInputSchema> = {}) => runtime.run("listActiveDoctors", input, inputs.emptyInputSchema, z.array(outputs.doctorSummarySchema), () => listActiveDoctors(runtime)),
     findDoctorsByName: (input: z.input<typeof inputs.findDoctorsInputSchema>) => runtime.run("findDoctorsByName", input, inputs.findDoctorsInputSchema, z.array(outputs.doctorMatchSchema), (value) => findDoctorsByName(runtime, value.namePart)),
     listAvailableDates: (input: z.input<typeof inputs.datesInputSchema>) => runtime.run("listAvailableDates", input, inputs.datesInputSchema, z.array(inputs.dateSchema), (value) => listAvailableDates(runtime, value.doctorId, value.maxDates)),

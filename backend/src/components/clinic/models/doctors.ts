@@ -29,6 +29,9 @@ export const clinicDoctors = pgTable(
       .references(() => clinicPeople.id)
       .unique(),
     specialization: varchar("specialization", { length: 255 }),
+    nameEn: varchar("name_en", { length: 255 }),
+    nameAs: varchar("name_as", { length: 255 }),
+    searchAliases: varchar("search_aliases", { length: 255 }).array().notNull().default(sql`ARRAY[]::varchar[]`),
     consultationDurationMinutes: integer("consultation_duration_minutes")
       .notNull()
       .default(15),

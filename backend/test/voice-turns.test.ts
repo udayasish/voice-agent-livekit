@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TurnCollector, NORMAL_TURN_PAUSE_MS, DICTATION_TURN_PAUSE_MS, type TranscriptFragment } from "../src/agent/turn-collector.js";
+import { TurnCollector, SpeechTranscriptGate, NORMAL_TURN_PAUSE_MS, DICTATION_TURN_PAUSE_MS, type TranscriptFragment } from "../src/agent/turn-collector.js";
 import { clinicDemoBehavior, createClinicDemoConfig, extractSlotsFromText, type ClinicDemoState } from "../src/components/agent/business/clinic-demo.js";
 import { normalizePhoneNumber } from "../src/components/agent/normalizers/phone-number-normalizer.js";
 import { AgentSession } from "../src/components/agent/engine/index.js";
@@ -71,6 +71,71 @@ describe("Voice turn listening", () => {
     const collector = new TurnCollector({ pauseMs: () => 1200, onTurn: async () => { throw new Error("failure"); }, onError: () => { errors++; } });
     collector.addFinal(fragment("hello")); t.mock.timers.tick(1200); await Promise.resolve();
     t.mock.timers.tick(5000); assert.equal(errors, 1); collector.close();
+  });
+});
+
+describe("Speech evidence before model input", () => {
+  const timed = (text: string, startMs: number, endMs: number, confidence = 0.9): TranscriptFragment =>
+    ({ ...fragment(text), confidence, audioRange: { startMs, endMs } });
+
+  it("accepts above-80-percent Assamese name transcripts when speech and timing qualify", () => {
+    const gate = new SpeechTranscriptGate();
+    gate.speechStarted(100, 100); gate.speechEnded(1900, 600);
+    for (const confidence of [0.80, 0.8232422, 0.9526367, 1]) {
+      assert.equal(gate.rejection(timed("উদয়চিছ বড়া?", 100, 1100, confidence)), undefined);
+    }
+    assert.equal(gate.rejection(timed("উদয়চিছ বড়া?", 4000, 5100, 0.99)), "no_speech");
+  });
+
+  it("rejects high-confidence text during silence, even after an earlier hello", () => {
+    const gate = new SpeechTranscriptGate();
+    assert.equal(gate.rejection(timed("phantom", 100, 800)), "no_speech");
+    gate.speechStarted(200, 100); gate.speechEnded(1500, 600);
+    assert.equal(gate.rejection(timed("হেল্ল'", 100, 900)), undefined);
+    assert.equal(gate.rejection(timed("ভাৰতীয় সেনাৰ এজন অকলে", 4000, 5100)), "no_speech");
+  });
+  it("rejects long low-confidence output and missing or invalid timing", () => {
+    const gate = new SpeechTranscriptGate();
+    gate.speechStarted(200, 100); gate.speechEnded(2200, 600);
+    assert.equal(gate.rejection(timed("ভাৰতীয় সেনাৰ এজন অকলে", 100, 1500, 0.2)), "low_confidence");
+    assert.equal(gate.rejection(timed("হয়", 100, 400, NaN)), "low_confidence");
+    assert.equal(gate.rejection(fragment("unlocated text")), "missing_timing");
+    assert.equal(gate.rejection(timed("unlocated text", 0, Infinity)), "missing_timing");
+    assert.equal(gate.rejection(timed("unlocated text", 1000, 1000)), "missing_timing");
+  });
+  it("preserves short Assamese affirmations and speech during assistant playback", () => {
+    const gate = new SpeechTranscriptGate();
+    gate.speechStarted(100, 100); gate.speechEnded(850, 600);
+    assert.equal(gate.rejection(timed("হয়", 0, 200, 0.5)), undefined);
+    // Recognition acceptance is independent of assistant playback; VAD still owns barge-in.
+    gate.speechStarted(4000, 100); gate.speechEnded(5200, 600);
+    assert.equal(gate.rejection(timed("ৰব", 3900, 4250)), undefined);
+  });
+  it("waits for asynchronous VAD, then excludes silent fragments from the actual delivered turn", t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const gate = new SpeechTranscriptGate(), turns: TranscriptFragment[] = [], rejections: string[] = [];
+    const collector = new TurnCollector({ pauseMs: () => NORMAL_TURN_PAUSE_MS, onError: assert.fail,
+      onTurn: turn => { turns.push(turn); }, acceptFragment: part => {
+        const reason = gate.rejection(part); if (reason) rejections.push(reason); return !reason;
+      } });
+    collector.addFinal(timed("হেল্ল'", 100, 500));
+    t.mock.timers.tick(200);
+    gate.speechStarted(200, 100); collector.speechStarted();
+    gate.speechEnded(1100, 600); collector.speechEnded();
+    collector.addFinal(timed("phantom silence", 2500, 3000));
+    t.mock.timers.tick(NORMAL_TURN_PAUSE_MS);
+    assert.deepEqual(turns.map(turn => turn.text), ["হেল্ল'"]);
+    assert.deepEqual(rejections, ["no_speech"]);
+    collector.addFinal(timed("more silence", 4000, 5000)); t.mock.timers.tick(NORMAL_TURN_PAUSE_MS);
+    assert.equal(turns.length, 1); collector.close();
+  });
+  it("bounds retained evidence without letting old speech authorize new silence", () => {
+    const gate = new SpeechTranscriptGate();
+    for (let index = 0; index < 200; index++) {
+      gate.speechStarted(index * 2000 + 200, 100); gate.speechEnded(index * 2000 + 1000, 600);
+    }
+    assert.equal(gate.rejection(timed("old", 100, 400)), "no_speech");
+    assert.equal(gate.rejection(timed("latest", 398100, 398400)), undefined);
   });
 });
 
@@ -250,5 +315,48 @@ describe("Clinic dictation demo", () => {
     const yes = await session.processUserUtterance("হয়");
     assert.equal(yes.businessState.phoneConfirmed, true); assert.match(yes.text, /বুক হোৱা নাই/u);
     await session.close();
+  });
+});
+
+
+describe("Qualified speech recovery outcomes", () => {
+  it("waits for a delayed first final instead of marking hello audio delivered as no-transcript", t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const turns: string[] = [], recovery: string[] = []; let finalRequests = 0;
+    const collector = new TurnCollector({ pauseMs: () => 1200, finalTranscriptGraceMs: 1500,
+      onAwaitingFinal: () => { finalRequests++; }, onTurn: turn => { turns.push(turn.text); }, onUnusable: reason => { recovery.push(reason); }, onError: assert.fail });
+    collector.speechStarted(); collector.speechEnded(); t.mock.timers.tick(1200);
+    assert.equal(finalRequests, 1); assert.deepEqual(recovery, []);
+    t.mock.timers.tick(400); collector.addFinal(fragment("হেল্ল'")); t.mock.timers.tick(0);
+    assert.deepEqual(turns, ["হেল্ল'"]); t.mock.timers.tick(5000); assert.deepEqual(recovery, []); collector.close();
+  });
+  it("bounds missing-final grace even if interims continue and cancels it on close", t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const recovery: string[] = []; let requests = 0;
+    const collector = new TurnCollector({ pauseMs: () => 20, finalTranscriptGraceMs: 100, onAwaitingFinal: () => { requests++; },
+      onTurn: () => assert.fail("No final"), onUnusable: reason => { recovery.push(reason); }, onError: assert.fail });
+    collector.speechStarted(); collector.speechEnded(); t.mock.timers.tick(20);
+    collector.interimReceived(); t.mock.timers.tick(100);
+    assert.equal(requests, 1); assert.deepEqual(recovery, ["no_transcript"]);
+    collector.speechStarted(); collector.speechEnded(); t.mock.timers.tick(20); collector.close(); t.mock.timers.tick(5000);
+    assert.deepEqual(recovery, ["no_transcript"]);
+  });
+  it("reports rejected speech and missing transcripts once without inventing a user turn", t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const outcomes: string[] = [], turns: TranscriptFragment[] = [];
+    const collector = new TurnCollector({ pauseMs: () => 20, onTurn: turn => { turns.push(turn); }, onError: assert.fail,
+      acceptFragment: () => false, onUnusable: reason => { outcomes.push(reason); } });
+    collector.speechStarted(); collector.addFinal(fragment("untrusted")); collector.speechEnded(); t.mock.timers.tick(20);
+    collector.speechStarted(); collector.speechEnded(); t.mock.timers.tick(20); t.mock.timers.tick(1000);
+    assert.deepEqual(outcomes, ["speech_unclear", "no_transcript"]); assert.deepEqual(turns, []); collector.close();
+  });
+  it("does not trigger speech recovery for unqualified hallucinated transcripts or after close", t => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const outcomes: string[] = [];
+    const collector = new TurnCollector({ pauseMs: () => 20, onTurn: () => assert.fail("No accepted turn expected"), onError: assert.fail,
+      acceptFragment: () => false, onUnusable: reason => { outcomes.push(reason); } });
+    collector.addFinal(fragment("noise")); t.mock.timers.tick(20);
+    collector.speechStarted(); collector.speechEnded(); collector.close(); t.mock.timers.tick(100);
+    assert.deepEqual(outcomes, []);
   });
 });

@@ -25,7 +25,7 @@ describe("Phase 8 — Deepgram Nova-3 Streaming STT (Assamese) Test Suite", () =
     const config = getDeepgramConfig();
 
     assert.equal(config.model, "nova-3", "Default model must be nova-3");
-    assert.equal(config.language, "as", "Default language must be Assamese (as)");
+    assert.equal(config.language, env.DEEPGRAM_LANGUAGE, "Recognition language must follow validated server configuration");
     assert.equal(config.baseUrl, "wss://api.deepgram.com", "Default base URL must be Deepgram WebSocket");
     assert.equal(config.sampleRate, 16000, "Sample rate must be 16kHz");
     assert.equal(config.numChannels, 1, "Must be single channel (mono)");

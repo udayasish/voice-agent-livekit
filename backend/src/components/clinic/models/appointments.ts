@@ -50,8 +50,11 @@ export const clinicAppointments = pgTable(
     source: clinicAppointmentSourceEnum("source").notNull(),
     // Correlation only: permanent call records belong to a later phase.
     callId: uuid("call_id"),
+    requestKey: uuid("request_key"),
+    requestFingerprint: varchar("request_fingerprint", { length: 64 }),
   },
   (t) => [
+    unique("clinic_appointments_request_unique").on(t.organizationId, t.requestKey),
     foreignKey({ columns: [t.organizationId, t.patientId], foreignColumns: [clinicPeople.organizationId, clinicPeople.id], name: "clinic_appointments_scoped_patient_fk" }),
     foreignKey({ columns: [t.organizationId, t.doctorId], foreignColumns: [clinicDoctors.organizationId, clinicDoctors.id], name: "clinic_appointments_scoped_doctor_fk" }),
     foreignKey({ columns: [t.organizationId, t.doctorId, t.slotId], foreignColumns: [clinicSlots.organizationId, clinicSlots.doctorId, clinicSlots.id], name: "clinic_appointments_scoped_slot_fk" }),

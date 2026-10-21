@@ -64,7 +64,6 @@ export class RayaChunkedStream extends tts.ChunkedStream {
         voiceId: this.config.voiceId,
         model: this.config.model,
         language: this.config.language,
-        textPreview: this.inputText.slice(0, 50),
       });
 
       const sseStream = this.client.synthesizeStream(
@@ -143,7 +142,7 @@ export class RayaChunkedStream extends tts.ChunkedStream {
         const err = error instanceof Error ? error : new Error(String(error));
         logger.error("[agent:tts:raya] Error in RayaChunkedStream", {
           requestId,
-          error: err.message,
+          errorCode: "TTS_STREAM_FAILED",
         });
         this.queue.close();
         throw err;

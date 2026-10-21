@@ -10,8 +10,19 @@ import { GroqLLMProvider } from "../src/components/agent/providers/llm/groq.js";
 import { HuggingFaceLLMProvider } from "../src/components/agent/providers/llm/huggingface.js";
 import { ScriptedProvider } from "./helpers/scripted-provider.js";
 import type { LLMChunk } from "../src/components/agent/providers/llm/types.js";
+import { LLMFailure } from "../src/components/agent/providers/llm/failure.js";
 
 const fixed = "2026-10-13T00:00:00.000Z";
+it("provider diagnostics categorize HTTP/network failures without retaining sensitive response bodies", async () => {
+  const original = globalThis.fetch;
+  const provider = new GroqLLMProvider({ apiKey: "test-key", baseURL: "http://offline.test/v1" });
+  try {
+    globalThis.fetch = async () => new Response("private provider body", { status: 429 });
+    await assert.rejects(provider.chat([{ role: "user", content: "test" }]), error => error instanceof LLMFailure && error.kind === "rate_limit" && error.status === 429 && !error.message.includes("private"));
+    globalThis.fetch = async () => { throw new Error("private request payload"); };
+    await assert.rejects(provider.chat([{ role: "user", content: "test" }]), error => error instanceof LLMFailure && error.kind === "network" && !error.message.includes("private"));
+  } finally { globalThis.fetch = original; }
+});
 const context = { organizationId: "org-a", agentId: "agent-a", sessionId: "session-a", callId: "call-a", conversationId: "conversation-a", turnId: 1 };
 const clock = () => createServerTimeTool(() => new Date(fixed));
 const code = (result: ToolResult) => result.success ? "OK" : result.error.code;
@@ -154,6 +165,33 @@ describe("Phase 15 tool boundary", () => {
 });
 
 describe("Phase 15 SDK tool loop", () => {
+  it("refreshes business facts for the SDK model call after tool execution", async () => {
+    let resolved = false;
+    const registry = new ToolRegistry([defineTool({ name: "resolve", description: "Read trusted state", inputSchema: z.object({}).strict(),
+      outputSchema: z.object({ resolved: z.boolean() }), execute: async () => { resolved = true; return { success: true, data: { resolved } }; } })]);
+    const provider = new ScriptedProvider((_messages, count) => count === 1 ? call("read", "resolve") : answer("Which doctor would you prefer?"));
+    const scope = { organizationId: "org-a", agentId: "agent", sessionId: "session-a" };
+    const agent = new AgentSession({ agentId: "agent", name: "Assistant", businessName: "Clinic", instructions: "Follow facts", languages: ["as"], enabledTools: ["resolve"] },
+      scope, provider, { stateSchema: z.object({}), initialState: () => ({}), update: () => ({}), promptContext: () => "",
+        verifiedContext: () => JSON.stringify({ resolved }) }, { tools: { registry, callId: "call", conversationId: "conversation" } });
+    try {
+      await agent.processUserUtterance("Continue");
+      assert.match(provider.options[0]?.systemPrompt ?? "", /"resolved":false/u);
+      assert.match(provider.options[1]?.systemPrompt ?? "", /"resolved":true/u);
+      assert.equal(agent.getState().toolHistory.length, 1);
+    } finally { await agent.close(); }
+  });
+  it("truncated speech after a tool does not retry or execute the tool twice", async () => {
+    let executions = 0;
+    const provider = new ScriptedProvider((_messages, count) => count === 1 ? call()
+      : [{ type: "text", delta: "Incomplete private response" }, { type: "done", finishReason: "length" }]);
+    const agent = session(provider, { registry: new ToolRegistry([createServerTimeTool(() => { executions++; return new Date(fixed); })]) });
+    try {
+      const result = await agent.processUserUtterance("Read the time");
+      assert.equal(result.failureCategory, "incomplete_output"); assert.equal(executions, 1); assert.equal(provider.inputs.length, 2);
+      assert.equal(agent.getState().toolHistory.length, 1); assert.doesNotMatch(result.text, /Incomplete private/u);
+    } finally { await agent.close(); }
+  });
   it("returns safe malformed-JSON recovery through the SDK without logging arguments", async () => {
     const provider = new ScriptedProvider((_messages, count) => count === 1 ? call("one", "get_server_time", '{"secret-test":') : answer("Please try again."));
     let executions = 0; const logs: string[] = []; const original = console.error;
@@ -276,7 +314,7 @@ describe("OpenAI-compatible tool protocol", () => {
         globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"bad","type":"shell","function":{"name":"test","arguments":"{}"}}]}}]}\n');
         await assert.rejects(async () => { for await (const _chunk of provider.generate([{ role: "user", content: "test" }])) { /* drain */ } });
         globalThis.fetch = async () => new Response('data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"bad","type":"function","function":{"name":"test","arguments":"{"}}]},"finish_reason":"length"}]}\n');
-        await assert.rejects(async () => { for await (const _chunk of provider.generate([{ role: "user", content: "test" }])) { /* drain */ } }, /Incomplete/u);
+        await assert.rejects(async () => { for await (const _chunk of provider.generate([{ role: "user", content: "test" }])) { /* drain */ } }, error => error instanceof Error && "kind" in error && error.kind === "protocol");
       } finally { globalThis.fetch = original; }
     });
   }

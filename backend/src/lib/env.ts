@@ -65,6 +65,7 @@ const envSchema = z.object({
 
   // ── Business / Clinic Configuration ─────────────────────────────────────────
   CLINIC_NAME: z.string().default("Brahmaputra Health Clinic"),
+  VOICE_AGENT_PROFILES_PATH: z.string().optional(),
 
   // ── Frontend / CORS ───────────────────────────────────────────────────────
   FRONTEND_URL: z.string().default("http://localhost:3000"),

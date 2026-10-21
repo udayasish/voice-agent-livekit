@@ -15,6 +15,7 @@ import { getEventListeners } from "node:events";
 import { HuggingFaceLLMProvider } from "../src/components/agent/providers/llm/huggingface.js";
 import { GroqLLMProvider } from "../src/components/agent/providers/llm/groq.js";
 import { dispatchTranscriptCallback } from "../src/agent/stt.js";
+import { ScriptedProvider } from "./helpers/scripted-provider.js";
 
 const config: AgentConfigInput = { agentId: "hotel-agent", name: "Reception", businessName: "River Hotel",
   instructions: "Answer hotel inquiries using supplied facts.", languages: ["as", "hi", "en"], defaultLanguage: "as" };
@@ -43,6 +44,18 @@ class ControlledProvider extends MockLLMProvider {
 }
 
 describe("Phase 14 reusable engine", () => {
+  it("names the reply language explicitly without encouraging Bengali drift or typed input", () => {
+    const parsed = agentConfigSchema.parse(config);
+    const assamese = buildPrompt(parsed, "as");
+    assert.match(assamese, /Assamese \(অসমীয়া; as\)/u);
+    assert.match(assamese, /Bengali .*different language/u);
+    assert.match(assamese, /say details aloud, never to type or write/u);
+    assert.doesNotMatch(assamese, /code-switch naturally/u);
+    const english = buildPrompt(parsed, "en"), hindi = buildPrompt(parsed, "hi");
+    assert.match(english, /Reply in English/u); assert.match(hindi, /Reply in Hindi/u);
+    assert.doesNotMatch(english, /Reply in Assamese/u); assert.doesNotMatch(hindi, /Reply in Assamese/u);
+    assert.doesNotMatch(assamese, /clinic|doctor|patient/iu);
+  });
   it("supports a validated reply language independent of the input recognizer", async () => {
     const session = new AgentSession(config, context(), new MockLLMProvider({ fixedResponse: "Hello." }), hotel);
     await session.processUserUtterance("seven double zero", { responseLanguage: "as" });
@@ -146,10 +159,44 @@ describe("Phase 14 reusable engine", () => {
       if (done?.type === "done") { assert.equal(done.finishReason, "stop"); assert.equal(done.usage?.completionTokens, 8); }
       assert.equal(requests[0]?.reasoning_effort, "none"); assert.equal(requests[0]?.reasoning_format, "hidden");
       assert.equal(requests[0]?.max_completion_tokens, 256);
-      const other = new GroqLLMProvider({ apiKey: "test-key", model: "openai/gpt-oss-20b" });
-      for await (const _chunk of other.generate([{ role: "user", content: "hello" }])) { /* consume */ }
-      assert.equal(requests[1]?.reasoning_effort, undefined);
+      for (const model of ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]) {
+        const other = new GroqLLMProvider({ apiKey: "test-key", model });
+        assert.equal(other.label, `Groq Cloud (${model})`);
+        for await (const _chunk of other.generate([{ role: "user", content: "hello" }])) { /* consume */ }
+        assert.equal(requests.at(-1)?.model, model);
+        assert.equal(requests.at(-1)?.reasoning_effort, "low");
+        assert.equal(requests.at(-1)?.include_reasoning, false);
+        assert.equal(requests.at(-1)?.reasoning_format, undefined);
+        assert.equal(requests.at(-1)?.max_completion_tokens, 1536);
+        assert.equal(other.getMaxCompletionTokens(2048), 2048);
+      }
+      globalThis.fetch = async (_input, init) => {
+        requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        return Response.json({ choices: [{ message: { content: "{\"ok\":true}", reasoning: "private reasoning" }, finish_reason: "stop" }] });
+      };
+      const structured = new GroqLLMProvider({ apiKey: "test-key", model: "openai/gpt-oss-120b" });
+      const format = { type: "json_schema" as const, json_schema: { name: "test", strict: true,
+        schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } } };
+      const reply = await structured.chat([{ role: "user", content: "hello" }], { responseFormat: format });
+      assert.equal(reply.text, '{"ok":true}');
+      assert.deepEqual(requests.at(-1)?.response_format, format);
+      assert.equal(requests.at(-1)?.reasoning_effort, "low");
+      assert.equal(requests.at(-1)?.include_reasoning, false);
+      assert.equal(requests.at(-1)?.reasoning_format, undefined);
+      assert.equal(requests.at(-1)?.max_completion_tokens, 1536);
     } finally { globalThis.fetch = original; }
+  });
+  it("does not speak or commit a truncated model answer", async () => {
+    const provider = new ScriptedProvider(() => [{ type: "text", delta: "This incomplete response must not be spoken" },
+      { type: "done", finishReason: "length", usage: { completionTokens: 384 } }]);
+    const session = new AgentSession(config, context(), provider, hotel);
+    try {
+      const result = await session.processUserUtterance("hello");
+      assert.equal(result.failureCategory, "incomplete_output"); assert.equal(result.replySource, "recovery");
+      assert.doesNotMatch(result.text, /incomplete response/u);
+      assert.doesNotMatch(JSON.stringify(session.getHistory()), /This incomplete response/u);
+      assert.equal(provider.inputs.length, 1);
+    } finally { await session.close(); }
   });
   it("validates configuration and matching trusted context", () => {
     assert.throws(() => agentConfigSchema.parse({ ...config, languages: ["en"] }));
@@ -355,7 +402,7 @@ describe("Phase 14 reusable engine", () => {
     };
     const ctx = context(); const session = new AgentSession(config, ctx, new MockLLMProvider(), hotel, { store: new RedisSessionStore(client) });
     await entered.promise; const turn = session.processUserUtterance("hello"); gate.resolve(); await turn;
-    assert.deepEqual(records.map(r => r.state.conversation.history.length), [0, 1, 2]);
+    assert.deepEqual(records.map(r => r.state.conversation.history.length), [0, 1, 1, 2]);
     assert.ok(records.every(r => r.ttl === SESSION_TTL_SECONDS && r.key === sessionKey(ctx)));
     await session.close(); assert.equal(operations.at(-1), `del:${sessionKey(ctx)}`);
   });

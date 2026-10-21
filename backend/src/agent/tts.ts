@@ -57,7 +57,6 @@ export class IndicF5ChunkedStream extends tts.ChunkedStream {
 
       logger.debug("[agent:tts] Initiating IndicF5 synthesis", {
         requestId,
-        text: this.inputText.slice(0, 50),
       });
 
       // Execute synthesis via HTTP client
@@ -108,7 +107,7 @@ export class IndicF5ChunkedStream extends tts.ChunkedStream {
       const err = error instanceof Error ? error : new Error(String(error));
       logger.error("[agent:tts] Error during synthesis stream", {
         requestId,
-        error: err.message,
+        errorCode: "TTS_STREAM_FAILED",
       });
       this.queue.close();
       throw err;

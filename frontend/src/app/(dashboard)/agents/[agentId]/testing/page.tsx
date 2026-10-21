@@ -28,7 +28,7 @@ export default async function AgentTestingPage({
                 Voice Testing Laboratory
               </h1>
               <Badge variant="outline" className="font-mono text-xs">
-                Phase 5
+                Voice tools
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -58,11 +58,11 @@ export default async function AgentTestingPage({
               <div className="flex items-center space-x-2">
                 <Headphones className="h-4 w-4 text-primary" />
                 <CardTitle className="text-base font-semibold">
-                  Phase 5 Two-Way Audio Loopback Test
+                  Clinic Voice Conversation Test
                 </CardTitle>
               </div>
               <CardDescription className="text-xs">
-                How to verify real-time browser audio without AI components.
+                Choose the configured clinic, then verify doctors, availability and confirmed appointment actions.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-xs leading-relaxed">
@@ -73,13 +73,16 @@ export default async function AgentTestingPage({
                     Click <strong className="text-foreground">&quot;Start Voice Session&quot;</strong> in this tab. Allow microphone permission when prompted by your browser.
                   </li>
                   <li>
-                    Verify that your voice causes the volume bar to move and the green speaker icon to pulse.
+                    Ask for doctors, then choose an available date and time. Check the tool activity below each reply.
                   </li>
                   <li>
-                    Open a <strong>second browser tab or incognito window</strong> to this exact URL and click <strong className="text-foreground">&quot;Start Voice Session&quot;</strong> there as well.
+                    Give a test phone number, patient name and age. Confirm the readback, then verify the returned appointment token.
                   </li>
                   <li>
-                    Both tabs will report <strong className="text-foreground">2 Participants in Room</strong>. Speak into Tab 1 — you will hear your voice in Tab 2 in real time over WebRTC!
+                    In a new session, use the phone number, token and date to check the appointment. Ask to cancel and confirm its readback.
+                  </li>
+                  <li>
+                    Two tabs create separate caller rooms. For a race test, choose the same slot in both and confirm both bookings. A full slot must produce fresh alternatives.
                   </li>
                 </ol>
               </div>
@@ -101,7 +104,7 @@ export default async function AgentTestingPage({
                     <span>Audio Codec & Transport</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground">
-                    Audio is encoded in Opus 48kHz and routed via UDP WebRTC to the local LiveKit server (port 7880/7882) with sub-50ms latency.
+                    LiveKit carries microphone and assistant audio. The existing latency indicators measure this session; headphones help prevent speaker echo.
                   </p>
                 </div>
               </div>

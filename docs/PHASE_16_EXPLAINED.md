@@ -1,5 +1,7 @@
 # Phase 16: One voice agent, different business toolboxes 🧩
 
+> This guide records the Phase 16 milestone. Phase 17 now adds clinic voice tools, server-owned tool profiles and worker integration; see [the current voice-tools guide](CLINIC_VOICE_TOOLS.md). Saved dashboard configuration and live microphone acceptance remain unfinished.
+
 ## First: have we built what you described?
 
 **Yes, the reusable foundation and the separate clinic component are built. The complete “choose a business, enable its features, and start taking real bookings” setup is still unfinished.**

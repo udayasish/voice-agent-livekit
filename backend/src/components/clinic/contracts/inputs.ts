@@ -8,6 +8,9 @@ export const clinicIdentitySchema = z.object({
   callId: z.uuid().optional(),
   // Verified patient identity from a server adapter; a phone number alone is not authentication.
   patientId: z.uuid().optional(),
+  requestKey: z.uuid().optional(),
+  // Server-owned readback guard; never accepted in operation/model arguments.
+  slotExpectation: z.object({ date: z.string().refine(isValidDate), startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), timezone: z.string().min(1) }).strict().optional(),
 }).strict();
 export type ClinicIdentity = Readonly<z.infer<typeof clinicIdentitySchema>>;
 

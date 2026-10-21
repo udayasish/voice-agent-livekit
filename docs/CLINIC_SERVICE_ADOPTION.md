@@ -1,8 +1,14 @@
 # Clinic Service Adoption — Phase 16
 
+## Phase 17 bilingual reference-data follow-up (2026-10-16)
+
+The local adopted doctor profile now carries reviewed English/Assamese names and aliases through additive migration `0003_chief_purple_man.sql`. The existing `listActiveDoctors` / `findDoctorsByName` services expose the additional metadata and the latter remains the only lookup query implementation. Names are normalized consistently in the organization-scoped catalog, with no fuzzy selection or guessed transliteration. Original contact names, doctor identities, source capacity/transaction/token rules and patient data remain intact. This is a deliberate local adaptation: the original WhatsApp implementation remains separate and unchanged, and its captured hashes continue to describe the source version rather than these local additions. Internal metadata import/readiness is operator-only; dates/times/weekdays already use canonical structured fields, so no duplicate English date columns were added. Full contracts, limitations and retesting instructions are in `CLINIC_VOICE_TOOLS.md`.
+
 Source inspected: `D:/Projects/whatsapp-appointment-platform`. This reference path is provenance only; runtime and normal tests must not read it.
 
 ## Approved ownership
+
+**Phase 17 follow-up:** The adopted services now have clinic voice-tool wrappers and a browser worker integration. See `CLINIC_VOICE_TOOLS.md` for current activation/contracts/verification. This document's Phase 16 inventory and original milestone limits remain historical provenance. No original WhatsApp file or runtime was changed.
 
 The voice repository adopts the proven domain code and owns its own clinic data and database. The WhatsApp product stays separate; there is no shared database, synchronization or runtime import. Only internal services and scheduling contracts are in this milestone.
 

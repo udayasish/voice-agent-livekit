@@ -40,3 +40,7 @@ drizzle/migrations/meta/
 
 # TypeScript
 *.tsbuildinfo
+
+# Generated local voice sandbox profile (the example is versioned)
+/backend/config/voice-agents.sandbox.json
+/backend/config/voice-agents.local.json

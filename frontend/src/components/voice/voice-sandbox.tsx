@@ -1,4 +1,5 @@
 "use client";
+import { toolActivityLabel, replyBadge, voiceStatusLabel } from "@/lib/voice-diagnostics";
 
 import { useMemo } from "react";
 import {
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLiveKitRoom } from "@/hooks/use-livekit-room";
+import { useAuthStore } from "@/store/auth-store";
 
 interface VoiceSandboxProps {
   agentId?: string;
@@ -25,6 +27,7 @@ interface VoiceSandboxProps {
 }
 
 export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: VoiceSandboxProps) {
+  const { organizations, activeOrganization, setActiveOrganization } = useAuthStore();
   const {
     status,
     roomName,
@@ -32,11 +35,13 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
     participantIdentity,
     participantName,
     isMicEnabled,
+    isAgentListening,
     isMuted,
     audioLevel,
     duration,
     remoteParticipants,
     conversationTurns,
+    voiceStatus,
     error,
     connect,
     disconnect,
@@ -93,6 +98,16 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {organizations.length > 1 && (
+          <label className="block space-y-1 text-xs">
+            <span>Clinic / organization for this test</span>
+            <select className="w-full rounded-md border bg-background p-2" aria-label="Test organization"
+              value={activeOrganization?.id ?? ""} disabled={isConnected || isConnecting}
+              onChange={event => { const organization = organizations.find(org => org.id === event.target.value); if (organization) setActiveOrganization(organization); }}>
+              {organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+            </select>
+          </label>
+        )}
         {/* Error Alert */}
         {error && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start space-x-2">
@@ -134,6 +149,8 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
               {isConnected
                 ? isMuted
                   ? "Microphone Muted"
+                  : !isAgentListening
+                    ? "Preparing the agent — please wait"
                   : audioLevel > 0.08
                     ? "Speaking (Streaming to LiveKit)..."
                     : "Microphone Active — Speak to Test"
@@ -143,7 +160,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
             </h4>
             <p className="text-xs text-muted-foreground">
               {isConnected
-                ? "Microphone track published to LiveKit. Realtime audio is streaming."
+                ? isAgentListening ? "Agent listening. You can speak now." : "Your microphone is connected. Waiting for the agent's audio pipeline."
                 : "Click below to request secure token and connect browser audio."}
             </p>
           </div>
@@ -211,6 +228,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
         </div>
 
         {/* Live Conversation Feed (Phase 10: STT -> LLM response) */}
+        {voiceStatus && <p role="status" className="text-xs text-amber-600">{voiceStatusLabel(voiceStatus.category)} · {voiceStatus.inputMode === "english-digits" ? "English digits" : "Conversation language"}</p>}
         {conversationTurns.length > 0 && (
           <div className="space-y-3 border-t pt-3">
             <div className="flex items-center justify-between">
@@ -230,7 +248,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
             <div className="max-h-60 overflow-y-auto space-y-2.5 pr-1 text-xs">
               {conversationTurns.map((turn) => (
                 <div key={turn.id} className="space-y-1.5 rounded-lg border bg-muted/30 p-2.5">
-                  <div className="flex items-start justify-between text-muted-foreground text-[10px]">
+                  {turn.userText && <><div className="flex items-start justify-between text-muted-foreground text-[10px]">
                     <span className="font-semibold text-foreground flex items-center gap-1.5">
                       <span>👤 You (STT):</span>
                       {turn.turnId !== undefined && (
@@ -243,7 +261,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                   </div>
                   <p className="font-medium text-foreground pl-3 text-xs leading-relaxed">
                     &quot;{turn.userText}&quot;
-                  </p>
+                  </p></>}
                   <div className="border-t border-muted/50 pt-1.5 mt-1.5">
                     <div className="flex items-center justify-between text-[10px] text-primary font-semibold">
                       <span className="flex items-center gap-1.5">
@@ -253,9 +271,9 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                             ⚡ Interrupted
                           </Badge>
                         )}
-                        {turn.isFallback && (
-                          <Badge variant="outline" title={turn.fallbackReason === "empty_output" ? "The AI returned no spoken reply after one retry." : turn.fallbackReason === "provider_error" ? "The AI provider request failed." : turn.fallbackReason === "repeated_response" ? "A repeated reply was replaced." : "A recovery response was used."} className="text-[9px] px-1 py-0 h-4 text-amber-500 border-amber-500/40">
-                            Safe Guard
+                        {(turn.isFallback || turn.replySource === "verified_tool") && (
+                          <Badge variant="outline" title={replyBadge(turn.replySource, turn.fallbackReason).title} className="text-[9px] px-1 py-0 h-4 text-amber-500 border-amber-500/40">
+                            {replyBadge(turn.replySource, turn.fallbackReason).label}
                           </Badge>
                         )}
                       </span>
@@ -264,14 +282,25 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
                         {turn.totalLatencyMs !== undefined && <span>Total: {turn.totalLatencyMs}ms</span>}
                       </div>
                     </div>
+                    {(turn.failureCategory || turn.recoveryCategory || turn.confirmationStage === "phone" || turn.confirmationStage === "action") && <p className="text-[10px] text-amber-600">{turn.failureCategory ? voiceStatusLabel(turn.failureCategory) : turn.recoveryCategory ? voiceStatusLabel(turn.recoveryCategory) : "Waiting for confirmation"} · {turn.inputMode === "english-digits" ? "English digits" : "Conversation language"}</p>}
                     <p className="text-primary/90 pl-3 text-xs font-medium leading-relaxed mt-0.5">
                       &quot;{turn.responseText}&quot;
                     </p>
+                      {turn.tools && turn.tools.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pl-3 pt-1.5" aria-label="Tool activity">
+                          {turn.tools.map((tool, index) => (
+                            <span key={`${tool.name}-${index}`} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">
+                              {toolActivityLabel(tool)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     {turn.slots && (turn.slots.doctor || turn.slots.dateOrTime || turn.slots.patientName || turn.slots.phoneNumber) && (
                       <div className="flex flex-wrap gap-1 pl-3 pt-1.5">
                         {turn.slots.doctor && (
                           <span className="inline-flex items-center rounded-md bg-primary/10 px-1.5 py-0.5 text-[9px] font-medium text-primary">
                             🩺 Dr: {turn.slots.doctor}
+                            {turn.selectedDoctor?.nameEn && turn.selectedDoctor.nameEn !== turn.slots.doctor ? ` · ${turn.selectedDoctor.nameEn}` : ""}
                           </span>
                         )}
                         {turn.slots.dateOrTime && (

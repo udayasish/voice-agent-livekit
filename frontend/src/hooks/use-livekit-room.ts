@@ -11,6 +11,8 @@ import {
   Track,
 } from "livekit-client";
 import { livekitApi, type FetchTokenParams } from "@/services/api/livekit";
+import type { z } from "zod";
+import { toolActivitiesSchema, selectedDoctorSchema, voiceStatusSchema, turnVoiceSchema } from "@/lib/voice-diagnostics";
 
 export type ConnectionStatus =
   | "idle"
@@ -28,7 +30,8 @@ export type RemoteParticipantInfo = {
   audioLevel: number;
 };
 
-export type ConversationTurn = {
+export type ConversationTurn = z.infer<typeof turnVoiceSchema> & {
+  tools?: z.infer<typeof toolActivitiesSchema> | undefined;
   id: string;
   turnId?: number | undefined;
   userText: string;
@@ -36,6 +39,8 @@ export type ConversationTurn = {
   ttftMs?: number | undefined;
   totalLatencyMs?: number | undefined;
   isFallback?: boolean | undefined;
+  replySource?: "model" | "verified_tool" | "recovery" | undefined;
+  selectedDoctor?: z.infer<typeof selectedDoctorSchema> | undefined;
   fallbackReason?: "empty_output" | "provider_error" | "repeated_response" | undefined;
   isInterrupted?: boolean | undefined;
   slots?: {
@@ -54,11 +59,13 @@ export type UseLiveKitRoomReturn = {
   participantIdentity: string | null;
   participantName: string | null;
   isMicEnabled: boolean;
+  isAgentListening: boolean;
   isMuted: boolean;
   audioLevel: number; // 0.0 to 1.0
   duration: number; // elapsed seconds
   remoteParticipants: RemoteParticipantInfo[];
   conversationTurns: ConversationTurn[];
+  voiceStatus: z.infer<typeof voiceStatusSchema> | null;
   error: string | null;
   connect: (params?: FetchTokenParams) => Promise<void>;
   disconnect: () => Promise<void>;
@@ -73,15 +80,18 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
   const [participantIdentity, setParticipantIdentity] = useState<string | null>(null);
   const [participantName, setParticipantName] = useState<string | null>(null);
   const [isMicEnabled, setIsMicEnabled] = useState<boolean>(false);
+  const [isAgentListening, setIsAgentListening] = useState(false);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [remoteParticipants, setRemoteParticipants] = useState<RemoteParticipantInfo[]>([]);
   const [conversationTurns, setConversationTurns] = useState<ConversationTurn[]>([]);
+  const [voiceStatus, setVoiceStatus] = useState<z.infer<typeof voiceStatusSchema> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const clearConversationTurns = useCallback(() => {
     setConversationTurns([]);
+    setVoiceStatus(null);
   }, []);
 
   const roomRef = useRef<Room | null>(null);
@@ -187,6 +197,7 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
     }
 
     setStatus("disconnected");
+    setIsAgentListening(false);
     setIsMicEnabled(false);
     setIsMuted(false);
     setAudioLevel(0);
@@ -228,6 +239,7 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
         });
 
         room.on(RoomEvent.Disconnected, () => {
+          setIsAgentListening(false);
           setStatus("disconnected");
           setIsMicEnabled(false);
           setIsMuted(false);
@@ -250,7 +262,8 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
           syncRemoteParticipants(room);
         });
 
-        room.on(RoomEvent.ParticipantDisconnected, () => {
+        room.on(RoomEvent.ParticipantDisconnected, participant => {
+          if (participant.isAgent) setIsAgentListening(false);
           syncRemoteParticipants(room);
         });
 
@@ -292,20 +305,33 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
               try {
                 const text = new TextDecoder().decode(payload);
                 const data = JSON.parse(text);
-                if (data.type === "transcript_turn") {
+                if (data.type === "voice_status") {
+                  const parsed = voiceStatusSchema.safeParse(data);
+                  if (parsed.success && _participant?.isAgent) {
+                    setVoiceStatus(parsed.data);
+                    if (parsed.data.category === "listening_ready") setIsAgentListening(true);
+                    if (parsed.data.category === "recognition_failure") setIsAgentListening(false);
+                  }
+                } else if (data.type === "transcript_turn") {
+                  if (_participant?.isAgent) setIsAgentListening(true);
+                  setVoiceStatus(null);
                   setConversationTurns((prev) => [
                     ...prev,
                     {
                       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
                       turnId: typeof data.turnId === "number" ? data.turnId : undefined,
-                      userText: data.userText,
+                      ...turnVoiceSchema.parse({ inputMode: data.inputMode, confirmationStage: data.confirmationStage, recoveryCategory: data.recoveryCategory }),
+                      userText: typeof data.userText === "string" ? data.userText : "",
                       responseText: data.responseText,
                       ttftMs: typeof data.ttftMs === "number" ? data.ttftMs : undefined,
                       totalLatencyMs: typeof data.totalLatencyMs === "number" ? data.totalLatencyMs : undefined,
                       isFallback: typeof data.isFallback === "boolean" ? data.isFallback : undefined,
+                      replySource: ["model", "verified_tool", "recovery"].includes(data.replySource) ? data.replySource : undefined,
+                      selectedDoctor: selectedDoctorSchema.safeParse(data.selectedDoctor).data,
                       fallbackReason: ["empty_output", "provider_error", "repeated_response"].includes(data.fallbackReason) ? data.fallbackReason : undefined,
                       isInterrupted: false,
                       slots: data.slots && typeof data.slots === "object" ? data.slots : undefined,
+                      tools: toolActivitiesSchema.safeParse(data.tools).data,
                       timestamp: data.timestamp || new Date().toISOString(),
                     },
                   ]);
@@ -399,11 +425,13 @@ export function useLiveKitRoom(): UseLiveKitRoomReturn {
     participantIdentity,
     participantName,
     isMicEnabled,
+    isAgentListening,
     isMuted,
     audioLevel,
     duration,
     remoteParticipants,
     conversationTurns,
+    voiceStatus,
     error,
     connect,
     disconnect,

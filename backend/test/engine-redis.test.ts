@@ -6,6 +6,7 @@ import { AgentSession, SESSION_TTL_SECONDS, sessionKey, type SessionSnapshot } f
 import { RedisSessionStore } from "../src/components/agent/session-store.js";
 import { createClinicDemoConfig, clinicDemoBehavior, type ClinicDemoState } from "../src/components/agent/business/clinic-demo.js";
 import { MockLLMProvider } from "../src/components/agent/providers/llm/mock.js";
+import { RedisProviderCooldown } from "../src/components/agent/providers/llm/cooldown.js";
 
 it("persists, refreshes and deletes isolated engine state in local Redis", async () => {
   const client = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379", socket: { reconnectStrategy: false, connectTimeout: 2000 } });
@@ -35,5 +36,23 @@ it("persists, refreshes and deletes isolated engine state in local Redis", async
     await session?.close();
     if (client.isReady) { await client.del(key); await client.quit(); }
     else if (client.isOpen) await client.disconnect();
+  }
+});
+
+it("shared provider cooldown retains the longest deadline across Redis clients", async () => {
+  const first = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379", socket: { reconnectStrategy: false } });
+  const second = first.duplicate(); first.on("error", () => {}); second.on("error", () => {});
+  const scope = randomUUID(), key = `provider-cooldown:${scope}`;
+  try {
+    await first.connect(); await second.connect();
+    const a = new RedisProviderCooldown(first), b = new RedisProviderCooldown(second);
+    await a.extend(scope, 5000); await b.extend(scope, 100);
+    assert.ok(await b.remaining(scope) > 4000);
+    await Promise.all([a.extend(scope, 2000), b.extend(scope, 7000)]);
+    assert.ok(await a.remaining(scope) > 6000);
+  } finally {
+    if (first.isReady) { await first.del(key); await first.quit(); }
+    else if (first.isOpen) await first.disconnect();
+    if (second.isReady) await second.quit(); else if (second.isOpen) await second.disconnect();
   }
 });

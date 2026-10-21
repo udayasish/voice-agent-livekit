@@ -1,11 +1,15 @@
 import { z } from "zod";
 import logger from "../../../../lib/logger.js";
+import { LLMFailure } from "./failure.js";
+import { createHash } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
+import { providerCooldown } from "./cooldown.js";
 import type { LLMChunk, LLMMessage, LLMOptions, LLMResponse, LLMToolCall, LLMUsage } from "./types.js";
 
 export interface ChatTransport {
   url: string; apiKey: string; temperature: number; maxTokens: number; timeoutMs: number;
   maxTokenField: "max_tokens" | "max_completion_tokens";
-  settings?: Record<string, string>;
+  settings?: Record<string, string | boolean>;
 }
 const callSchema = z.object({ id: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u), type: z.literal("function"),
   function: z.object({ name: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/u), arguments: z.string() }) });
@@ -32,6 +36,7 @@ function payload(config: ChatTransport, messages: LLMMessage[], options: Partial
   const tools = options.tools ?? [];
   const choice = options.toolChoice ?? "auto";
   return { model: options.model, messages: chatMessages(messages, options.systemPrompt), temperature: options.temperature ?? config.temperature,
+    ...(options.responseFormat && !tools.length && !stream ? { response_format: options.responseFormat } : {}),
     [config.maxTokenField]: options.maxTokens ?? config.maxTokens, ...config.settings, stream,
     ...(tools.length ? { tools: tools.map(spec => ({ type: "function", function: { ...spec } })),
       tool_choice: ["auto", "none", "required"].includes(choice) ? choice : { type: "function", function: { name: choice } },
@@ -44,11 +49,40 @@ async function request(config: ChatTransport, messages: LLMMessage[], options: P
   const signal = options.abortSignal ? AbortSignal.any([controller.signal, options.abortSignal]) : controller.signal;
   const timer = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
+    const body = JSON.stringify(payload(config, messages, options, stream));
+    if (Buffer.byteLength(body, "utf8") > (options.requestByteLimit ?? 12288)) throw new LLMFailure("request_limit");
+    const scope = createHash("sha256").update(config.url).update(config.apiKey).digest("hex").slice(0, 24);
+    const remaining = await providerCooldown(scope);
+    if (options.background && await providerCooldown(`${scope}:background`) > 0) throw new LLMFailure("rate_limit", 429);
+    if (remaining > 1000 || (options.background && remaining > 0)) throw new LLMFailure("rate_limit", 429, remaining);
+    if (remaining > 0) await delay(remaining, undefined, { signal });
     const response = await fetch(config.url, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.apiKey}` },
-      body: JSON.stringify(payload(config, messages, options, stream)), signal });
-    if (!response.ok) { logger.warn("LLM HTTP request failed", { status: response.status }); throw new Error(`LLM HTTP request failed (${response.status})`); }
+      body, signal });
+    const limitTokens = Number(response.headers.get("x-ratelimit-limit-tokens"));
+    const remainingTokens = Number(response.headers.get("x-ratelimit-remaining-tokens"));
+    if (response.headers.has("x-ratelimit-limit-tokens") && response.headers.has("x-ratelimit-remaining-tokens")
+      && Number.isFinite(limitTokens) && limitTokens > 0 && Number.isFinite(remainingTokens) && remainingTokens < limitTokens / 2) {
+      // Optional work yields to callers while the provider reports low quota.
+      // This is a conservative pause, not an assertion of exact token refill.
+      await providerCooldown(`${scope}:background`, Math.max(1000, Math.min(60000, (limitTokens / 2 - remainingTokens) / limitTokens * 60000)));
+    }
+    logger.info("LLM request measured", { requestBytes: Buffer.byteLength(body), streaming: stream,
+      ...(response.headers.has("x-ratelimit-limit-tokens") && Number.isFinite(limitTokens) ? { tokensPerMinuteLimit: limitTokens } : {}),
+      ...(response.headers.has("x-ratelimit-remaining-tokens") && Number.isFinite(remainingTokens) ? { tokensPerMinuteRemaining: remainingTokens } : {}) });
+    if (!response.ok) {
+      const rawRetry = response.headers.get("retry-after");
+      const seconds = Number(rawRetry);
+      const retryEstimate = rawRetry ? Number.isFinite(seconds) ? seconds * 1000 : Date.parse(rawRetry) - Date.now() : 1000;
+      const retryAfterMs = Number.isFinite(retryEstimate) ? Math.min(86400000, Math.max(0, retryEstimate)) : 1000;
+      if (response.status === 429) await providerCooldown(scope, Number.isFinite(retryAfterMs) ? retryAfterMs : 1000);
+      logger.warn("LLM HTTP request failed", { status: response.status, requestBytes: Buffer.byteLength(body), ...(response.status === 429 ? { retryAfterMs } : {}) });
+      await response.body?.cancel();
+      throw new LLMFailure(response.status === 413 ? "request_limit" : response.status === 429 ? "rate_limit"
+        : [401, 403].includes(response.status) ? "authentication" : response.status >= 500 ? "unavailable" : "http", response.status, response.status === 429 ? retryAfterMs : undefined);
+    }
     return { response, signal, timer };
-  } catch (error) { clearTimeout(timer); signal.throwIfAborted(); throw error; }
+  } catch (error) { clearTimeout(timer); options.abortSignal?.throwIfAborted();
+    throw error instanceof LLMFailure ? error : new LLMFailure(controller.signal.aborted ? "timeout" : "network"); }
 }
 
 /** Shared OpenAI-compatible wire handling; it never executes function calls. */
@@ -92,6 +126,9 @@ export async function* streamChat(config: ChatTransport, messages: LLMMessage[],
       yield { type: "tool_call", toolCall: call };
     }
     yield { type: "done", usage, finishReason };
+  } catch (error) {
+    options.abortSignal?.throwIfAborted();
+    throw error instanceof LLMFailure ? error : new LLMFailure(signal.aborted ? "timeout" : "protocol");
   } finally { clearTimeout(timer); await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
 export async function completeChat(config: ChatTransport, messages: LLMMessage[], options: Partial<LLMOptions>): Promise<LLMResponse> {
@@ -104,5 +141,6 @@ export async function completeChat(config: ChatTransport, messages: LLMMessage[]
     if (toolCalls && new Set(toolCalls.map(call => call.id)).size !== toolCalls.length) throw new Error("Duplicate tool call ID in completion");
     return { text: choice.message.content ?? "", role: "assistant", usage: tokenUsage(parsed.usage), finishReason: choice.finish_reason ?? undefined,
       toolCalls, latencyMs: Date.now() - started };
-  } finally { clearTimeout(timer); }
+  } catch (error) { options.abortSignal?.throwIfAborted(); throw error instanceof LLMFailure ? error : new LLMFailure(signal.aborted ? "timeout" : "protocol"); }
+  finally { clearTimeout(timer); }
 }

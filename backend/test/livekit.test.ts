@@ -224,10 +224,9 @@ async function runTests() {
         throw new Error("Expected canSubscribe: true");
       }
 
-      const metadata = JSON.parse(claims.metadata) as { organizationId: string; userId: string };
-      if (metadata.organizationId !== validOrgId) {
-        throw new Error(`Metadata organizationId mismatch: expected ${validOrgId}, got ${metadata.organizationId}`);
-      }
+      const metadata = JSON.parse(claims.metadata) as { runtimeBindingId: string };
+      const binding = JSON.parse((await redis.get(`voice-runtime:${metadata.runtimeBindingId}`)) ?? "null") as { organizationId: string } | null;
+      if (Object.keys(metadata).length !== 1 || binding?.organizationId !== validOrgId) throw new Error("Expected server-owned Redis binding");
     });
 
     // Test 7: Custom room name and participant name
@@ -246,7 +245,6 @@ async function runTests() {
         body: JSON.stringify({
           roomName: customRoom,
           participantName: customParticipant,
-          agentId: customAgentId,
         }),
       });
 
@@ -263,8 +261,8 @@ async function runTests() {
         };
       };
 
-      if (body.data.roomName !== customRoom) {
-        throw new Error(`Expected room ${customRoom}, got ${body.data.roomName}`);
+      if (!body.data.roomName.includes(customRoom) || !body.data.roomName.includes(validOrgId)) {
+        throw new Error("Expected organization-scoped, uniquely suffixed room");
       }
       if (body.data.participantName !== customParticipant) {
         throw new Error(`Expected participant ${customParticipant}, got ${body.data.participantName}`);
@@ -276,17 +274,18 @@ async function runTests() {
         metadata: string;
       };
 
-      if (claims.video.room !== customRoom) {
+      if (claims.video.room !== body.data.roomName) {
         throw new Error(`Claim room mismatch: ${claims.video.room}`);
       }
       if (claims.name !== customParticipant) {
         throw new Error(`Claim name mismatch: ${claims.name}`);
       }
 
-      const metadata = JSON.parse(claims.metadata) as { agentId: string };
-      if (metadata.agentId !== customAgentId) {
-        throw new Error(`Expected agentId ${customAgentId} in metadata, got ${metadata.agentId}`);
-      }
+      const metadata = JSON.parse(claims.metadata) as { runtimeBindingId: string };
+      if (!metadata.runtimeBindingId) throw new Error("Missing runtime binding reference");
+      const denied = await fetch(`${BASE_URL}/livekit/token`, { method: "POST", headers: { "Content-Type": "application/json",
+        Authorization: `Bearer ${savedAccessToken}`, "x-organization-id": validOrgId }, body: JSON.stringify({ agentId: customAgentId }) });
+      if (denied.status !== 403) throw new Error("Unconfigured agent must be rejected");
     });
   } finally {
     console.log("==================================================");

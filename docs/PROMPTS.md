@@ -791,6 +791,8 @@ docs/PROGRESS.md
 docs/PHASES.md
 docs/VOICE_AI_ARCHITECTURE.md
 docs/DATA_MODEL_AND_API_CONTRACT.md
+docs/BACKEND_ARCHITECTURE.md
+all architecture docs
 
 Before implementing tools, inspect the service mapping created in Phase 16 and the original `whatsapp-appointment-platform`.
 

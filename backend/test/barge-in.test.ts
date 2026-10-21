@@ -9,6 +9,7 @@ import {
   generateSyntheticSpeechFrames,
 } from "./audio-fixtures.js";
 import { AudioFrameBuffer } from "../src/components/agent/providers/tts/raya/index.js";
+import { SpeechTranscriptGate } from "../src/agent/turn-collector.js";
 
 ensureAgentsLogger();
 
@@ -440,9 +441,10 @@ describe("Phase 13 — Barge-In (Interruption Handling) Test Suite", () => {
       // STT produces low confidence (<0.30) transient
       const userUtterance = "হ";
       const confidence = 0.18;
-      const isLowConfidence = confidence < 0.30 && userUtterance.length < 15;
-
-      assert.equal(isLowConfidence, true, "Transient noise must be flagged for filtering");
+      const gate = new SpeechTranscriptGate();
+      gate.speechStarted(100, 100); gate.speechEnded(850, 600);
+      assert.equal(gate.rejection({ text: userUtterance, confidence, language: "as", latencyMs: 0,
+        audioRange: { startMs: 0, endMs: 200 } }), "low_confidence", "Transient noise must be filtered before a new LLM turn");
 
       // Agent does not crash or schedule LLM, stays in listening state ready for next turn
       assert.equal(manager.getPhase(), "listening");

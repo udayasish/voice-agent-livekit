@@ -15,10 +15,11 @@ import type {
  * Provider-specific voice settings are kept here, outside the reusable engine.
  */
 export class GroqLLMProvider implements LLMProvider {
-  readonly label = "Groq Cloud (qwen/qwen3.8-27b)";
+  get label(): string { return `Groq Cloud (${this.config.model})`; }
 
   readonly capabilities: LLMCapabilities = {
     streaming: true,
+    structuredOutput: true,
     toolCalling: true,
     multilingual: true,
     models: ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"],
@@ -38,8 +39,17 @@ export class GroqLLMProvider implements LLMProvider {
     return this.config.model;
   }
 
-  private voiceSettings(model: string) {
-    // Groq documents 'none' for Qwen 3; GPT-OSS and other models have different supported values.
+  getMaxCompletionTokens(requested = this.config.maxTokens, model = this.config.model): number {
+    // GPT-OSS counts hidden reasoning in the completion budget. A voice-sized
+    // 256/384-token limit can exhaust before the final answer or JSON is complete.
+    return model === "openai/gpt-oss-120b" || model === "openai/gpt-oss-20b" ? Math.max(requested, 1536) : requested;
+  }
+
+  private voiceSettings(model: string): Record<string, string | boolean> {
+    // GPT-OSS cannot disable reasoning or use Qwen's reasoning_format option.
+    if (model === "openai/gpt-oss-120b" || model === "openai/gpt-oss-20b") {
+      return { reasoning_effort: "low", include_reasoning: false };
+    }
     return model.startsWith("qwen/qwen3") ? { reasoning_effort: "none", reasoning_format: "hidden" } : {};
   }
 
@@ -51,10 +61,11 @@ export class GroqLLMProvider implements LLMProvider {
   }
   generate(messages: LLMMessage[], options: Partial<LLMOptions> = {}): AsyncIterable<LLMChunk> {
     const model = options.model ?? this.config.model;
-    return streamChat(this.transport(model), messages, { ...options, model });
+    return streamChat(this.transport(model), messages, { ...options, model, maxTokens: this.getMaxCompletionTokens(options.maxTokens, model) });
   }
   async chat(messages: LLMMessage[], options: Partial<LLMOptions> = {}): Promise<LLMResponse> {
     const model = options.model ?? this.config.model;
-    return completeChat(this.transport(model), messages, { ...options, model });
+    const responseFormat = this.capabilities.models.includes(model) ? options.responseFormat : undefined;
+    return completeChat(this.transport(model), messages, { ...options, model, responseFormat, maxTokens: this.getMaxCompletionTokens(options.maxTokens, model) });
   }
 }

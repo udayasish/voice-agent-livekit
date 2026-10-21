@@ -2,6 +2,7 @@ import { AppError } from "../../../lib/errors.js";
 
 const messages = {
   INVALID_CLINIC_INPUT: "The clinic request is invalid.",
+  BOOKING_REQUEST_CONFLICT: "This booking request was already used for different details.",
   CLINIC_NOT_FOUND: "The clinic was not found.",
   CLINIC_UNAVAILABLE: "The clinic is unavailable.",
   INVALID_CLINIC_TIMEZONE: "The clinic timezone is invalid.",

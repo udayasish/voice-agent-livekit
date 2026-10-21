@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { containsPhoneNumberCandidate, normalizePhoneNumber, formatPhoneNumberForSpeech } from "../normalizers/index.js";
+import { containsPhoneNumberCandidate, normalizePhoneNumber, formatPhoneNumberForSpeech, phoneConfirmation } from "../normalizers/index.js";
 import { agentConfigSchema, type AgentConfig, type AgentLanguage } from "../engine/config.js";
 import type { BusinessBehavior, DeepReadonly } from "../engine/state.js";
 
@@ -63,17 +63,6 @@ export function createClinicDemoConfig(businessName: string, agentId = "clinic-d
   return agentConfigSchema.parse({ agentId, name: "Voice receptionist", businessName,
     instructions: "Clinic intake demonstration. Ask for the requested doctor and date/time, caller name and phone, one detail at a time. Do not provide medical advice. Collected details are unverified and only retained in this conversation. No booking, registration, availability lookup or durable request submission is possible.",
     languages: ["as", "hi", "en"], defaultLanguage: "as" });
-}
-
-/** Only used while confirming a collected number; negation takes precedence. */
-function phoneConfirmation(text: string): "yes" | "no" | undefined {
-  const words = text.normalize("NFKC").toLowerCase().split(/[^\p{L}\p{M}]+/u).filter(Boolean);
-  const negative = new Set(["নহয়", "নহয়", "নো", "নৌ", "নাই", "ভুল", "অশুদ্ধ", "no", "not", "incorrect", "wrong", "নहीं", "नहीं", "गलत"]);
-  if (words.some(word => negative.has(word))) return "no";
-  // A question or uncertain answer must not confirm the number.
-  if (/[?？]/u.test(text) || words.some(word => ["হয়তো", "হয়তো", "maybe", "perhaps", "unsure", "शायद"].includes(word))) return undefined;
-  const positive = new Set(["হয়", "হয়", "হঁয়", "ঠিক", "শুদ্ধ", "yes", "correct", "right", "हाँ", "हां", "सही"]);
-  return words.some(word => positive.has(word)) ? "yes" : undefined;
 }
 
 function intakeResponse(state: DeepReadonly<ClinicDemoState>, language: AgentLanguage, previousResponse?: string): string {

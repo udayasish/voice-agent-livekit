@@ -15,10 +15,12 @@ export type AgentLifecycleEvent =
   | "speech_ended"
   | "interruption_detected"
   | "stt_stream_started"
+  | "listening_ready" | "stt_final_wait"
   | "stt_input_mode_changed"
   | "stt_interim_transcript"
   | "stt_final_transcript"
   | "stt_low_confidence_filtered"
+  | "stt_unvoiced_filtered"
   | "stt_echo_filtered"
   | "llm_generation_started"
   | "llm_response_completed"
@@ -27,7 +29,7 @@ export type AgentLifecycleEvent =
   | "tts_skipped"
   | "room_disconnected"
   | "worker_shutdown"
-  | "agent_error";
+  | "agent_error" | "voice_recovery" | "playback_completed";
 
 export interface LifecycleMetadata {
   workerId?: string | undefined;
@@ -70,7 +72,8 @@ export const logLifecycle = (
     "participantsCount", "durationSeconds", "speechDurationMs", "silenceDurationMs", "speaking",
     "probability", "ttftMs", "totalLatencyMs", "latencyMs", "confidence", "language", "signal",
     "turnId", "frameCount", "ttsDurationMs", "provider", "isFallback", "playbackDurationMs", "inputMode",
-    "interruptionCount", "phase", "hasDoctor", "hasDateOrTime", "hasPatientName", "hasPhoneNumber", "responseRepeated", "fallbackReason"]);
+    "interruptionCount", "phase", "hasDoctor", "hasDateOrTime", "hasPatientName", "hasPhoneNumber", "responseRepeated", "fallbackReason",
+    "rejectionReason", "audioStartMs", "audioEndMs", "replySource", "category"]);
   const payload = {
     lifecycleEvent: event,
     timestamp: new Date().toISOString(),

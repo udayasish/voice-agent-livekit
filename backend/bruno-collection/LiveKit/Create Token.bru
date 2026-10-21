@@ -31,3 +31,11 @@ script:post-response {
     bru.setVar("livekitRoom", res.body.data.roomName);
   }
 }
+
+docs {
+  roomName is a label. Each caller receives a unique organization-scoped room.
+  JWT metadata carries only a one-use Redis runtimeBindingId, never tool permissions.
+  Omit agentId to select the server-configured default; absent profiles have no tools.
+  An explicit unconfigured agentId returns AGENT_NOT_AVAILABLE (403).
+  Patient accounts are unnecessary; dashboard staff remain authenticated.
+}

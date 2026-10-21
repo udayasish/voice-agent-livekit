@@ -16,7 +16,8 @@ export function sdkTools(registry: ToolRegistry, enabled: readonly string[], exe
       if (!trusted.success || Object.entries(executor.context).some(([key, value]) => trusted.data[key as keyof typeof trusted.data] !== value)) {
         return executor.invalidContext(definition.name);
       }
-      return executor.execute(definition.name, input, details?.toolCall?.callId ?? "invalid");
+      const id = details?.toolCall?.callId ?? "invalid";
+      return executor.execute(definition.name, input, id).then(result => executor.modelResult(id, result));
     },
     errorFunction: () => {
       executor.signal.throwIfAborted();

@@ -23,6 +23,7 @@ import {
   type RayaVoice,
 } from "../src/components/agent/providers/tts/raya/index.js";
 import { IndicF5TTS, loadTTSProvider } from "../src/agent/tts.js";
+import logger from "../src/lib/logger.js";
 
 // Ensure LiveKit logger is initialized for unit testing
 try {
@@ -395,5 +396,18 @@ test("Phase 11 Migration — Raya BakBak TTS & LiveKit Custom Adapter Test Suite
     assert.equal(indicProvider.label, "ai4bharat.indicf5");
     assert.equal(indicProvider.capabilities.streaming, false);
     assert.ok(indicProvider instanceof IndicF5TTS);
+  });
+  await t.test("provider HTTP failures never log or expose echoed patient text or credentials", async child => {
+    const privatePayload = "synthetic-patient-phone-and-provider-secret";
+    const logs: unknown[] = [];
+    child.mock.method(globalThis, "fetch", async () => new Response(privatePayload, { status: 502 }));
+    child.mock.method(logger, "error", (...args: unknown[]) => { logs.push(args); return logger; });
+    const client = new RayaClient({ baseUrl: "http://mock.invalid/v1", apiKey: "synthetic-secret" });
+    await assert.rejects(async () => {
+      for await (const event of client.synthesizeStream({ text: privatePayload, model: "standard", voice_id: "test-voice", language: "as", speed: 1, sample_rate: 24000 })) void event;
+    }, (error: unknown) => error instanceof RayaProtocolError && !error.message.includes(privatePayload));
+    assert.equal(JSON.stringify(logs).includes(privatePayload), false);
+    assert.equal(JSON.stringify(logs).includes("synthetic-secret"), false);
+    assert.ok(logs.length > 0);
   });
 });

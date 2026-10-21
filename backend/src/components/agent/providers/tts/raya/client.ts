@@ -134,13 +134,13 @@ export class RayaClient {
     }
 
     if (!response.ok) {
-      const errText = await response.text().catch(() => "");
       logger.error("[agent:tts:raya] HTTP error from Raya streaming API", {
         status: response.status,
-        body: errText,
+        errorCode: "TTS_PROVIDER_HTTP_ERROR",
       });
+      await response.body?.cancel();
       throw new RayaProtocolError(
-        `POST /text-to-speech/stream returned HTTP ${response.status}: ${errText || response.statusText}`,
+        `POST /text-to-speech/stream returned HTTP ${response.status}`,
         response.status,
       );
     }

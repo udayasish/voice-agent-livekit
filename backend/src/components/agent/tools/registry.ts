@@ -16,6 +16,7 @@ export interface RegisteredTool {
   readonly strict: boolean;
   validate(input: unknown): unknown;
   invokeValidated(input: unknown, context: ToolContext): Promise<ToolResult>;
+  projectValidated(result: ToolResult, input: unknown): ToolResult;
 }
 /** Capture typed handlers before erasing types in a heterogeneous registry. */
 export function defineTool<I, O>(definition: ToolDefinition<I, O>): RegisteredTool {
@@ -27,6 +28,7 @@ export function defineTool<I, O>(definition: ToolDefinition<I, O>): RegisteredTo
   if (Object.keys(inputSchema.shape).some(key => reserved.has(key))) throw new BadRequestError("Tool context cannot be supplied in arguments", "INVALID_TOOL_DEFINITION");
   const outputSchema = definition.outputSchema;
   const execute = definition.execute;
+  if (Boolean(definition.projectOutput) !== Boolean(definition.modelOutputSchema)) throw new BadRequestError("Projection requires a schema", "INVALID_TOOL_DEFINITION");
   if (typeof execute !== "function" || !(outputSchema instanceof z.ZodType)) throw new BadRequestError("Invalid tool handler or output schema", "INVALID_TOOL_DEFINITION");
   const parameters = z.toJSONSchema(inputSchema, { io: "input" });
   // Provider strict mode requires every object property to be required. Optional
@@ -48,6 +50,11 @@ export function defineTool<I, O>(definition: ToolDefinition<I, O>): RegisteredTo
   };
   freeze(parameters);
   const registered: RegisteredTool = Object.freeze({ name, description, parameters, strict,
+    projectValidated: (result: ToolResult, input: unknown): ToolResult => {
+      if (!result.success || !definition.projectOutput || !definition.modelOutputSchema) return structuredClone(result);
+      const data = definition.modelOutputSchema.parse(definition.projectOutput(result.data as O, input as I));
+      return { success: true, data: json.parse(data) };
+    },
     validate: (input: unknown) => inputSchema.parse(json.parse(input)),
     invokeValidated: async (input: unknown, context: ToolContext): Promise<ToolResult> => {
       // Only the executor passes the value returned by validate, including transformations.

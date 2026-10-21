@@ -1,0 +1,9 @@
+[
+  {
+    "organizationId": "00000000-0000-4000-8000-000000000001",
+    "agentId": "default",
+    "business": "clinic",
+    "appointmentsEnabled": true,
+    "enabledTools": ["resolve_clinic_and_caller", "list_doctors", "find_doctor", "get_available_dates", "get_available_times", "book_appointment", "check_my_appointments", "cancel_appointment"]
+  }
+]
