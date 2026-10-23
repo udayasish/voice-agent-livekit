@@ -12,10 +12,10 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import env from "../lib/env.js";
 import logger from "../lib/logger.js";
-import { playDeterministicGreeting } from "./greeting.js";
+import { publishAgentAudio } from "./greeting.js";
 import { logLifecycle, registerShutdownHandlers } from "./lifecycle.js";
 import { attachVADToTrack, loadSileroVAD } from "./vad.js";
-import { attachSTTToTrack, loadDeepgramSTT, type STTTrackSubscription } from "./stt.js";
+import { attachSTTToTrack, loadDeepgramSTT, conversationRecognitionLanguage, type STTTrackSubscription } from "./stt.js";
 import { VoiceRecoveryTimer, UnusableSpeechRecoveryGate, waitForPlayback } from "./voice-recovery.js";
 import { normalizePhoneNumber } from "../components/agent/normalizers/index.js";
 import type { RecoveryReason } from "../components/agent/engine/index.js";
@@ -115,7 +115,7 @@ const agent = defineAgent<AgentProcessUserData>({
     const sessionStore = new RedisSessionStore(redis);
 
     // Setup audio source and single authoritative interruption coordinator
-    let agentAudioSource: AudioSource | null = null;
+    let agentAudioSource: AudioSource | null = (await publishAgentAudio(ctx)).source;
     const interruptionManager = new InterruptionManager();
     let roomClosing = false;
     const participantSessions = new Map<string, { session: Awaited<ReturnType<typeof createBoundVoiceSession>>; subscriptions: Array<() => void> }>();
@@ -149,6 +149,11 @@ const agent = defineAgent<AgentProcessUserData>({
       try {
         const binding = await consumeRuntimeBinding(redis, participant.metadata, roomName, participantIdentity);
         session = await createBoundVoiceSession(llm, binding, sessionStore);
+      } catch {
+        await ctx.room.localParticipant?.publishData(new TextEncoder().encode(JSON.stringify({ type: "voice_status", category: "admission_failed" })),
+          { reliable: true, topic: "agent_transcript", destination_identities: [participantIdentity] }).catch(() => {});
+        logLifecycle("agent_error", "Agent admission rejected", { roomName, participantIdentity, category: "admission_failed" });
+        return;
       } finally { attaching.delete(participantIdentity); }
       if (roomClosing || !ctx.room.remoteParticipants.has(participantIdentity)) { await session.close(); return; }
       const resources = { session, subscriptions: [] as Array<() => void> };
@@ -168,12 +173,59 @@ const agent = defineAgent<AgentProcessUserData>({
         let speechGeneration = 0;
         let deliveredAudioThrough = -1;
         let vadReady = false, sttReady = false, listeningReady = false;
+        let openingStarted = false;
+        const languageTts = new Map<string, Promise<TTSAdapter>>();
+        const prewarmedLanguage = tts instanceof RayaTTS
+          ? tts.config.language
+          : session.configuration.defaultLanguage;
+        languageTts.set(prewarmedLanguage, Promise.resolve(tts));
+        const speechProvider = async (): Promise<TTSAdapter> => {
+          const language = session.getSnapshot().conversation.language;
+          let provider = languageTts.get(language);
+          if (!provider) {
+            provider = (async () => {
+              const languageProvider = loadTTSProvider({ language });
+              if (languageProvider instanceof RayaTTS) {
+                await languageProvider.initialize();
+              }
+              return languageProvider;
+            })();
+            languageTts.set(language, provider);
+          }
+          return provider;
+        };
+        const playOpening = async () => {
+          if (openingStarted) return;
+          openingStarted = true;
+          const text = session.configuration.greeting;
+          if (!text || speechGeneration > 0 || interruptionManager.getActiveTurnId() > 0) return;
+          const signal = interruptionManager.startGreeting();
+          let completed = false;
+          await session.recordOpening(text, false);
+          try {
+            let duration = 0, frames = 0;
+            const provider = await speechProvider();
+            for await (const packet of provider.synthesize(text, undefined, signal)) {
+              if (signal.aborted || roomClosing || !agentAudioSource) break;
+              await agentAudioSource.captureFrame(packet.frame); frames++;
+              duration += packet.frame.samplesPerChannel / packet.frame.sampleRate * 1000;
+            }
+            if (frames > 0 && !signal.aborted && agentAudioSource) { await waitForPlayback(agentAudioSource, duration, signal); completed = !signal.aborted; }
+            if (!completed && !signal.aborted) publishStatus("playback_failure");
+          } catch { if (!signal.aborted) publishStatus("playback_failure"); }
+          finally {
+            if (participantSessions.get(participantIdentity) === resources) await session.recordOpening(text, completed);
+            interruptionManager.finishGreeting();
+            logLifecycle("greeting_completed", "Opening speech finished", { roomName, participantIdentity, category: completed ? "completed" : "interrupted_or_failed" });
+          }
+        };
         const reportListeningReady = () => {
           if (listeningReady || !vadReady || !sttReady || participantSessions.get(participantIdentity) !== resources) return;
           listeningReady = true;
           logLifecycle("listening_ready", "Audio readers are ready", { roomName, participantIdentity });
           void ctx.room.localParticipant?.publishData(new TextEncoder().encode(JSON.stringify({ type: "voice_status", category: "listening_ready" })),
             { reliable: true, topic: "agent_transcript", destination_identities: [participantIdentity] }).catch(() => {});
+          void playOpening().catch(lifecycleFailure);
         };
         const publishStatus = (category: string) => {
           logLifecycle("voice_recovery", "Voice recovery status", { roomName, participantIdentity, category });
@@ -256,7 +308,7 @@ const agent = defineAgent<AgentProcessUserData>({
             const language = session.getSnapshot().conversation.language;
             const collectingPhone = session.isCollectingPhoneNumber();
             sttSubscription?.setInputMode(collectingPhone ? "english-digits" : "conversation",
-              collectingPhone || confirmationStage === "phone" || confirmationStage === "action" ? language : undefined);
+              conversationRecognitionLanguage(language, confirmationStage === "phone" || confirmationStage === "action"));
             interruptionManager.finishThinking(turnId);
 
             logLifecycle("llm_response_completed", `LLM generated response: "${llmResult.text}"`, {
@@ -341,7 +393,8 @@ const agent = defineAgent<AgentProcessUserData>({
 
               const ttsSignal = interruptionManager.startSpeaking(turnId);
               const ttsStart = Date.now();
-              const ttsStream = tts.synthesize(speechText, undefined, ttsSignal);
+              const provider = await speechProvider();
+              const ttsStream = provider.synthesize(speechText, undefined, ttsSignal);
               let frameCount = 0;
               let audioDurationMs = 0;
               for await (const packet of ttsStream) {
@@ -642,6 +695,7 @@ const agent = defineAgent<AgentProcessUserData>({
           });
 
           const subscription = sttSubscription;
+          subscription.setInputMode("conversation", conversationRecognitionLanguage(session.configuration.defaultLanguage));
           resources.subscriptions.push(() => subscription.close());
         }
       } catch {
@@ -701,60 +755,6 @@ const agent = defineAgent<AgentProcessUserData>({
       }
     }
 
-    // Step 2: Ensure a remote participant is present before streaming greeting
-    if (ctx.room.remoteParticipants.size === 0) {
-      logLifecycle(
-        "greeting_started",
-        `Waiting for remote user participant to join room '${roomName}'...`,
-        { roomName },
-      );
-      await ctx.waitForParticipant();
-    }
-
-    // Step 3: Stream deterministic harmonic greeting chime with barge-in support
-    try {
-      const greetingSignal = interruptionManager.startGreeting();
-      logLifecycle("greeting_started", `Streaming deterministic greeting chime in room '${roomName}'`, {
-        roomName,
-        participantsCount: ctx.room.remoteParticipants.size,
-      });
-
-      const greetingResult = await playDeterministicGreeting(ctx, { signal: greetingSignal });
-      agentAudioSource = greetingResult.source;
-
-      if (greetingSignal.aborted) {
-        if (agentAudioSource && !agentAudioSource.closed) {
-          agentAudioSource.clearQueue();
-        }
-        logLifecycle(
-          "greeting_completed",
-          `Deterministic greeting was interrupted by user in room '${roomName}' (barge-in successful)`,
-          {
-            roomName,
-          },
-        );
-      } else {
-        interruptionManager.finishGreeting();
-        logLifecycle(
-          "greeting_completed",
-          `Deterministic greeting successfully streamed to room '${roomName}'`,
-          {
-            roomName,
-          },
-        );
-      }
-    } catch (error) {
-      logLifecycle(
-        "agent_error",
-        `Failed to play deterministic greeting: ${error instanceof Error ? error.message : String(error)}`,
-        {
-          roomName,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      );
-    } finally {
-      interruptionManager.finishGreeting();
-    }
 
   },
 });

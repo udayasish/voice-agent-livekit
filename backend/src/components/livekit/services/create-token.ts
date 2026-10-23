@@ -4,7 +4,9 @@ import type { AuthOrganization, AuthUser } from "../../../types.js";
 import type { CreateTokenInput } from "../schema.js";
 import { randomUUID } from "node:crypto";
 import { redis } from "../../../lib/redis.js";
-import { loadVoiceProfiles, selectVoiceProfile } from "../../agent/profiles.js";
+import { resolveAgentRuntime } from "../../agent/configuration/services.js";
+import { db } from "../../../lib/db/db.js";
+import logger from "../../../lib/logger.js";
 import { issueRuntimeBinding } from "../../agent/runtime-binding.js";
 
 export type LiveKitTokenResult = {
@@ -28,8 +30,8 @@ export const createToken = async (
   const sessionSuffix = randomUUID();
   const participantIdentity = `user-${user.id.substring(0, 8)}-${sessionSuffix}`;
 
-  const profile = selectVoiceProfile(await loadVoiceProfiles(env.VOICE_AGENT_PROFILES_PATH), organization.id, organization.businessType, input.agentId);
-  const runtimeBindingId = await issueRuntimeBinding(redis, { organizationId: organization.id, userId: user.id,
+  const profile = await resolveAgentRuntime(organization.id, user.id, input.agentId, { db, logger });
+  const runtimeBindingId = await issueRuntimeBinding(redis, { schemaVersion: 2, organizationId: organization.id, userId: user.id,
     agentId: profile.agentId, sessionId: randomUUID(), callId: randomUUID(), conversationId: randomUUID(),
     roomName, participantIdentity, profile });
   const at = new AccessToken(env.LIVEKIT_API_KEY, env.LIVEKIT_API_SECRET, {

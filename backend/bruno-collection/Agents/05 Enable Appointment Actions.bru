@@ -1,0 +1,40 @@
+meta {
+  name: Enable Appointment Actions
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{host}}/api/v1/agents/{{agentId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "expectedVersion": {{agentVersion}},
+    "enabledTools": ["resolve_clinic_and_caller","list_doctors","find_doctor","get_available_dates","get_available_times","book_appointment","check_my_appointments","cancel_appointment"]
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("agentId", res.body.data.id); bru.setVar("agentVersion", res.body.data.version); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Booking and dependencies saved", function () { expect(res.body.data.enabledTools).to.include("book_appointment"); expect(res.body.data.enabledTools).to.have.lengthOf(8); });
+}
+
+docs {
+  Owner/admin only. API equivalent of selecting Allowed actions and Save Agent. Do not submit appointmentsEnabled; it is server-owned. A stale expectedVersion returns 409; reload before retrying. Existing calls retain settings; start a fresh call.
+}

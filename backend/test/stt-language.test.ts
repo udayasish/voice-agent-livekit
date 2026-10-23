@@ -7,7 +7,7 @@ import { WebSocketServer } from "ws";
 import { stt, normalizeLanguage } from "@livekit/agents";
 import { AudioFrame } from "@livekit/rtc-node";
 import { STT, type STTOptions } from "@livekit/agents-plugin-deepgram";
-import { attachSTTToAudio, type ManagedSTTStream } from "../src/agent/stt.js";
+import { attachSTTToAudio, conversationRecognitionLanguage, type ManagedSTTStream } from "../src/agent/stt.js";
 import type { TranscriptAudioRange } from "../src/agent/turn-collector.js";
 
 const baseline = { language: "as", smartFormat: true, punctuate: true };
@@ -49,6 +49,24 @@ function fakeProvider() {
 const frame = () => new AudioFrame(new Int16Array(320), 16000, 1, 320);
 
 describe("Participant STT language switching", () => {
+  it("keeps experimental multilingual recognition across ordinary replies and restores it after a critical confirmation", async () => {
+    const provider = fakeProvider(), audio = audioFixture();
+    const subscription = attachSTTToAudio(provider, audio.audio, {}, undefined, { ...baseline, language: "multi" });
+    const next = (language: string, critical = false) => subscription.setInputMode("conversation", conversationRecognitionLanguage(language, critical, "multi"));
+    try {
+      next("as"); next("hi"); next("en");
+      assert.equal(provider.streams.length, 1);
+      assert.equal(provider.streams[0]?.options.language, "multi");
+      subscription.setInputMode("english-digits", conversationRecognitionLanguage("as", false, "multi"));
+      assert.equal(provider.streams[1]?.options.language, "en-IN");
+      next("as", true);
+      assert.equal(provider.streams[2]?.options.language, "as");
+      next("as");
+      assert.equal(provider.streams[3]?.options.language, "multi");
+      assert.equal(conversationRecognitionLanguage("hi", false, "as"), "hi");
+      assert.equal(conversationRecognitionLanguage("as", true, "as"), "as");
+    } finally { subscription.close(); await nextTick(); }
+  });
   it("uses the trusted confirmation language within multi and restores baseline without duplicate streams", async () => {
     const provider = fakeProvider(), audio = audioFixture(), modes: string[] = [];
     const subscription = attachSTTToAudio(provider, audio.audio, { onInputModeChanged: (mode, language) => modes.push(`${mode}:${language}`) },
@@ -170,6 +188,11 @@ describe("Participant STT language switching", () => {
       try {
         await waitFor(() => connections.length === 1);
         assert.equal(connections[0]?.searchParams.get("language"), language);
+        if (language === "multi") {
+          const ordinaryStream = subscription.stream;
+          subscription.setInputMode("conversation", conversationRecognitionLanguage("as", false, language));
+          assert.equal(subscription.stream, ordinaryStream);
+        }
         subscription.setInputMode("english-digits");
         for (let i = 0; i < 5; i++) audio.push(frame());
         await waitFor(() => received.length === 1);
@@ -183,11 +206,11 @@ describe("Participant STT language switching", () => {
         assert.equal(connections[2]?.searchParams.get("language"), language);
         assert.equal(received[1], "হয় শুদ্ধ");
         if (language === "multi") {
-          subscription.setInputMode("conversation", "as");
+          subscription.setInputMode("conversation", conversationRecognitionLanguage("as", true, language));
           for (let i = 0; i < 5; i++) audio.push(frame());
           await waitFor(() => received.length === 3);
           assert.equal(connections[3]?.searchParams.get("language"), "as");
-          subscription.setInputMode("conversation");
+          subscription.setInputMode("conversation", conversationRecognitionLanguage("as", false, language));
           for (let i = 0; i < 5; i++) audio.push(frame());
           await waitFor(() => received.length === 4);
           assert.equal(connections[4]?.searchParams.get("language"), "multi");

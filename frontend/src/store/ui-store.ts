@@ -1,6 +1,10 @@
 import { create } from "zustand";
 
 interface UiState {
+  agentFormDirty: boolean;
+  voiceSessionBusy: boolean;
+  setAgentFormDirty: (value: boolean) => void;
+  setVoiceSessionBusy: (value: boolean) => void;
   isSidebarCollapsed: boolean;
   isMobileNavOpen: boolean;
   activeOrgId: string;
@@ -18,6 +22,9 @@ interface UiState {
  * - Only UI flags and client preferences
  */
 export const useUiStore = create<UiState>((set) => ({
+  agentFormDirty: false, voiceSessionBusy: false,
+  setAgentFormDirty: (agentFormDirty) => set({ agentFormDirty }),
+  setVoiceSessionBusy: (voiceSessionBusy) => set({ voiceSessionBusy }),
   isSidebarCollapsed: false,
   isMobileNavOpen: false,
   activeOrgId: "org-default-001",

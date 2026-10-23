@@ -4,6 +4,10 @@ Read `AGENTS.md` before making changes.
 
 ## Plain-Language Project Review
 
+- [Simple Assamese voice-agent architecture review](VOICE_AGENT_SIMPLE_ARCHITECTURE_REVIEW.md) — explains the current STT, LLM, tool, booking and TTS flow, the main design gap, and the simpler target approach.
+
+- [Assamese mixed-language understanding review](ASSAMESE_MIXED_LANGUAGE_UNDERSTANDING_REVIEW.md) — explains how dates, times and ages should work across Assamese, English and Hindi without asking callers to select a language.
+
 - [Current progress and Phase 18 handoff](PROGRESS.md) — 22 October: live booking/token verified; remaining Phase 17 testing and fixes tracked; Phase 18 discussion next, implementation not started.
 
 - [Phase 16 backend completion and acceptance](PHASE_16_BACKEND_ACCEPTANCE.md) — staff API contracts, safe rescheduling, test results, Bruno usage and migration rollout.

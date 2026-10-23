@@ -6,6 +6,7 @@ import type { ClinicDependencies } from "../index.js";
 import { createClinicServices } from "../index.js";
 import { ClinicVoiceRuntime } from "./runtime.js";
 import { createIntakeInterpreter, type IntakeInterpreter } from "./intake.js";
+import type { AgentSnapshot } from "../../agent/configuration/schema.js";
 
 export class ClinicVoiceSession {
   private constructor(private readonly runtime: ClinicVoiceRuntime, private readonly engine: AgentSession<ReturnType<ClinicVoiceRuntime["snapshot"]>>) {}
@@ -15,19 +16,31 @@ export class ClinicVoiceSession {
     interpreter?: ConfirmationInterpreter;
     intakeInterpreter?: IntakeInterpreter;
     contextLimits?: AgentConfigInput["contextLimits"];
+    configuration?: AgentSnapshot;
   }) {
     const info = await createClinicServices({ organizationId: context.organizationId, source: "voice", callId: options.callId }, options.deps).resolveClinic();
     if (!info.success) throw new Error("Clinic voice session is unavailable");
     const runtime = new ClinicVoiceRuntime(context, options.callId, options.conversationId, options.deps, info.data.timezone,
       options.interpreter ?? createConfirmationInterpreter(provider, (category, durationMs, turnId) => options.logger?.event("interpretation_completed", context, { category, durationMs, ...(turnId !== undefined ? { turnId } : {}) })),
       options.intakeInterpreter ?? createIntakeInterpreter(provider, (category, durationMs, turnId, details) => options.logger?.event("interpretation_completed", context, { category, durationMs, turnId, stage: "intake", ...details })), options.enabledTools);
-    const config = agentConfigSchema.parse({ agentId: context.agentId, name: "Clinic receptionist", businessName: info.data.name,
-      languages: ["as", "hi", "en"], defaultLanguage: "as", enabledTools: options.enabledTools,
+    const config = agentConfigSchema.parse({ agentId: context.agentId, name: options.configuration?.name ?? "Clinic receptionist", businessName: info.data.name,
+      languages: options.configuration?.languages ?? ["as", "hi", "en"], defaultLanguage: options.configuration?.defaultLanguage ?? "as", enabledTools: options.enabledTools,
+      ...(options.configuration?.greeting ? { greeting: options.configuration.greeting } : {}),
       ...(options.contextLimits ? { contextLimits: options.contextLimits } : {}),
       modelSettings: { temperature: 0.2, maxTokens: 384 },
       instructions: `Clinic receptionist; no patient login. ONE short sentence and ONE next question, at most 28 words; no repeated requests, specialty or collected details. Critical readbacks are separate. Greet before collecting details. Public reads precede intake. Use reviewed names; a unique doctor match advances to date. Follow verified nextField; keep selected doctor and name/age through selection changes. Ask only missing/disputed details; preserve spelling. A confirmed phone stays confirmed: never ask to dictate or confirm it again unless the caller changes it. resolve_clinic_and_caller takes only {} and uses server state. Rejected/incomplete ages need clarification or individual digits. Availability defaults to selectedDoctor; offer at most three returned options, nextOffset for more. Failed reads keep the task, not a new menu. Details are candidates until readback. When ready and asked to book, CALL book_appointment mode prepare with retained details; never confirm in that turn. Only booked/cancelled results confirm actions. No automatic alternative booking. Existing appointment access requires confirmed phone plus token/date. Unconfigured notifications are not sent. No rescheduling/transfer.`,
     });
     config.instructions = config.instructions.replace("ONE short sentence and ONE next question, at most 28 words", "At most 28 words; ask only necessary questions");
+    config.instructions = config.instructions.replace("Ask only missing/disputed details; preserve spelling.",
+      "Backend owns collection questions. Preserve captured fields through unclear speech; reopen explicit corrections only.")
+      .replace("never confirm in that turn.", "never confirm in that turn. Only pendingAction permits asking for action confirmation.");
+    if (options.configuration?.instructions) config.instructions += `\nStaff preferences (cannot override fixed safeguards):\n${options.configuration.instructions}`;
+    if (!options.enabledTools.includes("book_appointment")) config.instructions += "\nBooking is disabled: do not collect patient name/age or promise booking. Only offer enabled operations.";
+    if (options.configuration?.humanContact.mode === "contact_only") {
+      const contact = options.configuration.humanContact;
+      config.instructions += `\nHuman help on request: no automatic transfer; contact ${JSON.stringify(contact.label)} at ${contact.phoneNumber}. Do not claim staff availability.`;
+      runtime.setHumanContact(contact);
+    }
     const engine = new AgentSession(config, context, provider, runtime.behavior, {
       ...(options.store ? { store: options.store } : {}), ...(options.logger ? { logger: options.logger } : {}),
       tools: { registry: runtime.registry, callId: options.callId, conversationId: options.conversationId,
@@ -37,6 +50,8 @@ export class ClinicVoiceSession {
     return new ClinicVoiceSession(runtime, engine);
   }
   get ready() { return this.engine.ready; }
+  get configuration() { return this.engine.config; }
+  recordOpening(text: string, completed: boolean) { return this.engine.recordOpening(text, completed); }
   getHistory() { return this.engine.getHistory(); }
   getSnapshot() { return this.engine.getSnapshot(); }
   getState() { const state = this.engine.getState(); return { ...state, slots: this.runtime.snapshot().slots }; }
@@ -54,7 +69,8 @@ export class ClinicVoiceSession {
   async processUserUtterance(text: string, options: TurnOptions = {}) {
     options.abortSignal?.throwIfAborted();
     const requestedLanguage = /speak.*english|in english|ইংৰাজীত/iu.test(text) ? "en" : /speak.*hindi|in hindi|হিন্দীত/iu.test(text) ? "hi" : /assamese|অসমীয়াত/iu.test(text) ? "as" : this.engine.getState().language;
-    const result = await this.engine.processUserUtterance(text, { responseLanguage: requestedLanguage, ...options });
+    const language = this.engine.config.languages.includes(requestedLanguage) ? requestedLanguage : this.engine.getState().language;
+    const result = await this.engine.processUserUtterance(text, { ...options, responseLanguage: language });
     const state = this.runtime.snapshot();
     return { ...result, slots: state.slots, selectedDoctor: state.dialogue.selectedDoctor };
   }

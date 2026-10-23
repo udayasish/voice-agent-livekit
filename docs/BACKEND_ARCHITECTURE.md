@@ -1,5 +1,9 @@
 # Assamese AI Voice Agent Platform — Backend Architecture
 
+## Clinic dialogue workflow enforcement (23 October 2026)
+
+The clinic voice adapter retains the existing SDK, Zod evidence validation, injected one-operation clinic services and transaction/executor boundaries. The server-derived next field controls collection prompts; arbitrary model wording cannot reopen an already collected field. Unclear answers retain known candidates, while explicit disputes/corrections keep their existing safety checks. Completed intake and phone confirmation can plan the existing booking prepare tool; preparation creates a readback, not an appointment. Later playback-qualified confirmation plans the existing confirm tool. No SQL or provider call is added to the generic engine, and no vendor dialogue framework is installed. Safe logs record only operational state. API and Bruno contracts are unchanged.
+
 ## Phase 16 staff backend completion (2026-10-21)
 
 The authenticated clinic HTTP adapter uses the existing Route[] pipeline. Header UUID validation precedes organization membership verification; owner/admin manage doctor/schedule data while all member roles manage appointments. Thin handlers parse context/input/results; injected clinic services own queries and transactions. Final endpoints and local acceptance evidence: [PHASE_16_BACKEND_ACCEPTANCE.md](PHASE_16_BACKEND_ACCEPTANCE.md).

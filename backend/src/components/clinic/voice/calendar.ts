@@ -55,6 +55,9 @@ export function offeredDateChoice(text: string, offered: readonly string[]): { s
   const days = ["one|first|এক", "two|second|দুই", "three|third|তিনি", "four|fourth|চাৰি", "five|fifth|পাঁচ", "six|sixth|ছয়", "seven|seventh|সাত", "eight|eighth|আঠ", "nine|ninth|নয়", "ten|tenth|দহ", "eleven|eleventh|এঘাৰ", "twelve|twelfth|বাৰ", "thirteen|thirteenth|তেৰ", "fourteen|fourteenth|চৈধ্য", "fifteen|fifteenth|পোন্ধৰ", "sixteen|sixteenth|ষোল্ল", "seventeen|seventeenth|সোতৰ", "eighteen|eighteenth|ওঠৰ|আঠাৰ|अठारह", "nineteen|nineteenth|ঊনৈশ", "twenty|twentieth|বিশ", "twenty.one|twenty.first|একৈশ", "twenty.two|twenty.second|বাইশ", "twenty.three|twenty.third|তেইশ", "twenty.four|twenty.fourth|চৌবিশ", "twenty.five|twenty.fifth|পঁচিশ", "twenty.six|twenty.sixth|ছাব্বিশ", "twenty.seven|twenty.seventh|সাতাইশ", "twenty.eight|twenty.eighth|আঠাইশ", "twenty.nine|twenty.ninth|ঊনত্ৰিশ", "thirty|thirtieth|ত্ৰিশ", "thirty.one|thirty.first|একত্ৰিশ"];
   // Long compound numbers must be consumed before their component words.
   for (let index = days.length - 1; index >= 0; index--) value = value.replace(new RegExp(`(^|[^\\p{L}\\p{M}])(?:${days[index]})(?=$|[^\\p{L}\\p{M}])`, "gu"), `$1${index + 1}`);
+  // Share the intake/clock cardinal vocabulary across scripts. Ordinals above
+  // must resolve first; unrecognized speech stays unchanged for interpretation.
+  value = clockNumberText(value);
   value = value.replace(/\d{1,2}(?::[0-5]\d)?\s*(?:am\b|pm\b|o'clock|বজাত|बजे)/gu, " ");
   const numbers = [...value.matchAll(/\b\d{1,2}\b/gu)].map(m => Number(m[0])).filter(n => n >= 1 && n <= 31);
   const names = calendarLabels();

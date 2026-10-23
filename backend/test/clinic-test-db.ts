@@ -64,6 +64,7 @@ export async function insertFixtureSlot(db: Database, fixture: ClinicFixture, op
 export async function removeClinicFixtures(db: Database, organizationIds: string[]) {
   if (!organizationIds.length) return;
   await db.transaction(async (tx) => {
+    await tx.delete(schema.agents).where(inArray(schema.agents.organizationId, organizationIds));
     await tx.delete(schema.clinicRescheduleHistory).where(inArray(schema.clinicRescheduleHistory.organizationId, organizationIds));
     await tx.delete(schema.clinicMutationReceipts).where(inArray(schema.clinicMutationReceipts.organizationId, organizationIds));
     await tx.delete(schema.clinicTokenCounters).where(inArray(schema.clinicTokenCounters.organizationId, organizationIds));

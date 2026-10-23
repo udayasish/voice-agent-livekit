@@ -153,8 +153,13 @@ export class ClinicDialogue {
       .replace(/[०-९]/gu, c => String(c.charCodeAt(0) - 0x0966)).replace(/[.,:।]/gu, " ").replace(/\s+/gu, " ").trim().toLowerCase();
     const answer = normalized(text);
     const mentions = (value: string) => answer.includes(normalized(value));
-    if (r.outcome === "dates_available") return ["matched", "ambiguous"].includes(offeredDateChoice(text, this.state.offeredDates).status) || r.dates.some(date => [date, ...(["as", "hi", "en"] as const).flatMap(lang => [spokenDate(date, lang),
-      new Intl.DateTimeFormat(lang === "as" ? "as-IN" : lang === "hi" ? "hi-IN" : "en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00Z`))])].some(mentions));
+    if (r.outcome === "dates_available") {
+      // This read proves available options, not why other dates are unavailable.
+      // A real date elsewhere in the sentence cannot validate a negative claim.
+      if (/\bunavailable\b|\bnot\s+available\b|উপলব্ধ\s*(?:নহয়|নহয়|নাই)|উপলব্ধ\s*নয়|उपलब्ध\s*नहीं/iu.test(text)) return false;
+      return ["matched", "ambiguous"].includes(offeredDateChoice(text, this.state.offeredDates).status) || r.dates.some(date => [date, ...(["as", "hi", "en"] as const).flatMap(lang => [spokenDate(date, lang),
+        new Intl.DateTimeFormat(lang === "as" ? "as-IN" : lang === "hi" ? "hi-IN" : "en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(new Date(`${date}T12:00:00Z`))])].some(mentions));
+    }
     if (r.outcome === "times_available") return (r.times.some(slot => [slot.startTime.slice(0, 5), ...(["as", "hi", "en"] as const).map(lang => spokenTime(slot.startTime, lang))].some(mentions))
       || calendarRequest(text, r.dates[0]!, true).times?.some(time => r.times.some(slot => slot.startTime.slice(0, 5) === time)) === true) && this.state.question !== "ampm";
     return false;

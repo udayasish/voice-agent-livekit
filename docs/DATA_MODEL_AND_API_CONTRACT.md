@@ -1,5 +1,11 @@
 # Assamese AI Voice Agent Platform — Data Model & API Contract
 
+## Clinic dialogue review follow-up (23 October 2026)
+
+No public endpoint, tool input, table or migration changes. The private verified model context gains a derived `dialoguePhase` (`collect`, `confirm_phone`, `ready_for_review`, `confirm_action`, `completed`). Name/age/phone/ready collection wording follows the existing server next field; assistant wording cannot reopen a captured field. Existing candidate evidence, revisions and pending-action structures remain canonical. Unclear input alone does not mark retained name/age as disputed.
+
+The backend may plan `book_appointment` with `mode: prepare` once current selection, confirmed phone and complete undisputed intake are ready. It never treats that phone confirmation as action permission. A later valid response to a completed draft readback plans `mode: confirm` using the same server-issued draft ID. Unclear replies preserve an unchanged completed readback while leaving authorization unset; interruption or a replacement draft requires fresh full playback. Booking, cancellation, idempotency, tenant scope and durable service contracts are unchanged. No Bruno requests change because external contracts are unchanged.
+
 ## Phase 16 staff HTTP completion
 
 The approved staff endpoints, role matrix, request/version/idempotency rules, token counters, migration and acceptance requirements are specified in [PHASE_16_BACKEND_ACCEPTANCE.md](PHASE_16_BACKEND_ACCEPTANCE.md). This supersedes historical statements below that no clinic HTTP API or rescheduling exists. Voice tool contracts remain compatible; date blocking now refuses booked appointments.
@@ -139,6 +145,10 @@ Messages / ToolEvents
 - user_id
 - role
 - created_at
+
+### Phase 18 configuration contract
+
+The approved current contract is [PHASE_18_AGENT_CONFIGURATION.md](PHASE_18_AGENT_CONFIGURATION.md). It supersedes the provisional agents/agent_tools/business_configs outline below: one agents table, atomic settings, five staff routes and versioned runtime admission. The following old table outlines are historical, not additional implementation requirements.
 
 ### agents
 - id

@@ -1,5 +1,13 @@
 # Assamese AI Voice Agent Platform — Frontend Architecture
 
+## Dashboard session restoration fix (22 October 2026)
+
+Cookie presence in Next.js middleware is only a routing hint, not authentication. `/login` stays accessible even with expired or revoked cookies; previously middleware redirected it back to the dashboard while `AuthGuard` redirected failed sessions to login, causing a loop/blank screen. Backend authentication remains authoritative for every protected API.
+
+The centralized native-fetch client now attempts the existing cookie-based refresh endpoint once after a protected API returns 401, shares that rotation among concurrent requests, and retries the original request once. Authentication endpoints do not trigger automatic refresh. Tokens remain in HTTP-only cookies and are not persisted in browser storage. A rejected refresh reaches the guard as an authentication failure; network/server failures instead show a retryable session-check error. Unauthenticated redirects show a status message rather than empty content.
+
+Verification: nine focused authentication tests, seven existing voice-diagnostic tests and frontend typecheck passed. Actual local HTTP checks verified missing-access 401, refresh followed by successful `/me`, and login HTTP 200 with stale cookies. Browser login and full-page dashboard refresh passed. During browser verification the Next.js dev server also had missing common JavaScript chunks after overlapping dev-server use; restarting the verified frontend server restored the assets. No backend endpoint, response contract or Bruno request changed. Phase 18 remains NOT STARTED.
+
 ## Voice diagnostics correction (22 October 2026)
 
 Transcript packets retain all fields validated by `turnVoiceSchema`, including provider failure category and optional provider TTFT; the hook previously dropped those fields. Transcript/interruption updates require an agent participant. Existing generation time is labelled “Generation”, not total voice latency, and the speaker label does not assume a TTS provider. No new HTTP endpoint, state library or API call is introduced. Seven frontend diagnostic checks pass; real microphone acceptance remains separate.

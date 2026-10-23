@@ -11,6 +11,7 @@ import {
   Radio,
 } from "lucide-react";
 import { navigationConfig } from "@/config/navigation";
+import { useAuthStore } from "@/store/auth-store";
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -18,7 +19,8 @@ import { Badge } from "@/components/ui/badge";
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { isSidebarCollapsed, toggleSidebar, activeOrgName } = useUiStore();
+  const { isSidebarCollapsed, toggleSidebar } = useUiStore();
+  const activeOrgName=useAuthStore(s=>s.activeOrganization?.name) ?? "No organization";
 
   return (
     <aside
@@ -131,22 +133,6 @@ export function Sidebar() {
         ))}
       </div>
 
-      {/* Footer System Status */}
-      <div className="border-t p-3 bg-muted/30">
-        {!isSidebarCollapsed ? (
-          <div className="flex items-center space-x-2.5 rounded-lg border bg-background px-3 py-2">
-            <Radio className="h-3.5 w-3.5 text-emerald-500 animate-pulse shrink-0" />
-            <div className="flex flex-col truncate">
-              <span className="text-xs font-medium text-foreground">Local Dev Engine</span>
-              <span className="text-[10px] text-muted-foreground">₹0 Dev Environment</span>
-            </div>
-          </div>
-        ) : (
-          <div className="flex justify-center py-1" title="Local Dev Engine - Active">
-            <Radio className="h-3.5 w-3.5 text-emerald-500 animate-pulse" />
-          </div>
-        )}
-      </div>
     </aside>
   );
 }

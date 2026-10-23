@@ -18,13 +18,14 @@ import { Avatar } from "@/components/ui/avatar";
 export function Topbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { setMobileNavOpen } = useUiStore();
-  const { user, activeOrganization, clearAuth } = useAuthStore();
+  const { setMobileNavOpen, agentFormDirty, voiceSessionBusy, setAgentFormDirty } = useUiStore();
+  const { user, activeOrganization, organizations, setActiveOrganization, clearAuth } = useAuthStore();
   const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   // Generate readable title from pathname
   const pageTitle = React.useMemo(() => {
-    if (pathname === "/") return "Overview";
+    if (pathname === "/") return "Dashboard";
+    if (pathname.startsWith("/agents")) return pathname.endsWith("/testing") ? "Test Voice" : "Agents";
     const segments = pathname.split("/").filter(Boolean);
     const last = segments[segments.length - 1] ?? "Dashboard";
     return last.charAt(0).toUpperCase() + last.slice(1).replace(/-/g, " ");
@@ -42,7 +43,7 @@ export function Topbar() {
     }
   };
 
-  const orgName = activeOrganization?.name ?? "Brahmaputra Health Clinic";
+  const orgName = activeOrganization?.name ?? "No organization";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b bg-background/95 px-4 md:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -71,32 +72,23 @@ export function Topbar() {
 
       {/* Right Actions: Environment, Organization & User */}
       <div className="flex items-center space-x-3">
-        {/* Environment Badge */}
-        <Badge
-          variant="outline"
-          className="hidden lg:flex items-center space-x-1.5 text-xs font-normal border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 py-1"
-        >
-          <Cpu className="h-3 w-3" />
-          <span>Local ₹0 Dev</span>
-        </Badge>
-
         {/* Organization Context Pill */}
-        <div className="hidden sm:flex items-center space-x-1.5 rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
+        <div className="flex items-center space-x-1.5 rounded-full border bg-muted/40 px-3 py-1 text-xs font-medium text-muted-foreground">
           <Building2 className="h-3.5 w-3.5 text-primary" />
           <span className="max-w-[160px] truncate text-foreground">
-            {orgName}
+            {organizations.length>1?<select aria-label="Organization" disabled={voiceSessionBusy} value={activeOrganization?.id??""} onChange={event=>{if(agentFormDirty&&!window.confirm("Discard unsaved settings and switch organization?"))return;const org=organizations.find(x=>x.id===event.target.value);if(org){setAgentFormDirty(false);setActiveOrganization(org);router.push('/agents');}}}>{organizations.map(org=><option key={org.id} value={org.id}>{org.name}</option>)}</select>:orgName}
           </span>
         </div>
 
         {/* User Info & Logout Action */}
         <div className="flex items-center space-x-2 pl-2 border-l">
-          <Avatar name={user?.name ?? "Clinic Admin"} className="h-8 w-8 text-xs border" />
+          <Avatar name={user?.name ?? "Account"} className="h-8 w-8 text-xs border" />
           <div className="hidden xl:flex flex-col text-left">
             <span className="text-xs font-semibold leading-tight text-foreground truncate max-w-[120px]">
-              {user?.name ?? "Clinic Admin"}
+              {user?.name ?? "Account"}
             </span>
             <span className="text-[10px] text-muted-foreground capitalize">
-              {activeOrganization?.role ?? "Owner"}
+              {activeOrganization?.role ?? ""}
             </span>
           </div>
 

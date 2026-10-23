@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth-store";
 import { useUiStore } from "@/store/ui-store";
 import { authApi } from "@/services/api/auth";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ApiError } from "@/services/api/client";
+import { Button } from "@/components/ui/button";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isAuthenticated, isLoading, setSession, clearAuth, setLoading } = useAuthStore();
   const { setActiveOrg } = useUiStore();
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
+  const [attempt, setAttempt] = React.useState(0);
 
   React.useEffect(() => {
     let mounted = true;
@@ -22,6 +25,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       try {
+        setErrorMessage(null);
         setLoading(true);
         const data = await authApi.getMe();
         if (mounted) {
@@ -33,8 +37,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }
       } catch (err) {
         if (mounted) {
-          clearAuth();
-          router.replace("/login");
+          if (err instanceof ApiError && err.statusCode === 401) {
+            clearAuth();
+            setActiveOrg("", "");
+            router.replace("/login");
+          } else {
+            setErrorMessage("Unable to check your session. Please try again.");
+          }
         }
       } finally {
         if (mounted) {
@@ -48,7 +57,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [router, isAuthenticated, user, setSession, clearAuth, setLoading, setActiveOrg]);
+  }, [router, isAuthenticated, user, setSession, clearAuth, setLoading, setActiveOrg, attempt]);
+
+  if (errorMessage) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="space-y-4 text-center" role="alert">
+          <p>{errorMessage}</p>
+          <Button onClick={() => setAttempt((value) => value + 1)}>Try again</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -64,7 +84,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return null;
+    return <p className="p-6 text-center" role="status">Returning to sign in...</p>;
   }
 
   return <>{children}</>;

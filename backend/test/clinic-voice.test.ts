@@ -53,8 +53,12 @@ test("one-use binding contains server identity, expires and rejects cross-room/p
   const store: BindingStore = { set: async (key, value, options) => { records.set(key, value); expiry = options.EX; },
     getDel: async key => { const value = records.get(key); records.delete(key); return value ?? null; }, del: async key => { records.delete(key); } };
   const organizationId = randomUUID();
-  const binding = { organizationId, userId: randomUUID(), agentId: "default", sessionId: randomUUID(), callId: randomUUID(), conversationId: randomUUID(),
-    roomName: "scoped-room", participantIdentity: "caller", profile: { organizationId, agentId: "default", business: "clinic" as const, appointmentsEnabled: true, enabledTools: [...clinicToolNames] } };
+  const agentId = randomUUID();
+  const binding = { schemaVersion: 2 as const, organizationId, userId: randomUUID(), agentId, sessionId: randomUUID(), callId: randomUUID(), conversationId: randomUUID(),
+    roomName: "scoped-room", participantIdentity: "caller", profile: { organizationId, agentId, version: 1, name: "Clinic receptionist", isActive: true,
+      instructions: "", greeting: "", languages: ["as" as const], defaultLanguage: "as" as const, enabledTools: [...clinicToolNames],
+      workingHours: { mode: "always_open" as const }, humanContact: { mode: "disabled" as const }, business: "clinic" as const,
+      appointmentsEnabled: true, timezone: "Asia/Kolkata", businessName: "Clinic" } };
   const id = await issueRuntimeBinding(store, binding);
   assert.equal(expiry, 900);
   assert.deepEqual(await consumeRuntimeBinding(store, JSON.stringify({ runtimeBindingId: id }), "scoped-room", "caller"), binding);
@@ -80,6 +84,21 @@ test("clinic registers exactly eight strict tools; extra fields, spoofed context
   const result = await allowed.execute("list_doctors", {}, "spoof");
   assert.equal(result.success, false);
   assert.equal(JSON.stringify(result).includes("Database must"), false);
+});
+
+test("tool-free clinic agents use a grounded capability reply instead of model-invented services", async () => {
+  const context = { organizationId: randomUUID(), agentId: randomUUID(), sessionId: randomUUID() };
+  const runtime = new ClinicVoiceRuntime(context, randomUUID(), randomUUID(), { db: {} as Database,
+    transaction: async () => { throw new Error("Database must not execute"); }, logger: { info() {}, warn() {}, error() {} } },
+    "Asia/Kolkata", undefined, undefined, []);
+  for (const [turnId, utterance] of ["হেল্ল'", "ক্লিনিকত কি সেৱা আছে?", "এপইণ্টমেণ্ট বুক কৰক"].entries()) {
+    const options = await runtime.behavior.onTurn?.(utterance, turnId + 1);
+    const reply = runtime.behavior.preparedReply?.("as");
+    assert.deepEqual(options, { allowedTools: [] });
+    assert.equal(reply?.source, "verified_tool");
+    assert.match(reply?.text ?? "", /সক্ৰিয় কৰা হোৱা নাই/u);
+    assert.doesNotMatch(reply?.text ?? "", /লেব|হৃদ|শিশু|কোন.*ডাক্তৰ/u);
+  }
 });
 
 test("a model-spoken phone question enables digit listening and captures fragments without a resolver call", async () => {

@@ -126,8 +126,18 @@ export const playDeterministicGreeting = async <T = Record<string, unknown>>(
   ctx: JobContext<T>,
   options?: GreetingOptions,
 ): Promise<PlayGreetingResult> => {
+  const { source, track } = await publishAgentAudio(ctx, options);
+  const frames = generateChimeAudioFrames(options?.sampleRate ?? 24000, options?.frameDurationMs ?? 20);
+  for (const frame of frames) {
+    if (options?.signal?.aborted) break;
+    await source.captureFrame(frame);
+  }
+  return { source, track };
+};
+
+/** Shared output track. Publishing it does not synthesize or speak a greeting. */
+export const publishAgentAudio = async <T = Record<string, unknown>>(ctx: JobContext<T>, options?: GreetingOptions): Promise<PlayGreetingResult> => {
   const sampleRate = options?.sampleRate ?? 24000;
-  const frameDurationMs = options?.frameDurationMs ?? 20;
   const trackName = options?.trackName ?? "agent-mic";
 
   const localParticipant = ctx.room.localParticipant;
@@ -151,29 +161,6 @@ export const playDeterministicGreeting = async <T = Record<string, unknown>>(
   logger.info("[agent:greeting] Audio track published successfully to room", {
     room: ctx.room.name,
     trackName,
-  });
-
-  const frames = generateChimeAudioFrames(sampleRate, frameDurationMs);
-  logger.info("[agent:greeting] Streaming greeting chime frames", {
-    totalFrames: frames.length,
-    frameDurationMs,
-    totalDurationSeconds: (frames.length * frameDurationMs) / 1000,
-  });
-
-  for (const frame of frames) {
-    if (options?.signal?.aborted) {
-      logger.info("[agent:greeting] Greeting streaming aborted by signal (barge-in)", {
-        room: ctx.room.name,
-      });
-      return { source, track };
-    }
-    await source.captureFrame(frame);
-    // Realtime frame pacing (20ms interval)
-    await new Promise((resolve) => setTimeout(resolve, frameDurationMs));
-  }
-
-  logger.info("[agent:greeting] Deterministic greeting streaming completed", {
-    room: ctx.room.name,
   });
 
   return { source, track };

@@ -1,0 +1,53 @@
+meta {
+  name: Create Agent
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{host}}/api/v1/agents
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "name": "Synthetic Bruno Receptionist",
+    "isActive": true,
+    "instructions": "Use verified tool results for clinic information and appointments.",
+    "greeting": "নমস্কাৰ। মই আপোনাক কেনেকৈ সহায় কৰিব পাৰোঁ?",
+    "languages": [
+      "as"
+    ],
+    "defaultLanguage": "as",
+    "enabledTools": [],
+    "workingHours": {
+      "mode": "always_open"
+    },
+    "humanContact": {
+      "mode": "disabled"
+    }
+  }
+}
+
+script:post-response {
+  if (res.status === 201 && res.body.success) { bru.setVar("agentId", res.body.data.id); bru.setVar("agentVersion", res.body.data.version); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(201); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Explicit empty actions and initial version", function () { expect(res.body.data.version).to.equal(1); expect(res.body.data.enabledTools).to.deep.equal([]); });
+}
+
+docs {
+  Creates a synthetic agent with no allowed actions, matching dashboard defaults. Captures agentId and agentVersion. Run 05 to enable actions explicitly. Each send creates a new agent; do not retry an uncertain create automatically.
+}

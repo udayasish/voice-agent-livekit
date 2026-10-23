@@ -64,6 +64,27 @@ test("offered calendar resolution clarifies repeated weekdays, conflicting days 
   assert.equal(offeredDateChoice("দেওবাৰ ৰাতিপুৱা দহ বজাত", ["2026-10-18", "2026-10-19"]).date, "2026-10-18");
   assert.equal(offeredDateChoice("hello", ["2026-10-18"]).status, "none");
 });
+
+test("reported Assamese 26 and multilingual equivalents select October 26 without repeating the date lookup", () => {
+  for (const phrase of ["ছাব্বিছ অক্টোবৰ", "কোৱা নহয় নহয়, ছাব্বিছ অক্টোবৰ।", "কোনো মই মাত্ৰ ছাব্বিছ অক্টোবৰ।",
+    "ছাব্বিশ অক্টোবৰ", "26 October", "twenty six October", "twenty-sixth October", "২৬ অক্টোবৰ", "छब्बीस अक्टूबर"]) {
+    const d = new ClinicDialogue("Asia/Kolkata"); d.doctors(1, [doctor]);
+    d.dates(2, ["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"]);
+    assert.deepEqual(d.plan(phrase, "2026-10-23").call,
+      { name: "get_available_times", arguments: { doctorId: doctor.id, date: "2026-10-26" } }, phrase);
+  }
+  assert.equal(offeredDateChoice("ছাব্বিছ অক্টোবৰ", ["2026-10-24", "2026-10-25"]).status, "unavailable");
+  assert.equal(offeredDateChoice("26 or 27 October", ["2026-10-26", "2026-10-27"]).status, "ambiguous");
+});
+
+test("available-date replies cannot mix verified choices with an unsupported denial", () => {
+  const d = new ClinicDialogue("Asia/Kolkata"); d.doctors(1, [doctor]);
+  d.dates(2, ["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"]);
+  for (const text of ["দুখিত, ২৭ অক্টোবৰ উপলব্ধ নহয়। ২৪, ২৫ অথবা ২৬ অক্টোবৰ তাৰিখবোৰত ক'ব।",
+    "27 October is unavailable. Choose 24 October, 25 October or 26 October.",
+    "२७ अक्तूबर उपलब्ध नहीं है। २४ अक्तूबर चुनें।"]) assert.equal(d.useful(text), false, text);
+  assert.equal(d.useful("24 October, 25 October or 26 October are available. Which date?"), true);
+});
 test("metadata requires reviewed Latin names, bounded distinct normalized aliases and strict context", () => {
   const data = { doctorId: doctor.id, nameEn: "Dr. Baruah", nameAs: "ডাঃ বৰুৱা", searchAliases: ["Baruah", "বৰুৱা"] };
   assert.equal(doctorMetadataSchema.safeParse(data).success, true);

@@ -1,4 +1,4 @@
-import { env } from "@/lib/env";
+import { env } from "../../lib/env";
 
 export type ApiSuccess<T = unknown> = {
   success: true;
@@ -26,7 +26,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiRequest<T>(
+async function request<T>(
   path: string,
   options?: RequestInit,
 ): Promise<T> {
@@ -50,6 +50,29 @@ export async function apiRequest<T>(
   }
 
   return body.data;
+}
+
+let refreshInFlight: Promise<unknown> | null = null;
+
+export async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+  try {
+    return await request<T>(path, options);
+  } catch (error) {
+    // Auth endpoints must never refresh themselves or retry invalid credentials.
+    if (!(error instanceof ApiError) || error.statusCode !== 401 || path.startsWith("/api/v1/auth/")) {
+      throw error;
+    }
+    // Share token rotation between concurrent requests (including Strict Mode).
+    if (!refreshInFlight) {
+      refreshInFlight = request("/api/v1/auth/refresh", {
+        method: "POST",
+        body: "{}",
+      }).finally(() => { refreshInFlight = null; });
+    }
+    await refreshInFlight;
+    // Retry once only. A second 401 must reach the caller rather than loop.
+    return request<T>(path, options);
+  }
 }
 
 export async function apiGet<T>(path: string): Promise<T> {

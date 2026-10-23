@@ -1,0 +1,40 @@
+meta {
+  name: Deactivate Agent
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{host}}/api/v1/agents/{{agentId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "expectedVersion": {{agentVersion}},
+    "isActive": false
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("agentId", res.body.data.id); bru.setVar("agentVersion", res.body.data.version); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Agent inactive", function () { expect(res.body.data.isActive).to.equal(false); });
+}
+
+docs {
+  Deactivates the synthetic agent from step 02. No DELETE route exists. Set isActive=true with the latest version to reactivate. Existing admitted calls continue.
+}

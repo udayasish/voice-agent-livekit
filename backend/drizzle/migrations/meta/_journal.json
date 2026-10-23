@@ -36,6 +36,13 @@
       "when": 1792593991841,
       "tag": "0004_clinic_staff_rescheduling",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792671186101,
+      "tag": "0005_wide_rogue",
+      "breakpoints": true
     }
   ]
 }

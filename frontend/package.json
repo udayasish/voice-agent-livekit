@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test:voice-diagnostics": "node --import ../backend/node_modules/tsx/dist/loader.mjs --test test/voice-diagnostics.test.ts"
+    "test:voice-diagnostics": "node --import ../backend/node_modules/tsx/dist/loader.mjs --test test/voice-diagnostics.test.ts",
+    "test:auth-session": "node --import ../backend/node_modules/tsx/dist/loader.mjs --test test/auth-session.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

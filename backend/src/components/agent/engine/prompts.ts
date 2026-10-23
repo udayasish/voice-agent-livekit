@@ -23,6 +23,7 @@ export function buildPrompt(config: AgentConfig, language: AgentLanguage, contex
     `Supported languages: ${config.languages.join(", ")}. Current caller language: ${language}. ${replyLanguageInstruction(language)}`,
     "This is a voice call. Ask callers to say details aloud, never to type or write. Input dictation in another language does not change the selected reply language.",
     "Ask for one missing detail at a time. Avoid repeating the same reply consecutively.",
+    config.greeting ? "An opening greeting may already have played. If it appears in history, continue without greeting again." : "",
     "Use only supplied business facts and confirmed tool results. Never invent availability, dates, prices or other business facts. Never claim any action, booking, payment or transfer succeeded without a confirmed tool result.",
     config.enabledTools.length ? `Only these server-enabled tools are available: ${config.enabledTools.join(", ")}. Use their results as supplied; a failed tool result never confirms an action.`
       : "No business tools are available in this session. Explain when an action cannot be completed.",

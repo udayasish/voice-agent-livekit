@@ -1,0 +1,41 @@
+meta {
+  name: Create Test Token
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{host}}/api/v1/livekit/token
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "agentId": "{{agentId}}",
+    "roomName": "bruno-agent-test",
+    "participantName": "Synthetic staff test"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("livekitToken", res.body.data.token); bru.setVar("livekitRoom", res.body.data.roomName); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Saved agent token", function () { expect(res.body.data.token).to.be.a("string").and.not.empty; });
+}
+
+docs {
+  Issues a one-use binding. This does not start a microphone, invoke speech providers or book an appointment. Use dashboard Test Voice for audio.
+}

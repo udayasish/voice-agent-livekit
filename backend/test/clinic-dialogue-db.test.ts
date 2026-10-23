@@ -11,7 +11,7 @@ import { RecordingClinicScheduler } from "../src/components/clinic/notifications
 import { bytes } from "../src/components/agent/providers/llm/context-budget.js";
 import { chatMessages } from "../src/components/agent/providers/llm/chat-protocol.js";
 import { spokenDate, spokenTime } from "../src/components/clinic/voice/calendar.js";
-import type { IntakeInput } from "../src/components/clinic/voice/intake.js";
+import { createIntakeInterpreter, type IntakeInput } from "../src/components/clinic/voice/intake.js";
 import { z } from "zod";
 import { LLMFailure } from "../src/components/agent/providers/llm/failure.js";
 import { createClinicFixture, insertFixtureSlot, openClinicTestDatabase, removeClinicFixtures, schema, eq, type ClinicFixture } from "./clinic-test-db.js";
@@ -56,6 +56,196 @@ async function sessionFor(f: ClinicFixture, mode: "empty" | "error" | "irrelevan
   session.processUserUtterance = async (...args: Parameters<typeof process>) => { const result = await process(...args); await session.notifyPlaybackResult(result.turnId, true); return result; };
   return { session, provider, events };
 }
+
+test("reported ready-to-book conversation prepares a real draft and unclear confirmation cannot restart intake", async () => {
+  const f = await fixture({ now: "2026-10-23T12:00:00Z" });
+  await insertFixtureSlot(database.db, f, { slotDate: "2026-10-26", startTime: "09:00:00", endTime: "09:15:00" });
+  const provider = new ScriptedProvider(() => [{ type: "text", delta: "আপোনাৰ নামটো দয়া কৰি স্পষ্টকৈ ক'ব পাৰিবনে? আপোনাৰ বয়সটো ক'ত?" }, { type: "done" }]);
+  const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() }, {
+    deps: f.deps, callId: randomUUID(), conversationId: randomUUID(), enabledTools: [...clinicToolNames], interpreter: fixtureInterpreter,
+    intakeInterpreter: async input => ({ intent: "provide_details", name: input.text === "Devas is Bora." ? { value: input.text, evidence: input.text, sourceTurn: input.turnId } : null,
+      age: input.text === "28" ? { value: 28, evidence: "28", sourceTurn: input.turnId } : null,
+      nextField: input.text === "Devas is Bora." ? "age" : "phone", reply: "আপোনাৰ নামটো দয়া কৰি স্পষ্টকৈ ক'ব পাৰিবনে? আপোনাৰ বয়সটো ক'ত?" }),
+  });
+  const turn = async (text: string) => { const reply = await session.processUserUtterance(text); await session.notifyPlaybackResult(reply.turnId, true); return reply; };
+  try {
+    await turn("ডাঃ বৰুৱা"); await turn("available dates"); await turn("26 October"); await turn("9am");
+    await turn("Devas is Bora."); await turn("28"); await turn("7002326313");
+    const ready = await turn("হয় শুদ্ধ।");
+    const retained = session.getSnapshot().conversation.businessState;
+    assert.ok(retained.pendingAction, "phone confirmation must lead to a real draft, not a model-written confirmation");
+    assert.match(ready.text, /Devas is Bora.*28/u);
+    assert.equal(session.getState().toolHistory.at(-1)?.name, "book_appointment");
+    const before = await database.db.select().from(schema.clinicAppointments).where(eq(schema.clinicAppointments.organizationId, f.organization.id));
+    assert.equal(before.length, 0, "phone confirmation is never booking permission");
+    const uncertain = await turn("Hi. This is Dwarok.");
+    const after = session.getSnapshot().conversation.businessState;
+    assert.equal(after.pendingDraftId, retained.pendingDraftId);
+    assert.equal(after.intake.name?.value, retained.intake.name?.value);
+    assert.equal(after.intake.age?.value, 28);
+    assert.equal(after.intake.unresolvedName, false); assert.equal(after.intake.unresolvedAge, false);
+    assert.equal(after.pendingAction?.authorizedTurn, null);
+    assert.equal(after.pendingAction?.completedPlayback, true);
+    assert.doesNotMatch(uncertain.text, /বয়স|নামটো/u);
+    assert.match(uncertain.text, /সলনি/u);
+    const booked = await turn("হয় বুক কৰক।");
+    assert.match(booked.text, /টোকেন/u);
+    const rows = await database.db.select().from(schema.clinicAppointments).where(eq(schema.clinicAppointments.organizationId, f.organization.id));
+    assert.equal(rows.length, 1); assert.equal(rows[0]?.patientName, "Devas is Bora."); assert.equal(rows[0]?.patientAge, 28);
+  } finally { await session.close(); }
+});
+
+test("a name correction replaces only that field and requires a fresh uninterrupted draft readback", async () => {
+  const f = await fixture({ now: "2026-10-23T12:00:00Z" });
+  await insertFixtureSlot(database.db, f, { slotDate: "2026-10-26", startTime: "09:00:00", endTime: "09:15:00" });
+  const provider = new ScriptedProvider(() => [{ type: "done" }]);
+  const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() }, {
+    deps: f.deps, callId: randomUUID(), conversationId: randomUUID(), enabledTools: [...clinicToolNames],
+    interpreter: async (input, signal) => input.text === "No, my name is Corrected Person" && input.draft
+      ? { intent: "correct_action", targetId: input.draft.id, evidence: input.text, replacementText: null }
+      : fixtureInterpreter(input, signal),
+    intakeInterpreter: async input => ({ intent: input.text.startsWith("No,") ? "correct_details" : "provide_details",
+      name: input.text.includes("Person") ? { value: input.text.includes("Corrected") ? "Corrected Person" : "Test Person",
+        evidence: input.text.includes("Corrected") ? "Corrected Person" : "Test Person", sourceTurn: input.turnId } : null,
+      age: input.text.includes("28") ? { value: 28, evidence: "28", sourceTurn: input.turnId } : null,
+      nextField: input.phoneConfirmed ? "ready" : "phone", reply: "The details can be reviewed." }),
+  });
+  const turn = async (text: string) => { const reply = await session.processUserUtterance(text); await session.notifyPlaybackResult(reply.turnId, true); return reply; };
+  try {
+    await turn("ডাঃ বৰুৱা"); await turn("available dates"); await turn("26 October"); await turn("9am");
+    await turn("My name is Test Person age 28"); await turn("7002326313"); await turn("হয় শুদ্ধ।");
+    const old = session.getSnapshot().conversation.businessState;
+    assert.ok(old.pendingAction?.completedPlayback);
+    const corrected = await session.processUserUtterance("No, my name is Corrected Person");
+    const current = session.getSnapshot().conversation.businessState;
+    assert.notEqual(current.pendingDraftId, old.pendingDraftId); assert.ok(current.pendingAction);
+    assert.equal(current.intake.name?.value, "Corrected Person"); assert.equal(current.intake.age?.value, 28);
+    assert.equal(current.phoneConfirmed, true); assert.equal(current.dialogue.selectedSlotId, old.dialogue.selectedSlotId);
+    assert.equal(current.pendingAction.completedPlayback, false);
+    await session.notifyInterruption(corrected.turnId);
+    const premature = await session.processUserUtterance("হয় বুক কৰক।");
+    assert.equal(premature.businessState.completedActions.length, 0);
+    assert.equal(premature.businessState.pendingAction?.authorizedTurn, null);
+    await session.notifyPlaybackResult(premature.turnId, true);
+    const recovery = await session.processRecovery("speech_unclear");
+    assert.equal(recovery.businessState.pendingAction?.completedPlayback, true);
+    assert.equal(recovery.businessState.intake.name?.value, "Corrected Person");
+    assert.equal(recovery.businessState.intake.age?.value, 28);
+    assert.equal(recovery.businessState.completedActions.length, 0);
+    await turn("হয় বুক কৰক।");
+    const rows = await database.db.select().from(schema.clinicAppointments).where(eq(schema.clinicAppointments.organizationId, f.organization.id));
+    assert.equal(rows.length, 1); assert.equal(rows[0]?.patientName, "Corrected Person"); assert.equal(rows[0]?.patientAge, 28);
+  } finally { await session.close(); }
+});
+
+test("reported phonetic date answer is saved before real slot lookup and night-time clarification keeps that date", async () => {
+  const f = await fixture({ now: "2026-10-23T12:00:00Z" });
+  for (const date of ["2026-10-24", "2026-10-25", "2026-10-26"]) await insertFixtureSlot(database.db, f, { slotDate: date, startTime: "10:00:00", endTime: "10:15:00" });
+  const interpretation = new ScriptedProvider(messages => {
+    const input = JSON.parse(messages[0]!.content) as IntakeInput;
+    assert.equal(input.expectedField, "date");
+    assert.ok(input.offered?.dates.includes("2026-10-25"));
+    return [{ type: "text", delta: JSON.stringify({ intent: "provide_details", name: null, age: null,
+      choice: { date: "2026-10-25", slotId: null, evidence: input.text }, nextField: "time", reply: "Which time would you prefer?" }) }, { type: "done" }];
+  });
+  const provider = new ScriptedProvider(() => [{ type: "done" }]);
+  const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() },
+    { interpreter: fixtureInterpreter, intakeInterpreter: createIntakeInterpreter(interpretation), callId: randomUUID(), conversationId: randomUUID(), enabledTools: [...clinicToolNames], deps: f.deps });
+  try {
+    await session.processUserUtterance("ডাঃ বৰুৱা");
+    await session.processUserUtterance("অ' কিমান তাৰিখেই আছে এভেইলেবল?");
+    const result = await session.processUserUtterance("পচি অক্টোবৰ কৈ আছে দুখন? পচি অক্টোবৰ।");
+    assert.equal(result.businessState.dialogue.selectedDate, "2026-10-25");
+    assert.equal(result.businessState.slots.dateOrTime, "2026-10-25");
+    assert.equal(result.businessState.intake.name, null);
+    assert.equal(session.getSnapshot().conversation.toolHistory.at(-1)?.name, "get_available_times");
+    assert.equal(interpretation.inputs.length, 1);
+    const night = await session.processUserUtterance("দহা বজাত আছেনে গেভেলো, ৰাতি দহা বজাত।");
+    assert.equal(night.businessState.dialogue.selectedDate, "2026-10-25");
+    assert.equal(night.businessState.dialogue.selectedSlotId, null);
+    assert.equal(night.businessState.intake.name, null);
+    const morning = await session.processUserUtterance("ৰাতিপুৱা দহ বজাত");
+    assert.ok(morning.businessState.dialogue.selectedSlotId);
+    assert.equal(morning.businessState.dialogue.selectedDate, "2026-10-25");
+  } finally { await session.close(); }
+});
+
+test("reported October 26 answers reach real slots without a second date query or semantic misclassification", async () => {
+  const f = await fixture({ now: "2026-10-23T12:00:00Z" });
+  for (const date of ["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"])
+    await insertFixtureSlot(database.db, f, { slotDate: date, startTime: "09:00:00", endTime: "09:15:00" });
+  for (const phrase of ["ছাব্বিছ অক্টোবৰ", "কোৱা নহয় নহয়, ছাব্বিছ অক্টোবৰ।", "কোনো মই মাত্ৰ ছাব্বিছ অক্টোবৰ।", "twenty six October", "26 October"]) {
+    let interpretations = 0;
+    const provider = new ScriptedProvider(() => [{ type: "text", delta: "দুখিত, ২৭ অক্টোবৰ উপলব্ধ নহয়। ২৪, ২৫ অথবা ২৬ অক্টোবৰ তাৰিখবোৰত ক'ব।" }, { type: "done" }]);
+    const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() },
+      { interpreter: fixtureInterpreter, intakeInterpreter: async () => { interpretations++; throw new Error("Literal date needs no semantic request"); },
+        callId: randomUUID(), conversationId: randomUUID(), enabledTools: [...clinicToolNames], deps: f.deps });
+    try {
+      await session.processUserUtterance("ডাঃ বৰুৱা");
+      const dates = await session.processUserUtterance("তাৰিখ এভেইলেবল কিমান আছে?");
+      assert.doesNotMatch(dates.text, /উপলব্ধ নহয়/u);
+      const result = await session.processUserUtterance(phrase);
+      const calls = session.getState().toolHistory;
+      assert.equal(calls.filter(c => c.name === "get_available_dates").length, 1, phrase);
+      assert.equal(calls.at(-1)?.name, "get_available_times", phrase);
+      assert.equal(calls.at(-1)?.result.success, true);
+      assert.equal(result.businessState.dialogue.selectedDate, "2026-10-26", phrase);
+      assert.equal(result.businessState.slots.dateOrTime, "2026-10-26");
+      assert.equal(result.businessState.dialogue.offeredSlots.length, 1);
+      assert.equal(result.businessState.intake.name, null);
+      assert.equal(interpretations, 0);
+      assert.match(result.text, /২৬/u);
+      assert.doesNotMatch(result.text, /উপলব্ধ নহয়/u);
+    } finally { await session.close(); }
+  }
+});
+
+test("reported doctor-name greeting and phonetic availability request keep scheduling context, then capture and correct multilingual age", async () => {
+  const f = await fixture({ now: "2026-10-23T12:00:00Z" });
+  await insertFixtureSlot(database.db, f, { slotDate: "2026-10-25" });
+  const interpretation = new ScriptedProvider(messages => {
+    const input = JSON.parse(messages[0]!.content) as IntakeInput;
+    if (input.text === "আইৱে' লেবল আছে এতিয়া?") {
+      assert.equal(input.expectedField, "date");
+      assert.deepEqual(input.offered?.dates, []);
+      return [{ type: "text", delta: JSON.stringify({ intent: "request_availability", evidence: input.text,
+        name: null, age: null, nextField: "date", reply: "I will check available dates." }) }, { type: "done" }];
+    }
+    if (input.text.includes("আশীষ")) return [{ type: "text", delta: JSON.stringify({ intent: "provide_details",
+      name: { quote: "আশীষ বৰা", sourceTurn: input.turnId }, age: null, nextField: "age", reply: "আপোনাৰ বয়স কিমান?" }) }, { type: "done" }];
+    assert.equal(input.expectedField, "age");
+    assert.equal(input.state.name?.value, "আশীষ বৰা");
+    const correction = input.text.includes("২৭");
+    if (!correction) assert.equal(input.numberHint?.value, 20);
+    return [{ type: "text", delta: JSON.stringify({ intent: correction ? "correct_details" : "provide_details", name: null,
+      age: { value: correction ? 27 : 20, evidence: correction ? "২৭" : "টুৱেণ্টি", sourceTurn: input.turnId }, nextField: "phone",
+      reply: "আপোনাৰ ফোন নম্বৰটো কওক।" }) }, { type: "done" }];
+  });
+  const provider = new ScriptedProvider(() => [{ type: "text", delta: "অনুগ্ৰহ কৰি ডাক্তৰৰ নাম ক'ব।" }, { type: "done" }]);
+  const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() },
+    { interpreter: fixtureInterpreter, intakeInterpreter: createIntakeInterpreter(interpretation), callId: randomUUID(), conversationId: randomUUID(), enabledTools: [...clinicToolNames], deps: f.deps });
+  try {
+    const hello = await session.processUserUtterance("হেই, হোৱাট্ছআপ?");
+    assert.equal(hello.businessState.intake.lastQuestion?.field, "doctor");
+    const doctor = await session.processUserUtterance("হয়, ডঃ বৰুৱা।");
+    assert.equal(doctor.businessState.intake.lastQuestion?.field, "date");
+    const availability = await session.processUserUtterance("আইৱে' লেবল আছে এতিয়া?");
+    assert.equal(session.getSnapshot().conversation.toolHistory.at(-1)?.name, "get_available_dates");
+    assert.deepEqual(availability.businessState.dialogue.offeredDates, ["2026-10-25"]);
+    assert.equal(availability.businessState.intake.unresolvedName, false);
+    const name = await session.processUserUtterance("মোৰ নাম লৈ আশীষ বৰা?");
+    assert.equal(name.businessState.intake.name?.value, "আশীষ বৰা");
+    assert.equal(name.businessState.intake.lastQuestion?.field, "age");
+    const age = await session.processUserUtterance("টুৱেণ্টি");
+    assert.equal(age.businessState.intake.age?.value, 20);
+    assert.equal(age.businessState.intake.unresolved, false);
+    assert.equal(age.replySource, "model");
+    const corrected = await session.processUserUtterance("নহয় মোৰ বয়স ২৭");
+    assert.equal(corrected.businessState.intake.age?.value, 27);
+    assert.equal(corrected.businessState.intake.name?.value, "আশীষ বৰা");
+    assert.equal(corrected.businessState.intake.unresolved, false);
+  } finally { await session.close(); }
+});
 
 test("reported full Assamese doctor request matches and patient introductions never become doctor searches", async () => {
   const f = await fixture();
@@ -323,6 +513,23 @@ test("natural grounded wording is preserved; disabled planned reads never call a
   } finally { await natural.session.close(); await disabled.session.close(); }
 });
 
+test("an agent with no tools gives one grounded capability reply without inventing clinic services", async () => {
+  const f = await fixture();
+  const provider = new ScriptedProvider(() => [{ type: "text", delta: "The clinic offers laboratory tests, heart care, and child care. Which doctor would you like?" }, { type: "done" }]);
+  const session = await ClinicVoiceSession.create(provider, { organizationId: f.organization.id, agentId: "clinic", sessionId: randomUUID() },
+    { interpreter: fixtureInterpreter, callId: randomUUID(), conversationId: randomUUID(), enabledTools: [], deps: f.deps });
+  try {
+    for (const utterance of ["হেল্ল'", "ক্লিনিকত কি কি সেৱা আছে?", "মই এপইণ্টমেণ্ট বুক কৰিব বিচাৰোঁ"]) {
+      const reply = await session.processUserUtterance(utterance);
+      assert.equal(reply.replySource, "verified_tool");
+      assert.match(reply.text, /সক্ৰিয় কৰা হোৱা নাই/u);
+      assert.doesNotMatch(reply.text, /লেব|হৃদ|শিশু|কোন.*ডাক্তৰ/u);
+    }
+    assert.equal(provider.inputs.length, 0);
+    assert.equal(session.getSnapshot().conversation.toolHistory.length, 0);
+  } finally { await session.close(); }
+});
+
 test("interrupted read replies retain known doctor selection but cannot commit stale speech after supersession", async () => {
   const f = await fixture();
   let entered!: () => void, release!: () => void;
@@ -438,9 +645,9 @@ test("reported Assamese intake with twelve slots stays below half the old recons
     await turn("হেল্ল'"); await turn("মোক কাইলৈ বুকিং লাগে।");
     await turn("বৰুৱা।"); assert.equal(session.getSnapshot().conversation.businessState.dialogue.selectedDoctor?.id, f.doctor.id);
     await turn("কাইলৈ উপলব্ধ সময় কওক");
-    const time = await turn("ৰাতিপুৱা দহ বজাত"); assert.equal(time.replySource, "model");
+    const time = await turn("ৰাতিপুৱা দহ বজাত"); assert.equal(time.replySource, "verified_tool");
     assert.equal(session.getSnapshot().conversation.businessState.dialogue.selectedSlotId, selected.id);
-    const intake = await turn("মোৰ নাম উদয় আশীষ বৰা আৰু বয়স ২৮।"); assert.equal(intake.replySource, "model");
+    const intake = await turn("মোৰ নাম উদয় আশীষ বৰা আৰু বয়স ২৮।"); assert.equal(intake.replySource, "verified_tool");
     assert.equal(intake.businessState.intake.age?.value, 28); assert.equal(intake.businessState.intake.name?.value, "উদয় আশীষ বৰা");
     await turn("7 double 0 2 0 5 9 5 double 4"); phase = "phone";
     await turn("হয় শুদ্ধ।"); assert.ok(session.getSnapshot().conversation.businessState.patientId);

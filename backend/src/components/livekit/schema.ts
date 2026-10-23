@@ -16,6 +16,6 @@ export const createTokenSchema = z.object({
     .min(1, "Agent ID cannot be empty")
     .max(100, "Agent ID cannot exceed 100 characters")
     .optional(),
-});
+}).strict();
 
 export type CreateTokenInput = z.infer<typeof createTokenSchema>;

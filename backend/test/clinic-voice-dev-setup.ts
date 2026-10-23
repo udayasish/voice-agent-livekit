@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import env from "../src/lib/env.js";
 import { db, pool, transactionWithHooks } from "../src/lib/db/db.js";
-import { organizations, organizationMembers, clinicPeople, clinicDoctors, clinicDayOfWeekEnum } from "../src/lib/db/models/index.js";
+import { organizations, organizationMembers, clinicPeople, clinicDoctors, clinicDayOfWeekEnum, clinicSettings } from "../src/lib/db/models/index.js";
 import { createClinicServices } from "../src/components/clinic/index.js";
 import { clinicToolNames } from "../src/components/clinic/voice/names.js";
 import { voiceProfilesSchema, type VoiceProfile } from "../src/components/agent/profiles.js";
@@ -45,6 +45,7 @@ try {
   voiceProfilesSchema.parse(profiles);
   // Apply only this repository's existing additive migration history.
   await migrate(db, { migrationsFolder: fileURLToPath(new URL("../drizzle/migrations", import.meta.url)) });
+  await db.insert(clinicSettings).values({ organizationId: organization.id }).onConflictDoNothing({ target: clinicSettings.organizationId });
   const doctors = await db.transaction(async tx => {
     const results: Array<{ id: string; name: string }> = [];
     for (const [phoneNumber, name, specialization] of [

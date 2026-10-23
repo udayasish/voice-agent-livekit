@@ -1,12 +1,12 @@
 import { z } from "zod";
-export const voiceStatusSchema = z.object({ category: z.enum(["listening_ready", "speech_unclear", "no_transcript", "no_input", "provider_failure", "playback_failure", "recognition_failure", "recognition_recovery", "recognition_conflict", "input_mode_changed"]),
+export const voiceStatusSchema = z.object({ category: z.enum(["admission_failed", "listening_ready", "speech_unclear", "no_transcript", "no_input", "provider_failure", "playback_failure", "recognition_failure", "recognition_recovery", "recognition_conflict", "input_mode_changed"]),
   inputMode: z.enum(["conversation", "english-digits"]).optional() });
 export const turnVoiceSchema = z.object({ inputMode: z.enum(["conversation", "english-digits"]).optional(),
   failureCategory: z.enum(["request_limit", "rate_limit", "authentication", "unavailable", "network", "timeout", "protocol", "http", "sdk_limit", "sdk_or_provider", "interpretation_failed"]).optional(),
   providerTtftMs: z.number().nonnegative().optional(),
   confirmationStage: z.enum(["none", "phone", "action", "confirmed"]).optional(), recoveryCategory: z.enum(["speech_unclear", "no_transcript", "no_input", "provider_failure"]).optional() });
 export function voiceStatusLabel(category: string) {
-  return ({ listening_ready: "Agent listening — you can speak", speech_unclear: "Speech unclear — please repeat", no_transcript: "Speech detected — no transcript", no_input: "Waiting for your response",
+  return ({ admission_failed: "Agent unavailable or settings changed. End this session and start again.", listening_ready: "Agent listening — you can speak", speech_unclear: "Speech unclear — please repeat", no_transcript: "Speech detected — no transcript", no_input: "Waiting for your response",
     provider_failure: "Response processing failed", request_limit: "Response request limit reached", rate_limit: "Response service rate limited",
     authentication: "Response provider configuration failed", unavailable: "Response provider unavailable", timeout: "Response timed out",
     network: "Response connection failed", protocol: "Invalid provider response", http: "Response request rejected",

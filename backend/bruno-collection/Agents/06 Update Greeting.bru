@@ -1,0 +1,42 @@
+meta {
+  name: Update Greeting
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{host}}/api/v1/agents/{{agentId}}
+  body: json
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "expectedVersion": {{agentVersion}},
+    "greeting": "নমস্কাৰ। মই আপোনাক কেনেকৈ সহায় কৰিব পাৰোঁ?",
+    "languages": ["as"],
+    "defaultLanguage": "as"
+  }
+}
+
+script:post-response {
+  if (res.status === 200 && res.body.success) { bru.setVar("agentId", res.body.data.id); bru.setVar("agentVersion", res.body.data.version); }
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+
+}
+
+docs {
+  Write the greeting in the starting language: as Assamese, hi Hindi, en English. It is spoken as written without translation. A matching TTS voice and a new real voice test are required.
+}

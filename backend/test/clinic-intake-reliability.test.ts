@@ -13,6 +13,7 @@ import { conciseClinicSpeech } from "../src/components/clinic/voice/speech-style
 import { hasUnverifiedNumericDate, calendarRequest } from "../src/components/clinic/voice/calendar.js";
 import { ScriptedProvider } from "./helpers/scripted-provider.js";
 import type { Database } from "../src/lib/db/transaction-with-hooks.js";
+import { clinicToolNames } from "../src/components/clinic/voice/names.js";
 
 function harness(interpret: IntakeInterpreter) {
   const context = { organizationId: randomUUID(), agentId: "clinic", sessionId: randomUUID() };
@@ -29,6 +30,119 @@ function harness(interpret: IntakeInterpreter) {
 const candidate = (value: string, turnId: number) => ({ value, evidence: value, sourceTurn: turnId });
 const nothing = { intent: "other" as const, name: null, age: null, nextField: "ready" as const, reply: "Which doctor would you prefer?" };
 
+test("the server asks the missing field even when structured intake replies repeat a collected name and age", async () => {
+  const h = harness(async input => ({ ...nothing, intent: "provide_details", name: candidate("Test Person", input.turnId),
+    age: { value: 28, evidence: "28", sourceTurn: input.turnId }, nextField: "phone",
+    reply: "আপোনাৰ নামটো দয়া কৰি স্পষ্টকৈ ক'ব পাৰিবনে? আপোনাৰ বয়সটো ক'ত?" }));
+  try {
+    const result = await h.session.processUserUtterance("My name is Test Person age 28", { responseLanguage: "as" });
+    assert.match(result.text, /ফোন/u);
+    assert.doesNotMatch(result.text, /নাম|বয়স/u);
+    assert.equal(result.businessState.intake.lastQuestion?.field, "phone");
+    assert.equal(result.businessState.intake.name?.value, "Test Person");
+    assert.equal(result.businessState.intake.age?.value, 28);
+    assert.equal(h.provider.inputs.length, 0, "no second LLM judge or generation");
+  } finally { await h.session.close(); }
+});
+
+test("unclear speech after collection keeps captured values eligible unless the caller explicitly disputes them", () => {
+  const state = emptyIntake();
+  state.name = candidate("Test Person", 1); state.age = { value: 28, evidence: "28", sourceTurn: 2 };
+  state.lastQuestion = { field: "age", text: "A stale model question", turnId: 3 };
+  const input: IntakeInput = { text: "unclear", turnId: 4, language: "en", state: structuredClone(state), phoneConfirmed: true };
+  applyIntakeDecision(state, validateIntakeDecision({ ...nothing, intent: "unclear", nextField: "ready" }, input), input);
+  assert.equal(state.name.value, "Test Person"); assert.equal(state.age.value, 28);
+  assert.equal(state.unresolvedAge, false); assert.equal(state.unresolvedName, false);
+});
+
+test("a stale free-form intake question cannot change the ready stage or fabricate booking confirmation", async () => {
+  const h = harness(async input => ({ ...nothing, intent: "provide_details", name: candidate("Test Person", input.turnId),
+    age: { value: 28, evidence: "28", sourceTurn: input.turnId }, nextField: "phone" }));
+  try {
+    await h.session.processUserUtterance("My name is Test Person age 28");
+    const phone = await h.session.processUserUtterance("7002326313"); await h.session.notifyPlaybackResult(phone.turnId, true);
+    await h.session.processUserUtterance("yes");
+    h.runtime.dialogue.select({ id: randomUUID(), name: "Dr. Baruah", isActive: true });
+    const slotId = randomUUID();
+    h.runtime.dialogue.state.selectedDate = "2026-10-26"; h.runtime.dialogue.state.selectedSlotId = slotId;
+    h.runtime.dialogue.state.offeredSlots = [{ id: slotId, slotDate: "2026-10-26", startTime: "09:00", endTime: "09:15", maxPatients: 1, remainingCapacity: 1 }];
+    const wrong = "আপোনাৰ নামটো দয়া কৰি স্পষ্টকৈ ক'ব পাৰিবনে? আপোনাৰ বয়সটো ক'ত?";
+    h.runtime.behavior.onResponse?.(wrong, h.runtime.snapshot());
+    assert.equal(h.runtime.snapshot().intake.lastQuestion?.field, "ready");
+    const reply = h.runtime.behavior.respond?.({ text: "Shall I confirm this booking?", userText: "Hi. This is Dwarok.",
+      language: "en", state: h.runtime.snapshot(), isFallback: false, repeated: false, previousResponse: undefined });
+    assert.ok(reply); assert.doesNotMatch(reply.text, /name|age|confirm this booking/iu);
+    assert.match(reply.text, /reviewed|not.*booked/iu);
+    assert.equal(h.runtime.snapshot().pendingAction, null);
+    assert.equal(h.runtime.snapshot().intake.name?.value, "Test Person"); assert.equal(h.runtime.snapshot().intake.age?.value, 28);
+  } finally { await h.session.close(); }
+});
+
+test("asking for a doctor's name never sets the patient-name question, and a date question replaces the old goal", async () => {
+  const h = harness(async () => nothing);
+  try {
+    await h.session.processUserUtterance("hello");
+    h.runtime.behavior.onResponse?.("অনুগ্ৰহ কৰি ডাক্তৰৰ নাম ক'ব।", h.runtime.snapshot());
+    assert.equal(h.runtime.snapshot().intake.lastQuestion?.field, "doctor");
+    h.runtime.dialogue.doctors(2, [{ id: randomUUID(), name: "Dr. Baruah", isActive: true }]);
+    h.runtime.behavior.onResponse?.("ডাঃ বৰুৱাক পালোঁ। আপুনি কোন তাৰিখে যাব বিচাৰে?", h.runtime.snapshot());
+    assert.equal(h.runtime.snapshot().intake.lastQuestion?.field, "date");
+  } finally { await h.session.close(); }
+});
+
+test("an unclear availability answer before options are loaded remains a date task without phantom patient disputes", async () => {
+  let calls = 0;
+  const h = harness(async input => {
+    calls++; assert.equal(input.expectedField, "date");
+    assert.deepEqual(input.offered?.dates, []);
+    return { ...nothing, intent: "unclear", nextField: "date", reply: "Which date would you prefer?" };
+  });
+  h.runtime.dialogue.select({ id: randomUUID(), name: "Dr. Baruah", isActive: true });
+  try {
+    const result = await h.session.processUserUtterance("আইৱে' লেবল আছে এতিয়া?");
+    assert.equal(calls, 1);
+    assert.equal(result.businessState.intake.unresolvedName, false);
+    assert.equal(result.businessState.intake.name, null);
+    assert.equal(result.businessState.intake.pending.length, 0);
+    assert.equal(result.businessState.intake.lastQuestion?.field, "date");
+  } finally { await h.session.close(); }
+});
+
+test("a fresh current name can fill a missing name after clarification while existing disputed values still require correction", () => {
+  const state = emptyIntake(); state.unresolvedName = true; state.unresolved = true;
+  const input: IntakeInput = { text: "মোৰ নাম লৈ আশীষ বৰা?", turnId: 4, language: "as", state: structuredClone(state), phoneConfirmed: false };
+  const decision = validateIntakeDecision({ ...nothing, intent: "provide_details", name: candidate("আশীষ বৰা", 4), nextField: "age" }, input);
+  applyIntakeDecision(state, decision, input);
+  assert.equal(state.name?.value, "আশীষ বৰা");
+  assert.equal(state.unresolvedName, false);
+  assert.equal(state.unresolved, false);
+});
+
+test("age interpretation accepts multilingual words and digits while preserving the selected reply language", async () => {
+  const examples: Array<[string, number]> = [["twenty", 20], ["টুৱেণ্টি", 20], ["बीस", 20], ["athais", 28], ["untis", 29],
+    ["আঠাইশ", 28], ["अट्ठाईस", 28], ["उनतीस", 29], ["27", 27], ["28", 28], ["20", 20], ["18", 18], ["19", 19]];
+  for (const [text, age] of examples) {
+    const provider = new ScriptedProvider(messages => {
+      const input = JSON.parse(messages[0]!.content) as IntakeInput;
+      assert.equal(input.expectedField, "age"); assert.equal(input.language, "as");
+      return [{ type: "text", delta: JSON.stringify({ ...nothing, intent: "provide_details", nextField: "phone",
+        age: { value: age, evidence: text, sourceTurn: input.turnId }, reply: "আপোনাৰ ফোন নম্বৰটো কওক।" }) }];
+    });
+    // Retain the name through the behavior's real current-turn path.
+    const nameInterpreter: IntakeInterpreter = async () => ({ ...nothing, intent: "provide_details", name: candidate("Test Person", 1), nextField: "age", reply: "আপোনাৰ বয়স কিমান?" });
+    const named = harness(async (value, signal) => value.turnId === 1 ? nameInterpreter(value, signal) : createIntakeInterpreter(provider)(value, signal));
+    named.runtime.dialogue.select({ id: randomUUID(), name: "Dr. Baruah", isActive: true });
+    try {
+      await named.session.processUserUtterance("My name is Test Person", { responseLanguage: "as" });
+      const result = await named.session.processUserUtterance(text, { responseLanguage: "as" });
+      assert.equal(result.businessState.intake.age?.value, age, text);
+      assert.equal(result.businessState.intake.name?.value, "Test Person");
+      assert.equal(result.text, "আপোনাৰ ফোন নম্বৰটো কওক।");
+      assert.equal(provider.inputs.length, 1);
+    } finally { await named.session.close(); }
+  }
+});
+
 test("early name and age persist before any doctor/date/slot selection, with one interpretation", async () => {
   let calls = 0;
   const h = harness(async input => { calls++; return { intent: "provide_details", name: candidate("উদয়চিছ বৰা", input.turnId),
@@ -37,7 +151,7 @@ test("early name and age persist before any doctor/date/slot selection, with one
     const reply = await h.session.processUserUtterance("মোৰ নাম উদয়চিছ বৰা বয়স twenty");
     assert.equal(h.runtime.snapshot().intake.name?.value, "উদয়চিছ বৰা");
     assert.equal(h.runtime.snapshot().intake.age?.value, 20);
-    assert.equal(reply.replySource, "model"); assert.equal(calls, 1); assert.equal(h.provider.inputs.length, 0);
+    assert.equal(reply.replySource, "verified_tool"); assert.equal(calls, 1); assert.equal(h.provider.inputs.length, 0);
     await h.session.notifyInterruption(reply.turnId);
     assert.equal(h.runtime.snapshot().intake.age?.value, 20);
     assert.equal(h.runtime.snapshot().pendingDraftId, null);
@@ -150,7 +264,7 @@ test("real SDK resolves phonetic nine-thirty only to a returned slot", async () 
   try {
     const reply = await h.session.processUserUtterance("নাইন ঠার্তি");
     assert.equal(h.runtime.snapshot().dialogue.selectedSlotId, slotId); assert.equal(reply.businessState.slots.dateOrTime, "2026-10-20 09:30:00");
-    assert.equal(reply.replySource, "model"); assert.equal(h.provider.inputs.length, 0);
+    assert.equal(reply.replySource, "verified_tool"); assert.equal(h.provider.inputs.length, 0);
   } finally { await h.session.close(); }
 });
 
@@ -217,6 +331,103 @@ test("an ambiguous date answer gets one contextual model clarification without c
     assert.equal(h.provider.inputs.length, 0); assert.equal(h.runtime.snapshot().intake.unresolved, false);
     assert.equal(h.runtime.snapshot().dialogue.selectedDate, null);
   } finally { await h.session.close(); }
+});
+
+test("long date answers with punctuation reach the SDK as date selections, never patient names", async () => {
+  const provider = new ScriptedProvider(messages => {
+    const input = JSON.parse(messages[0]!.content) as IntakeInput;
+    assert.equal(input.expectedField, "date");
+    assert.deepEqual(input.offered?.dates, ["2026-10-24", "2026-10-25", "2026-10-26"]);
+    return [{ type: "text", delta: JSON.stringify({ ...nothing, intent: "provide_details", nextField: "time",
+      choice: { date: "2026-10-25", slotId: null, evidence: input.text }, reply: "Which time would you prefer?" }) }];
+  });
+  const h = harness(createIntakeInterpreter(provider));
+  h.runtime.dialogue.select({ id: randomUUID(), name: "Dr. Baruah", isActive: true });
+  h.runtime.dialogue.dates(1, ["2026-10-24", "2026-10-25", "2026-10-26"]);
+  try {
+    const result = await h.session.processUserUtterance("পচি অক্টোবৰ কৈ আছে দুখন? পচি অক্টোবৰ। অনুগ্ৰহ কৰি মোৰ কথাটো বুজি লওক।");
+    assert.equal(provider.inputs.length, 1);
+    assert.equal(result.businessState.dialogue.selectedDate, "2026-10-25");
+    assert.equal(result.businessState.intake.name, null);
+    assert.equal(result.businessState.intake.lastQuestion?.field, "time");
+    assert.equal(result.text, "Which time would you prefer?");
+  } finally { await h.session.close(); }
+});
+
+test("a spoken date acknowledgement without a structured choice cannot advance intake or claim selection", async () => {
+  let calls = 0;
+  const h = harness(async input => {
+    calls++;
+    assert.equal(input.expectedField, "date");
+    return { ...nothing, intent: "provide_details", nextField: "time", reply: "25 October is selected. Which time would you like?" };
+  });
+  h.runtime.dialogue.select({ id: randomUUID(), name: "Dr. Baruah", isActive: true });
+  h.runtime.dialogue.dates(1, ["2026-10-24", "2026-10-25", "2026-10-26"]);
+  try {
+    for (const text of ["পচি অক্টোবৰ।", "পঁচি অক্টোবৰ?", "পচি অক্টোবৰ কৈ আছে দুখন? পচি অক্টোবৰ।"]) {
+      const result = await h.session.processUserUtterance(text);
+      assert.equal(result.businessState.dialogue.selectedDate, null);
+      assert.equal(result.businessState.intake.name, null);
+      assert.equal(result.businessState.intake.pending.length, 0);
+      assert.equal(result.businessState.intake.nonProgress, 0);
+      assert.equal(result.businessState.intake.lastQuestion?.field, "date");
+      assert.doesNotMatch(result.text, /selected|time|name|phone|নাম|ফোন/iu);
+    }
+    assert.equal(calls, 3);
+    assert.equal(h.provider.inputs.length, 0);
+  } finally { await h.session.close(); }
+});
+
+test("date-stage interpretation rejects patient-field contamination without retaining calendar evidence as a name", async () => {
+  const h = harness(async input => ({ ...nothing, intent: "provide_details", name: candidate(input.text, input.turnId),
+    nextField: "age", reply: "How old are you?" }));
+  h.runtime.dialogue.select({ id: randomUUID(), name: "Dr. Baruah", isActive: true });
+  h.runtime.dialogue.dates(1, ["2026-10-24", "2026-10-25", "2026-10-26"]);
+  try {
+    const result = await h.session.processUserUtterance("অ' চি চকটোব।");
+    assert.equal(result.businessState.intake.name, null);
+    assert.equal(result.businessState.intake.pending.length, 0);
+    assert.equal(result.businessState.intake.lastQuestion?.field, "date");
+    assert.match(result.text, /date|তাৰিখ/iu);
+  } finally { await h.session.close(); }
+});
+
+test("a validated model date choice plans the enabled availability tool and retains the date for a night-time request", async () => {
+  const context = { organizationId: randomUUID(), agentId: randomUUID(), sessionId: randomUUID() };
+  const interpreter = createIntakeInterpreter(new ScriptedProvider(messages => {
+    const input = JSON.parse(messages[0]!.content) as IntakeInput;
+    assert.equal(input.expectedField, "date");
+    return [{ type: "text", delta: JSON.stringify({ ...nothing, intent: "provide_details", nextField: "time",
+      choice: { date: "2026-10-25", slotId: null, evidence: input.text }, reply: "Which time would you prefer?" }) }];
+  }));
+  const runtime = new ClinicVoiceRuntime(context, randomUUID(), randomUUID(), { db: {} as Database,
+    transaction: async () => { throw new Error("Only planning is authorized in this test"); }, logger: { info() {}, warn() {}, error() {} } },
+    "Asia/Kolkata", undefined, interpreter, [...clinicToolNames]);
+  const doctorId = randomUUID();
+  runtime.dialogue.select({ id: doctorId, name: "Dr. Baruah", isActive: true });
+  runtime.dialogue.dates(1, ["2026-10-24", "2026-10-25", "2026-10-26"]);
+  const plan = await runtime.behavior.onTurn?.("পচি অক্টোবৰ।", 2);
+  assert.equal(plan?.initialToolCall?.name, "get_available_times");
+  assert.deepEqual(plan?.initialToolCall?.arguments, { date: "2026-10-25" });
+  assert.equal(runtime.snapshot().dialogue.selectedDate, "2026-10-25");
+  assert.equal(runtime.snapshot().slots.dateOrTime, "2026-10-25");
+  const slot = { id: randomUUID(), slotDate: "2026-10-25", startTime: "10:00:00", endTime: "10:15:00", maxPatients: 30, remainingCapacity: 30 };
+  runtime.dialogue.times(2, "2026-10-25", [slot]);
+  assert.equal(runtime.planTurn("দহা বজাত আছেনে গেভেলো, ৰাতি দহা বজাত।", clinicToolNames)?.name, "get_available_times");
+  assert.deepEqual(runtime.dialogue.request.times, ["22:00"]);
+  runtime.dialogue.times(3, "2026-10-25", [slot]);
+  assert.equal(runtime.snapshot().dialogue.selectedDate, "2026-10-25");
+  assert.equal(runtime.snapshot().dialogue.selectedSlotId, null, "night request cannot select the morning slot");
+});
+
+test("a literal conflicting or unavailable date cannot be silently replaced by a different model choice", () => {
+  const input: IntakeInput = { text: "20 October", turnId: 1, language: "en", state: emptyIntake(), phoneConfirmed: false,
+    expectedField: "date", offered: { dates: ["2026-10-24", "2026-10-25", "2026-10-26"], times: [] } };
+  const proposal = { ...nothing, choice: { date: "2026-10-25", slotId: null, evidence: input.text }, nextField: "time" };
+  assert.throws(() => validateIntakeDecision(proposal, input), /invalid_selection/u);
+  assert.throws(() => validateIntakeDecision({ ...proposal, choice: { ...proposal.choice, evidence: "24 October" } }, { ...input, text: "24 October" }), /invalid_selection/u);
+  const spoken = { ...input, text: "ছাব্বিছ অক্টোবৰ", offered: { dates: ["2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27"], times: [] } };
+  assert.throws(() => validateIntakeDecision({ ...proposal, choice: { date: "2026-10-27", slotId: null, evidence: spoken.text } }, spoken), /invalid_selection/u);
 });
 
 test("ordinary speech keeps complete short model sentences and never cuts a clock value", () => {

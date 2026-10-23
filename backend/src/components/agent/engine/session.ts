@@ -97,6 +97,16 @@ export class AgentSession<T> {
   }
   getState() { return snapshot(this.conversation); }
   getHistory() { return snapshot(this.conversation.history); }
+  /** Opening speech is assistant-only and never enters business confirmation callbacks. */
+  async recordOpening(text: string, completed: boolean): Promise<void> {
+    this.ensureOpen();
+    if (!text.trim()) return;
+    const opening = this.conversation.history.find(m => m.role === "assistant" && m.turnId === 0);
+    if (opening) { opening.interrupted = !completed; }
+    else this.conversation.history.unshift({ role: "assistant", content: text, turnId: 0, interrupted: !completed });
+    if (completed && this.session.turnCount === 0) this.conversation.lastAssistantUtterance = text;
+    await this.persist();
+  }
   getSnapshot() { return snapshot({ context: this.context, session: this.session, conversation: this.conversation }); }
   private ensureOpen(): void { if (this.session.status === "closed") throw new Error("Agent session is closed"); }
   private current(turnId: number, signal: AbortSignal): void {

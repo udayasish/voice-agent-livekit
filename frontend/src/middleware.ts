@@ -16,11 +16,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // If authenticated and visiting login page, redirect to dashboard home
-  if (hasAuth && isPublicRoute) {
-    const homeUrl = new URL("/", request.url);
-    return NextResponse.redirect(homeUrl);
-  }
+  // Cookie presence does not prove validity. Always allow the login page so an
+  // expired/revoked session cannot bounce between this middleware and AuthGuard.
 
   return NextResponse.next();
 }

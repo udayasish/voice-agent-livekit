@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { voiceProfileSchema } from "./profiles.js";
+import { snapshotSchema } from "./configuration/schema.js";
 
 export const bindingSchema = z.object({
+  schemaVersion: z.literal(2),
   organizationId: z.uuid(), userId: z.uuid(), agentId: z.string().min(1), sessionId: z.uuid(),
   callId: z.uuid(), conversationId: z.uuid(), roomName: z.string().min(1), participantIdentity: z.string().min(1),
-  profile: voiceProfileSchema,
+  profile: snapshotSchema,
 }).strict().refine(b => b.organizationId === b.profile.organizationId && b.agentId === b.profile.agentId);
 export type RuntimeBinding = z.infer<typeof bindingSchema>;
 export interface BindingStore {

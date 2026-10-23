@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X, Sparkles, Building2 } from "lucide-react";
 import { navigationConfig } from "@/config/navigation";
+import { useAuthStore } from "@/store/auth-store";
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,8 @@ import { Badge } from "@/components/ui/badge";
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { isMobileNavOpen, setMobileNavOpen, activeOrgName } = useUiStore();
+  const { isMobileNavOpen, setMobileNavOpen } = useUiStore();
+  const activeOrgName=useAuthStore(s=>s.activeOrganization?.name) ?? "No organization";
 
   // Auto-close drawer on route change
   React.useEffect(() => {

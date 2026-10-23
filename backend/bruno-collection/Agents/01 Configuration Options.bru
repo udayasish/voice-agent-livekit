@@ -1,0 +1,28 @@
+meta {
+  name: Configuration Options
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{host}}/api/v1/agents/options
+  auth: bearer
+}
+
+headers {
+  x-organization-id: {{organizationId}}
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+tests {
+  test("Expected HTTP status", function () { expect(res.status).to.equal(200); });
+  test("Standard envelope", function () { expect(res.body.success).to.equal(true); expect(res.body).to.have.property("data"); });
+  test("Catalog and permissions", function () { expect(res.body.data.tools).to.be.an("array"); expect(res.body.data.permissions).to.have.property("canEdit"); });
+}
+
+docs {
+  Run Auth/Login first. If appointmentsEnabled is false or tools is empty, stop and check clinic setup. This request changes no data.
+}

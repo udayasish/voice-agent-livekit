@@ -89,6 +89,8 @@ export class ClinicVoiceRuntime {
   readonly dialogue: ClinicDialogue;
   private plannedProblem: "disabled" | "doctor" | "date" | "time" | "ampm" | undefined;
   private language: AgentLanguage = "as";
+  private humanContact: { label: string; phoneNumber: string } | undefined;
+  setHumanContact(value: { label: string; phoneNumber: string }) { this.humanContact = { ...value }; }
   private actionCorrection = false;
   private replyGoal: NonNullable<ClinicVoiceState["intake"]["lastQuestion"]>["field"] | undefined;
   constructor(readonly context: SessionContext, readonly callId: string, readonly conversationId: string, private readonly deps: ClinicDependencies, timezone = "Asia/Kolkata", private readonly interpret: ConfirmationInterpreter = async () => unclearDecision(), private readonly interpretIntake?: IntakeInterpreter, private readonly enabledTools?: readonly string[]) {
@@ -100,6 +102,23 @@ export class ClinicVoiceRuntime {
       stateSchema: clinicVoiceStateSchema, initialState: () => this.snapshot(),
       onTurn: async (text, turnId, preparation = { turnId, signal: new AbortController().signal, language: this.language, history: [] }) => {
         this.language = preparation.language;
+        if (this.humanContact && /\bhuman\b|\breception(?:ist)?\b|\bstaff\b|মানুহ|ৰিচেপচন|কৰ্মচাৰী|इंसान|रिसेप्शन|कर्मचारी/iu.test(text)) {
+          this.turn = turnId; this.replySource = "verified_tool"; this.prepared = true;
+          const contact = this.humanContact;
+          this.say(lang => ({ as: `স্বয়ংক্ৰিয় কল ট্ৰেন্সফাৰ উপলব্ধ নহয়। ${contact.label}: ${contact.phoneNumber} নম্বৰত যোগাযোগ কৰিব পাৰে।`,
+            hi: `स्वचालित कॉल ट्रांसफर उपलब्ध नहीं है। ${contact.label} से ${contact.phoneNumber} पर संपर्क कर सकते हैं।`,
+            en: `Automatic call transfer is unavailable. You can contact ${contact.label} at ${contact.phoneNumber}.` })[lang]);
+          return { allowedTools: [] };
+        }
+        if (this.enabledTools?.length === 0) {
+          this.turn = turnId; this.replySource = "verified_tool"; this.prepared = true;
+          this.say(lang => ({
+            as: "এই এজেণ্টত এতিয়া ক্লিনিকৰ তথ্য বা এপইণ্টমেণ্ট সুবিধা সক্ৰিয় কৰা হোৱা নাই।",
+            hi: "इस एजेंट में अभी क्लिनिक की जानकारी या अपॉइंटमेंट सुविधा चालू नहीं है।",
+            en: "Clinic information and appointment actions are not enabled for this agent.",
+          })[lang]);
+          return { allowedTools: [] };
+        }
         let intakeFailure = false;
         const explicitName = /\bname\b|নাম|नाम/iu.test(text);
         const explicitAge = /\bage\b|\byears?\b|বয়স|বয়স|বছৰ|এইজ|এজ|उम्र|साल/iu.test(text);
@@ -118,21 +137,21 @@ export class ClinicVoiceRuntime {
           // without asking the model to reconstruct/resubmit the phone number.
           if (this.intake.lastQuestion?.field === "phone") this.intake.lastQuestion = null;
           if (!planned && !this.draft && this.enabledTools?.includes("resolve_clinic_and_caller")) {
-            planned = { name: "resolve_clinic_and_caller", arguments: {} };
+            planned = this.bookingPreparation(this.enabledTools) ?? { name: "resolve_clinic_and_caller", arguments: {} };
           }
         }
         const missingIntake = nextIntakeField(this.intake, this.phoneConfirmed) !== "ready" || this.intake.unresolved;
         const correctionHint = Boolean(this.intake.age) && /\b(?:no|not|wrong|correct)\b|নহয়|নহয়|ভুল|नहीं|गलत/iu.test(text);
         const expectedIntake = missingIntake && (this.dialogue.state.question === "patient" || ["name", "age"].includes(this.intake.lastQuestion?.field ?? "") || this.intake.unresolved);
-        const optionAnswer = !planned && !this.plannedProblem && ["date", "time", "ampm"].includes(this.dialogue.state.question)
-          && Boolean(this.dialogue.state.offeredDates.length || this.dialogue.state.offeredSlots.length)
-          && text.trim().split(/\s+/u).length <= 8
-          && !/[?？]|\b(?:why|what|which|how|booking|appointment|book|cancel|available)\b|কিয়|কোন|কিমান|এপইণ্ট|বুক|বাতিল/iu.test(text);
-        if (this.interpretIntake && (!confirmationTurn || this.actionCorrection) && (!this.prepared || this.actionCorrection)
+        // The last scheduling question supplies the meaning of an answer. Long
+        // answers, questions and imperfect STT still need semantic interpretation.
+        const optionAnswer = !planned && this.plannedProblem !== "disabled" && Boolean(this.dialogue.state.selectedDoctor)
+          && ["date", "time", "ampm"].includes(this.dialogue.state.question);
+        if (this.interpretIntake && (this.enabledTools === undefined || this.enabledTools.includes("book_appointment")) && (!confirmationTurn || this.actionCorrection) && (!this.prepared || this.actionCorrection)
           && (explicitIntake || correctionHint || expectedIntake || optionAnswer || this.actionCorrection || (missingIntake && this.intake.pending.length > 0)) && (!planned || explicitIntake)) {
           if (this.actionCorrection) { this.reply = undefined; this.prepared = false; }
           const revision = this.intake.revision;
-          const selectionOnly = optionAnswer && !explicitIntake && !expectedIntake;
+          const selectionOnly = optionAnswer && !explicitIntake && !["name", "age"].includes(this.intake.lastQuestion?.field ?? "");
           let expectedField: IntakeInput["expectedField"] = this.conversationGoal();
           if (selectionOnly) expectedField = this.dialogue.state.question === "ampm" ? "ampm" : this.dialogue.state.question === "date" ? "date" : "time";
           else if (explicitName) expectedField = "name";
@@ -150,6 +169,18 @@ export class ClinicVoiceRuntime {
           preparation.signal.throwIfAborted();
           if (this.closed || this.turn !== turnId || revision !== this.intake.revision) throw new DOMException("Turn superseded", "AbortError");
           if (decision) {
+            if (decision.intent === "request_availability" && this.dialogue.state.selectedDoctor && this.enabledTools) {
+              const date = this.dialogue.state.selectedDate;
+              const name = date && expectedField !== "date" ? "get_available_times" : "get_available_dates";
+              this.plannedProblem = undefined;
+              if (this.enabledTools.includes(name)) {
+                return { initialToolCall: { name, arguments: name === "get_available_times"
+                  ? { doctorId: this.dialogue.state.selectedDoctor.id, date }
+                  : { doctorId: this.dialogue.state.selectedDoctor.id } }, allowedTools: [name] };
+              }
+              this.dialogue.problem(turnId, "disabled");
+              return { allowedTools: [] };
+            }
             const applied = selectionOnly ? { changed: false, progress: false } : applyIntakeDecision(this.intake, decision, input);
             if (this.intake.name) this.slots.patientName = this.intake.name.value;
             if (applied.changed && this.draft && !this.draft.completed) this.draft = undefined;
@@ -165,9 +196,23 @@ export class ClinicVoiceRuntime {
                 }
               } else { this.plannedProblem = this.dialogue.state.selectedDate ? "ampm" : "date"; }
             }
+            if (selectionOnly && !planned) {
+              // Speech cannot stand in for a structured, validated selection.
+              // Keep failed calendar answers out of the patient's name evidence.
+              const next = choiceAccepted ? this.conversationGoal() : expectedField === "date" ? "date" : "time";
+              this.plannedProblem = undefined;
+              if ((choiceAccepted || !decision.choice) && decision.nextField === next && !containsCompletionClaim(decision.reply)) {
+                this.say(() => decision.reply); this.replySource = "model";
+              } else this.say(lang => this.intakeClarification(lang, next));
+              this.replyGoal = next; this.prepared = true;
+              return { allowedTools: [] };
+            }
             const intakeNext = nextIntakeField(this.intake, this.phoneConfirmed);
             const next = selectionOnly && !choiceAccepted ? this.dialogue.state.question === "date" ? "date" : "time"
               : intakeNext === "ready" ? this.conversationGoal() : intakeNext;
+            // Preparing a readback cannot book. Route completed intake through the
+            // same typed tool instead of letting model speech impersonate a draft.
+            if (!planned && (applied.progress || choiceAccepted) && this.enabledTools) planned = this.bookingPreparation(this.enabledTools);
             this.deps.logger.info("Clinic understanding completed", { organizationId: this.context.organizationId, sessionId: this.context.sessionId, turnId,
               outcome: choiceAccepted ? "selection" : applied.progress ? "captured" : this.intake.unresolved ? "clarification" : "no_progress",
               hasName: Boolean(this.intake.name), hasAge: Boolean(this.intake.age), disputedName: this.intake.unresolvedName,
@@ -182,11 +227,20 @@ export class ClinicVoiceRuntime {
               if (next === "phone" && !choiceAccepted) this.collectingPhone = true;
             }
           } else {
+            if (selectionOnly) {
+              this.plannedProblem = undefined;
+              const next = expectedField === "date" ? "date" : "time";
+              // An unrelated question or unavailable interpreter may still need
+              // the ordinary LLM reply. Retain the scheduling goal without
+              // turning its text into name evidence or granting any action.
+              this.replyGoal = next;
+              return { allowedTools: this.enabledTools?.filter(name => ["list_doctors", "find_doctor", "get_available_dates", "get_available_times"].includes(name)) ?? [] };
+            }
             retainIntakeEvidence(this.intake, input);
             // A failed correction interpretation cannot leave a previous value
             // silently eligible for booking. A later explicit correction resolves it.
-            if (this.intake.age && (/\bage\b|বয়স|বয়স|উম্র|उम्र/iu.test(text) || input.state.lastQuestion?.field === "age")) this.intake.unresolvedAge = true;
-            if (this.intake.name && (/\bname\b|নাম|नाम/iu.test(text) || input.state.lastQuestion?.field === "name")) this.intake.unresolvedName = true;
+            if (this.intake.age && (explicitAge || correctionHint && expectedField === "age")) this.intake.unresolvedAge = true;
+            if (this.intake.name && (explicitName || correctionHint && expectedField === "name")) this.intake.unresolvedName = true;
             this.intake.unresolved = this.intake.unresolvedAge || this.intake.unresolvedName;
             this.intake.revision++;
             this.say(lang => ({ as: "উত্তৰ প্ৰক্ৰিয়াকৰণত সমস্যা হৈছে। অলপ পিছত চেষ্টা কৰক।", hi: "जवाब तैयार करने में समस्या है। कृपया थोड़ी देर बाद कोशिश करें।", en: "Response processing failed. Please try again shortly." })[lang]);
@@ -197,7 +251,14 @@ export class ClinicVoiceRuntime {
         const guidance = this.plannedProblem;
         this.plannedProblem = undefined;
         if (intakeFailure) return { failureCategory: "interpretation_failed" };
-        if (planned) return { initialToolCall: planned, allowedTools: [planned.name] };
+        if (this.draft && !this.draft.completed && this.draft.authorizedTurn === turnId) {
+          const name = this.draft.kind === "booking" ? "book_appointment" : "cancel_appointment";
+          if (this.enabledTools?.includes(name)) planned = { name, arguments: { mode: "confirm", draftId: this.draft.id } };
+        }
+        if (planned) {
+          this.reply = undefined; this.prepared = false;
+          return { initialToolCall: planned, allowedTools: [planned.name] };
+        }
         if (guidance) return { allowedTools: [] };
         if (this.enabledTools && this.draft && !this.draft.completed) return { allowedTools: this.enabledTools.filter(name => name === (this.draft!.kind === "booking" ? "book_appointment" : "cancel_appointment")) };
         return this.enabledTools ? { allowedTools: this.turnTools().filter(name => this.enabledTools!.includes(name)
@@ -210,7 +271,7 @@ export class ClinicVoiceRuntime {
       preparedReply: language => this.prepared && this.reply?.turnId === this.turn ? { text: this.reply.text(language), source: this.replySource } : undefined,
       onRecovery: (reason, turnId) => {
         this.turn = turnId; this.prepared = true; this.reply = undefined;
-        if (this.draft && !this.draft.completed) this.readback(this.draft);
+        if (this.draft && !this.draft.completed) this.clarifyAction(this.draft);
         else if (this.phone && !this.phoneConfirmed) this.clarifyPhone();
         else this.say(lang => ({ as: reason === "no_input" ? "মই শুনি আছোঁ। আপুনি কি কৰিব বিচাৰে?" : "আপোনাৰ কথা স্পষ্ট নহ'ল। অনুগ্ৰহ কৰি আকৌ এবাৰ কওক।",
           hi: "मैं सुन रही हूँ। कृपया अपनी बात फिर से कहें।", en: reason === "no_input" ? "I'm listening. How can I help?" : "Your speech was unclear. Please say that again." })[lang]);
@@ -229,6 +290,8 @@ export class ClinicVoiceRuntime {
           id: this.dialogue.state.selectedSlotId, time: this.dialogue.state.offeredSlots.find(s => s.id === this.dialogue.state.selectedSlotId)!.startTime.slice(0, 5) } : null,
         offeredDates: this.dialogue.state.offeredDates, lastReadFailure: this.lastReadFailure,
         phoneCaptured: Boolean(this.phone), phoneConfirmed: this.phoneConfirmed, callerResolved: Boolean(this.patientId),
+        dialoguePhase: this.draft && !this.draft.completed ? "confirm_action" : this.phone && !this.phoneConfirmed ? "confirm_phone"
+          : this.completedSummary() ? "completed" : this.conversationGoal() === "ready" ? "ready_for_review" : "collect",
         ...(this.completedSummary() && (!this.draft || this.draft.completed) ? {
           conversationPhase: "completed",
           completionGuidance: "Action finished. Answer naturally from latestCompletedAction; no intake or reconfirmation. Caller may end the call; never auto-disconnect.",
@@ -290,9 +353,16 @@ export class ClinicVoiceRuntime {
         // Structured replies carry a goal. Legacy/free-form questions are observed
         // only as context for the next interpretation, never as accepted user facts.
         const asking = /[?？]|কওক|ক'ব|দিব|please|tell|provide|say|बताएं|बताइए|दीजिए/iu.test(text);
-        const observed = asking && /বয়স|বয়স|\bage\b|उम्र/iu.test(text) ? "age" : asking && /নাম|\bname\b|नाम/iu.test(text) ? "name"
+        const doctorQuestion = asking && /(?:doctor(?:'s)?|ডাক্তৰ|ডাক্টৰ|ডক্টৰ|চিকিৎসক|डॉक्टर).{0,16}(?:name|নাম|नाम)|which.{0,16}doctor|কোন.{0,12}(?:ডাক্তৰ|ডক্টৰ|চিকিৎসক)/iu.test(text);
+        const dateQuestion = asking && /(?:which|what).{0,16}(?:date|day)|কোন.{0,12}(?:তাৰিখ|দিন)|কেতিয়া|किस तारीख/iu.test(text);
+        const timeQuestion = asking && /(?:which|what).{0,16}time|কোন.{0,12}সময়|কিমান বজাত|किस समय/iu.test(text);
+        const observed = doctorQuestion ? "doctor" : dateQuestion ? "date" : timeQuestion ? "time"
+          : asking && /বয়স|বয়স|\bage\b|उम्र/iu.test(text) ? "age" : asking && /নাম|\bname\b|नाम/iu.test(text) ? "name"
           : this.collectingPhone ? "phone" : this.conversationGoal();
-        this.intake.lastQuestion = { field: this.replyGoal ?? observed, turnId: this.turn, text: text.slice(0, 600) };
+        const knownField = observed === "name" && this.intake.name && !this.intake.unresolvedName
+          || observed === "age" && this.intake.age && !this.intake.unresolvedAge;
+        const field = this.draft && !this.draft.completed ? "ready" : this.replyGoal ?? (knownField ? this.conversationGoal() : observed);
+        this.intake.lastQuestion = { field, turnId: this.turn, text: text.slice(0, 600) };
         if (this.reply?.turnId === this.turn && this.reply.readback === "phone") { this.phoneHeard = false; this.phoneReadbackTurn = this.turn; }
         if (this.reply?.turnId === this.turn && this.reply.readback === "action" && this.draft) { this.draft.heard = false; this.draft.readbackTurn = this.turn; }
         return this.snapshot();
@@ -308,6 +378,14 @@ export class ClinicVoiceRuntime {
   private ordinarySpeech(text: string, language: AgentLanguage, goal: string, source: "model" | "recovery" = "model"): { text: string; source: "model" | "recovery" | "verified_tool" } {
     const completed = this.completedSpeech(text, language, source);
     if (completed) return completed;
+    // The SDK interprets meaning; the backend owns collection questions. Free
+    // wording must never reopen filled fields or invent booking confirmation.
+    if (this.interpretIntake && !this.draft && ["name", "age", "phone", "ready"].includes(goal)) {
+      const question = this.intakeClarification(language, goal);
+      if (text !== question) this.deps.logger.info("Clinic collection question enforced", { organizationId: this.context.organizationId,
+        sessionId: this.context.sessionId, turnId: this.turn, nextField: goal, hasName: Boolean(this.intake.name), hasAge: Boolean(this.intake.age) });
+      return { text: question, source: text === question ? source : "verified_tool" };
+    }
     const asksKnownPhone = this.phoneConfirmed && text.split(/(?<=[.!?।])\s*/u).some(sentence =>
       /ফোন|মোবাইল|নম্বৰ|phone|mobile|number|फ़ोन|फोन|मोबाइल|नंबर/iu.test(sentence)
       && /[?？]|কওক|ক'ব|ক’ব|কবনে|ক'বনে|দিব|শুদ্ধনে|কিমান|\b(?:give|tell|provide|say|dictate)\b|बताएं|बताइए|दीजिए/iu.test(sentence));
@@ -316,8 +394,10 @@ export class ClinicVoiceRuntime {
     const asksKnownAge = this.intake.age && !this.intake.unresolvedAge
       && /(?:what(?:'s| is).{0,20}age|how old|(?:tell|provide).{0,20}age|বয়স.{0,12}(?:কিমান|কওক|দিব)|उम्र.{0,12}(?:बताएं|कितनी))/iu.test(text);
     const asksKnownDoctor = this.dialogue.state.selectedDoctor && /which.{0,20}doctor|কোন(?:জন|টো)?.{0,12}(?:ডাক্তৰ|ডাক্টৰ|ডক্টৰ|চিকিৎসক)|कौन.{0,12}डॉक्टर/iu.test(text);
+    const skipsDate = goal === "date" && !this.dialogue.state.selectedDate
+      && /(?:which|what).{0,20}(?:time|name|age|phone)|(?:date|october).{0,25}(?:selected|chosen)|কোন.{0,12}সময়|নাম.{0,12}(?:কওক|ক'ব)|বাছি\s*ল|तारीख.{0,15}चुन|किस समय/iu.test(text);
     const knownDates = [...this.dialogue.state.offeredDates, ...this.dialogue.state.latest?.dates ?? [], ...(this.dialogue.state.selectedDate ? [this.dialogue.state.selectedDate] : [])];
-    if (asksKnownPhone || asksKnownName || asksKnownAge || asksKnownDoctor || hasUnverifiedNumericDate(text, knownDates)) return { text: this.intakeClarification(language, goal), source: "verified_tool" };
+    if (asksKnownPhone || asksKnownName || asksKnownAge || asksKnownDoctor || skipsDate || hasUnverifiedNumericDate(text, knownDates)) return { text: this.intakeClarification(language, goal), source: "verified_tool" };
     const concise = conciseClinicSpeech(text, () => this.intakeClarification(language, goal));
     return { text: concise.text, source: concise.fallback ? "verified_tool" : source };
   }
@@ -338,8 +418,10 @@ export class ClinicVoiceRuntime {
     if (completed && (!this.draft || this.draft.completed)) return completed;
     if (field === "name" && this.intake.nonProgress >= 2) return ({ as: "নামটো ধীৰে কওক; প্ৰয়োজন হ'লে বানান কৰি কওক।", hi: "नाम धीरे बोलें; ज़रूरत हो तो उसकी स्पेलिंग बताएं।", en: "Please say the name slowly, or spell it out." })[language];
     if (field === "name") return ({ as: "অনুগ্ৰহ কৰি কেৱল ৰোগীৰ সম্পূৰ্ণ নামটো কওক।", hi: "कृपया सिर्फ मरीज का पूरा नाम बताएं।", en: "Please say just the patient's full name." })[language];
-    if (field === "age") return ({ as: "অনুগ্ৰহ কৰি শুদ্ধ বয়সটো এটা এটাকৈ অংকত কওক।", hi: "कृपया सही उम्र के अंक एक-एक करके बताएं।", en: "Please say the correct age using individual digits." })[language];
-    if (field === "phone") return ({ as: "আপোনাৰ ফোন নম্বৰটো ইংৰাজীত এটা এটাকৈ অংকত কওক।", hi: "फोन नंबर अंग्रेज़ी में एक-एक अंक बताएं।", en: "Please say your phone number in English digits." })[language];
+    if (field === "age") return this.intake.unresolvedAge || this.intake.nonProgress >= 2
+      ? ({ as: "অনুগ্ৰহ কৰি শুদ্ধ বয়সটো এটা এটাকৈ অংকত কওক।", hi: "कृपया सही उम्र के अंक एक-एक करके बताएं।", en: "Please say the correct age using individual digits." })[language]
+      : ({ as: "আপোনাৰ বয়স কিমান?", hi: "आपकी उम्र कितनी है?", en: "What is the patient's age?" })[language];
+    if (field === "phone") return ({ as: "আপোনাৰ ফোন নম্বৰটো কওক।", hi: "कृपया अपना फोन नंबर बताएं।", en: "Please say your phone number in English digits." })[language];
     if (field === "doctor") return ({ as: "আপোনাৰ দিয়া ৰোগীৰ তথ্য ৰাখিছোঁ। আপুনি কোনজন চিকিৎসক বিচাৰে?", hi: "मरीज के दिए विवरण रखे हैं। कौन से डॉक्टर चाहिए?", en: "I have kept the patient details you supplied. Which doctor would you prefer?" })[language];
     if (field === "date") return ({ as: "আপুনি কোন তাৰিখে যাব বিচাৰে?", hi: "आप किस तारीख को आना चाहते हैं?", en: "Which date would you prefer?" })[language];
     if (field === "time") return ({ as: "উপলব্ধ সময়ৰ কোনটো বাছিব বিচাৰে?", hi: "उपलब्ध समय में कौन सा चुनेंगे?", en: "Which of the available times would you prefer?" })[language];
@@ -371,8 +453,7 @@ export class ClinicVoiceRuntime {
     if (requestBooking && !this.draft && this.phoneConfirmed && !this.intake.unresolved && nextIntakeField(this.intake, true) === "ready"
       && this.dialogue.state.selectedDoctor && slot) {
       if (!enabled.includes("book_appointment")) { this.plannedProblem = "disabled"; return undefined; }
-      return { name: "book_appointment", arguments: { mode: "prepare", doctorId: this.dialogue.state.selectedDoctor.id, slotId: slot.id,
-        patientName: this.intake.name!.value, patientAge: this.intake.age!.value } };
+      return this.bookingPreparation(enabled);
     }
     const plan = this.dialogue.plan(text, clinicLocalDate(this.deps.now?.() ?? new Date(), this.dialogue.timezone), patientAnswer);
     this.plannedProblem = plan.guidance;
@@ -380,6 +461,15 @@ export class ClinicVoiceRuntime {
     return plan.call;
   }
   hasPlannedGuidance() { return Boolean(this.plannedProblem); }
+  private bookingPreparation(enabled: readonly string[]): TurnOptions["initialToolCall"] {
+    const slot = this.dialogue.state.offeredSlots.find(s => s.id === this.dialogue.state.selectedSlotId);
+    if (!enabled.includes("book_appointment") || this.draft || this.callerActions().length || !this.phoneConfirmed || this.intake.unresolved
+      || !this.intake.name || !this.intake.age || !this.dialogue.state.selectedDoctor || !slot) return undefined;
+    this.deps.logger.info("Clinic booking review planned", { organizationId: this.context.organizationId, sessionId: this.context.sessionId,
+      turnId: this.turn, phase: "ready_for_review", intakeRevision: this.intake.revision });
+    return { name: "book_appointment", arguments: { mode: "prepare", doctorId: this.dialogue.state.selectedDoctor.id, slotId: slot.id,
+      patientName: this.intake.name.value, patientAge: this.intake.age.value } };
+  }
   getConfirmationStage(): "phone" | "action" | "confirmed" | "none" {
     return this.draft && !this.draft.completed ? "action" : this.phoneConfirmed ? "confirmed" : this.phone ? "phone" : "none";
   }
@@ -507,6 +597,15 @@ export class ClinicVoiceRuntime {
     this.say(lang => ({ as: "নম্বৰটো শুদ্ধ নে সলনি কৰিব লাগে?",
       hi: "क्या नंबर सही है या बदलना है?", en: "Is that number correct, or should it change?" })[lang]);
   }
+  private clarifyAction(draft: Draft) {
+    draft.authorizedTurn = undefined;
+    if (!draft.heard) { this.readback(draft); return; }
+    // An unclear response cannot authorize an action or erase the completed
+    // readback of an unchanged draft. Replacements still require a new readback.
+    this.say(lang => ({ as: "বিৱৰণ ৰাখিছোঁ। এই কামটো নিশ্চিত কৰিব বিচাৰে, তথ্য সলনি কৰিব বিচাৰে, নে বন্ধ কৰিব বিচাৰে?",
+      hi: "विवरण सुरक्षित हैं। कार्रवाई की पुष्टि करें, जानकारी बदलें या रोकें?",
+      en: "I have kept the details. Would you like to confirm this action, change a detail, or stop?" })[lang]);
+  }
   private askFullNumber() {
     this.say(lang => ({ as: "নম্বৰটো সলনি কৰা নাই। অনুগ্ৰহ কৰি সম্পূৰ্ণ শুদ্ধ নম্বৰটো ইংৰাজীত এটা এটাকৈ কওক, অথবা আগৰ নম্বৰটো ৰাখিব বিচাৰে নে কওক।",
       hi: "नंबर अभी नहीं बदला है। पूरा सही नंबर अंग्रेज़ी में एक-एक अंक बताएं, या बताएं कि पिछला नंबर रखना है।",
@@ -550,7 +649,7 @@ export class ClinicVoiceRuntime {
         this.unconfirmPhone(); this.collectingPhone = true;
         this.askFullNumber(); this.prepared = true; return;
       } else {
-        if (draft) this.readback(draft); else if (this.phone) this.clarifyPhone();
+        if (draft) this.clarifyAction(draft); else if (this.phone) this.clarifyPhone();
         this.prepared = true; return;
       }
     }

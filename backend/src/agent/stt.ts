@@ -31,6 +31,12 @@ export function dispatchTranscriptCallback(run: () => void | Promise<void>, onEr
 
 export type STTInputMode = "conversation" | "english-digits";
 export type STTRecognitionOptions = Pick<deepgram.STTOptions, "language" | "numerals" | "smartFormat" | "punctuate">;
+/** Keep an explicitly selected multilingual baseline for ordinary conversation.
+ * Critical readbacks still recognize the trusted conversation language. */
+export function conversationRecognitionLanguage(language: string, criticalConfirmation = false,
+  baselineLanguage = getDeepgramConfig().language): string | undefined {
+  return baselineLanguage === "multi" && !criticalConfirmation ? undefined : language;
+}
 /** Minimal SDK surface, also used by offline stream-lifecycle tests. */
 export interface ManagedSTTStream extends AsyncIterable<stt.SpeechEvent> {
   updateOptions(options: Partial<deepgram.STTOptions>): void;
@@ -75,6 +81,7 @@ export async function loadDeepgramSTT(
       language: config.language,
       sampleRate: config.sampleRate,
     });
+    if (config.language === "multi") logger.warn("[agent:stt] Multilingual comparison enabled; Assamese is not listed in Deepgram multilingual support. Live qualification is required.");
     return sttInstance;
   } catch (err) {
     logger.error("[agent:stt] Failed to initialize Deepgram STT", {

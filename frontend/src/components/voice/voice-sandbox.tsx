@@ -1,7 +1,8 @@
 "use client";
 import { toolActivityLabel, replyBadge, voiceStatusLabel } from "@/lib/voice-diagnostics";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
+import { useUiStore } from "@/store/ui-store";
 import {
   Mic,
   MicOff,
@@ -51,6 +52,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
 
   const isConnected = status === "connected";
   const isConnecting = status === "connecting" || status === "requesting_token";
+  useEffect(() => { useUiStore.getState().setVoiceSessionBusy(isConnected || isConnecting || status === "reconnecting"); return () => useUiStore.getState().setVoiceSessionBusy(false); }, [isConnected, isConnecting, status]);
 
   const formattedDuration = useMemo(() => {
     const mins = Math.floor(duration / 60)
@@ -73,7 +75,7 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Radio className={`h-4 w-4 ${isConnected ? "text-emerald-500 animate-pulse" : "text-primary"}`} />
-            <CardTitle className="text-base font-semibold">LiveKit Audio Sandbox</CardTitle>
+            <CardTitle className="text-base font-semibold">Test Voice</CardTitle>
           </div>
           <div>
             {isConnected && (
@@ -93,21 +95,11 @@ export function VoiceSandbox({ agentId, roomNameOverride, compact = false }: Voi
           </div>
         </div>
         <CardDescription className="text-xs">
-          Realtime WebRTC browser audio stream via local LiveKit server.
+          Start a conversation using this agent’s saved settings.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {organizations.length > 1 && (
-          <label className="block space-y-1 text-xs">
-            <span>Clinic / organization for this test</span>
-            <select className="w-full rounded-md border bg-background p-2" aria-label="Test organization"
-              value={activeOrganization?.id ?? ""} disabled={isConnected || isConnecting}
-              onChange={event => { const organization = organizations.find(org => org.id === event.target.value); if (organization) setActiveOrganization(organization); }}>
-              {organizations.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-            </select>
-          </label>
-        )}
         {/* Error Alert */}
         {error && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start space-x-2">

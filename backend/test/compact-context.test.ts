@@ -169,7 +169,7 @@ test("intake rejects invented evidence/numeric changes and bounds ignored cancel
   assert.equal(await createIntakeInterpreter(stalled, () => {}, 15)({ text: "hello", turnId: 1, language: "en", state: emptyIntake(), phoneConfirmed: false }, new AbortController().signal), null);
 });
 
-test("clinic saves intake early, asks one model-written follow-up and clears caller context on switch", async () => {
+test("clinic saves intake early, asks one server-selected follow-up and clears caller context on switch", async () => {
   const runtime = new ClinicVoiceRuntime(context(), randomUUID(), randomUUID(), { db: {} as Database, transaction: async () => { throw new Error("No DB"); }, logger: { info() {}, warn() {}, error() {} } }, "Asia/Kolkata", undefined,
     async input => ({ intent: "provide_details", name: { value: "Udoy Bora", evidence: "Udoy Bora", sourceTurn: input.turnId }, age: { value: 28, evidence: "28", sourceTurn: input.turnId }, nextField: "phone", reply: "Thanks. What phone number should we use?" }));
   runtime.dialogue.state.question = "patient";
@@ -177,7 +177,7 @@ test("clinic saves intake early, asks one model-written follow-up and clears cal
   const session = new AgentSession(config, runtime.context, provider, runtime.behavior);
   try {
     const result = await session.processUserUtterance("Udoy Bora, age 28");
-    assert.equal(result.replySource, "model"); assert.equal(provider.inputs.length, 0);
+    assert.equal(result.replySource, "verified_tool"); assert.equal(provider.inputs.length, 0);
     assert.equal(runtime.snapshot().intake.age?.value, 28); assert.equal(runtime.snapshot().slots.patientName, "Udoy Bora");
     await session.processUserUtterance("7002059544");
     await session.processUserUtterance("7002059545"); // unconfirmed correction cannot change identity without interpretation
